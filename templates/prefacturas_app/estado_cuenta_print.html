@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Estado de Cuenta</title>
+    <style>
+        :root {
+            --ink: #1a1a1a;
+            --line: #8c8c8c;
+            --muted: #5a5a5a;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: #f3f3f3;
+            color: var(--ink);
+            font-family: "Bahnschrift", "Trebuchet MS", "Segoe UI", sans-serif;
+        }
+
+        .toolbar {
+            max-width: 210mm;
+            margin: 12px auto 0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 0 8px;
+        }
+
+        .toolbar button {
+            border: 1px solid #6b6b6b;
+            background: linear-gradient(#ffffff, #d9d9d9);
+            border-radius: 6px;
+            height: 32px;
+            min-width: 110px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .page {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 8px auto 24px;
+            background: #fff;
+            border: 1px solid #bdbdbd;
+            padding: 10mm;
+        }
+
+        .header {
+            border-bottom: 2px solid #4f4f4f;
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+
+        .title {
+            margin: 0;
+            text-align: center;
+            font-size: 28px;
+            letter-spacing: 1px;
+            color: #122f88;
+        }
+
+        .meta {
+            margin-top: 6px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 12px;
+            font-size: 13px;
+        }
+
+        .label {
+            color: var(--muted);
+            font-weight: 700;
+            margin-right: 6px;
+        }
+
+        .balance-box {
+            margin: 10px 0 12px;
+            border: 1px solid var(--line);
+            padding: 8px;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+        }
+
+        .balance-box strong {
+            font-size: 16px;
+            color: #102f89;
+        }
+
+        .balance-value {
+            font-size: 18px;
+            font-weight: 800;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th, td {
+            border: 1px solid #b8b8b8;
+            padding: 6px 7px;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #efefef;
+            font-size: 12px;
+        }
+
+        .empty {
+            height: 420px;
+            color: #7a7a7a;
+            text-align: center;
+        }
+
+        .alert-cell {
+            color: #b21111;
+            font-weight: 700;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+
+        @media print {
+            body { background: #fff; }
+            .toolbar { display: none; }
+            .page {
+                border: none;
+                margin: 0;
+                width: auto;
+                min-height: auto;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button type="button" onclick="window.print()">Imprimir</button>
+        <button type="button" onclick="window.close()">Cerrar</button>
+    </div>
+
+    <main class="page">
+        <header class="header">
+            <h1 class="title">ESTADO DE CUENTA</h1>
+            <div class="meta">
+                <div><span class="label">Cliente:</span>{{ cliente.id_sn|default:"-" }}</div>
+                <div><span class="label">Fecha impresion:</span>{{ fecha_impresion|date:"d/m/Y" }}</div>
+                <div><span class="label">Nombre:</span>{{ cliente.nom_socio|default:"-" }}</div>
+                <div><span class="label">RNC/CED:</span>{{ cliente.rnc_ced|default:"-" }}</div>
+                <div><span class="label">Direccion:</span>{{ cliente.dir_factura|default:"-" }}</div>
+                <div><span class="label">Telefono:</span>{{ cliente.tel1|default:"-" }}</div>
+            </div>
+        </header>
+
+        <section class="balance-box">
+            <strong>Balance Actual</strong>
+            <div class="balance-value">{{ balance|floatformat:2 }}</div>
+        </section>
+
+        <section>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha fact.</th>
+                        <th>No. fact</th>
+                        <th>Monto doc.</th>
+                        <th>Saldo pend.</th>
+                        <th>Fecha venc.</th>
+                        <th>Dias</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if facturas_abiertas %}
+                        {% for f in facturas_abiertas %}
+                            <tr>
+                                <td>{{ f.fecha_doc }}</td>
+                                <td>{{ f.id_doc }}</td>
+                                <td>{{ f.total_doc|floatformat:2 }}</td>
+                                <td class="alert-cell">{{ f.saldo|floatformat:2 }}</td>
+                                <td>{{ f.fecha_venc }}</td>
+                                <td class="alert-cell">{{ f.dias }}</td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="6" class="empty">No hay facturas abiertas para este cliente.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

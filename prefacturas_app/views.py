@@ -1,0 +1,2628 @@
+from pathlib import Path
+
+from django.conf import settings
+from django.contrib.auth.hashers import check_password, make_password
+from django.core import signing
+from django.db import connection
+from django.db import transaction
+from django.db.models import Q
+from django.http import JsonResponse
+from django.shortcuts import redirect, render
+from django.utils import timezone
+from django.views.decorators.http import require_http_methods
+from datetime import datetime, time
+import json
+import os
+import socket
+import uuid
+from decimal import Decimal
+
+from .models import EtiquetaFormatoUsuario
+from .models_existing import DetPedido, MaestroSn, MaestroArticulo
+
+AUTH_COOKIE_NAME = "prefacturas_auth_v2"
+LEGACY_AUTH_COOKIE_NAMES = ["prefacturas_auth"]
+
+
+def _normalize_bloqueado(value):
+    return str(value or "").strip().upper()
+
+
+def _articulos_bloqueados_info(cursor, article_ids):
+    ids = sorted({str(x or "").strip() for x in article_ids if str(x or "").strip()})
+    if not ids:
+        return []
+    placeholders = ", ".join(["%s"] * len(ids))
+    cursor.execute(
+        f"""
+        SELECT ID_ARTICULO, ISNULL(DESCRIP_ART, ''), ISNULL(BLOQUEADO, 'N')
+        FROM MAESTRO_ARTICULO
+        WHERE ID_ARTICULO IN ({placeholders})
+        """,
+        ids,
+    )
+    blocked = []
+    for row in cursor.fetchall():
+        if _normalize_bloqueado(row[2]) == "Y":
+            blocked.append(
+                {
+                    "id_articulo": str(row[0] or "").strip(),
+                    "descrip_art": str(row[1] or "").strip(),
+                }
+            )
+    return blocked
+
+
+def _build_foto_url(foto_value):
+    if not foto_value:
+        return ""
+    foto_str = str(foto_value).strip()
+    if not foto_str:
+        return ""
+    if foto_str.startswith(("http://", "https://", "/media/")):
+        return foto_str
+
+    normalized = foto_str.replace("\\", "/")
+    try:
+        abs_path = Path(foto_str)
+        if abs_path.is_absolute():
+            rel = abs_path.resolve().relative_to(Path(settings.MEDIA_ROOT).resolve())
+            return f"{settings.MEDIA_URL}{str(rel).replace('\\', '/')}"
+    except Exception:
+        pass
+
+    return f"{settings.MEDIA_URL}{normalized.lstrip('/')}"
+
+
+def _get_auth_payload(request):
+    token = request.COOKIES.get(AUTH_COOKIE_NAME)
+    if not token:
+        return None
+    try:
+        return signing.loads(token, max_age=60 * 60 * 12)
+    except signing.BadSignature:
+        return None
+
+
+def _get_usuario_activo(usuario_input):
+    query = """
+        SELECT TOP 1 ID_USUARIO, ISNULL(NOMBRE, USUARIO) AS NOMBRE, USUARIO, ISNULL([PASSWORD], '')
+        FROM USUARIO
+        WHERE USUARIO = %s
+          AND UPPER(ISNULL(ESTADO, '')) = 'ACTIVO'
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(query, [usuario_input])
+        row = cursor.fetchone()
+    if not row:
+        return None
+    return {
+        "usuario_id": int(row[0]),
+        "usuario_nombre": row[1],
+        "usuario_login": row[2],
+        "password_hash": str(row[3] or "").strip(),
+    }
+
+
+def _build_login_response(payload):
+    response = redirect("inicio")
+    response.set_cookie(
+        AUTH_COOKIE_NAME,
+        signing.dumps(
+            {
+                "usuario_id": payload["usuario_id"],
+                "usuario_nombre": payload["usuario_nombre"],
+                "usuario_login": payload["usuario_login"],
+            }
+        ),
+        httponly=True,
+        samesite="Lax",
+    )
+    return response
+
+
+@require_http_methods(["GET", "POST"])
+def login_view(request):
+    if _get_auth_payload(request):
+        return redirect("inicio")
+
+    error_message = None
+    info_message = None
+    step = "usuario"
+    usuario_input = ""
+    if request.method == "POST":
+        action = (request.POST.get("action") or "identify").strip().lower()
+        usuario_input = (request.POST.get("usuario") or "").strip()
+        if not usuario_input:
+            error_message = "Debes ingresar un usuario."
+        else:
+            payload = _get_usuario_activo(usuario_input)
+            if not payload:
+                error_message = "Usuario no encontrado o inactivo."
+            elif action == "identify":
+                if payload["password_hash"]:
+                    step = "password_login"
+                    info_message = "Usuario encontrado. Ingresa tu contraseña."
+                else:
+                    step = "password_create"
+                    info_message = "Este usuario no tiene contraseña. Crea una nueva."
+            elif action == "login_password":
+                step = "password_login"
+                password_value = request.POST.get("password") or ""
+                if not password_value:
+                    error_message = "Debes ingresar la contraseña."
+                else:
+                    ok_password = False
+                    try:
+                        ok_password = bool(payload["password_hash"]) and check_password(
+                            password_value, payload["password_hash"]
+                        )
+                    except Exception:
+                        ok_password = False
+                    if ok_password:
+                        return _build_login_response(payload)
+                    error_message = "Contraseña incorrecta."
+            elif action == "set_password":
+                step = "password_create"
+                if payload["password_hash"]:
+                    step = "password_login"
+                    info_message = "Este usuario ya tiene contraseña. Ingresa la contraseña actual."
+                else:
+                    password_new = request.POST.get("password_new") or ""
+                    password_confirm = request.POST.get("password_confirm") or ""
+                    if len(password_new) < 4:
+                        error_message = "La contraseña debe tener al menos 4 caracteres."
+                    elif password_new != password_confirm:
+                        error_message = "Las contraseñas no coinciden."
+                    else:
+                        password_hash = make_password(password_new)
+                        with connection.cursor() as cursor:
+                            cursor.execute(
+                                """
+                                UPDATE USUARIO
+                                SET [PASSWORD] = %s
+                                WHERE ID_USUARIO = %s
+                                """,
+                                [password_hash, int(payload["usuario_id"])],
+                            )
+                        payload["password_hash"] = password_hash
+                        return _build_login_response(payload)
+            else:
+                error_message = "Accion no valida."
+
+    return render(
+        request,
+        "prefacturas_app/login.html",
+        {
+            "error_message": error_message,
+            "info_message": info_message,
+            "step": step,
+            "usuario_input": usuario_input,
+        },
+    )
+
+
+def inicio_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return redirect("login")
+    sectores = []
+    empresa_nombre = "COMERCIAL ANITA SRL"
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT ID_CODIGO, DESCRIPCION
+                FROM Territorio
+                WHERE DESCRIPCION IS NOT NULL AND LTRIM(RTRIM(DESCRIPCION)) <> ''
+                ORDER BY DESCRIPCION
+                """
+            )
+            sectores = [
+                {"id_codigo": row[0], "descripcion": row[1]}
+                for row in cursor.fetchall()
+            ]
+    except Exception:
+        sectores = []
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT TOP 1 NOMBRE
+                FROM EMPRESA
+                WHERE NOMBRE IS NOT NULL AND LTRIM(RTRIM(NOMBRE)) <> ''
+                """
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                empresa_nombre = str(row[0]).strip()
+    except Exception:
+        empresa_nombre = "COMERCIAL ANITA SRL"
+
+    return render(
+        request,
+        "prefacturas_app/inicio.html",
+        {"auth_payload": auth_payload, "sectores": sectores, "empresa_nombre": empresa_nombre},
+    )
+
+
+def logout_view(request):
+    response = redirect("login")
+    response.delete_cookie(AUTH_COOKIE_NAME)
+    for legacy_name in LEGACY_AUTH_COOKIE_NAMES:
+        response.delete_cookie(legacy_name)
+    return response
+
+
+@require_http_methods(["POST"])
+def cambiar_password_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    password_actual = str(payload.get("password_actual") or "")
+    password_nueva = str(payload.get("password_nueva") or "")
+    password_confirm = str(payload.get("password_confirm") or "")
+    if not password_actual:
+        return JsonResponse({"detail": "La contraseña actual es obligatoria."}, status=400)
+    if len(password_nueva) < 4:
+        return JsonResponse({"detail": "La nueva contraseña debe tener al menos 4 caracteres."}, status=400)
+    if password_nueva != password_confirm:
+        return JsonResponse({"detail": "La confirmación no coincide."}, status=400)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT TOP 1 ISNULL([PASSWORD], '')
+            FROM USUARIO
+            WHERE ID_USUARIO = %s
+              AND UPPER(ISNULL(ESTADO, '')) = 'ACTIVO'
+            """,
+            [int(auth_payload["usuario_id"])],
+        )
+        row = cursor.fetchone()
+        if not row:
+            return JsonResponse({"detail": "Usuario no encontrado o inactivo."}, status=404)
+        current_hash = str(row[0] or "").strip()
+        try:
+            valid_current = bool(current_hash) and check_password(password_actual, current_hash)
+        except Exception:
+            valid_current = False
+        if not valid_current:
+            return JsonResponse({"detail": "La contraseña actual es incorrecta."}, status=400)
+
+        cursor.execute(
+            """
+            UPDATE USUARIO
+            SET [PASSWORD] = %s
+            WHERE ID_USUARIO = %s
+            """,
+            [make_password(password_nueva), int(auth_payload["usuario_id"])],
+        )
+
+    return JsonResponse({"ok": True})
+
+
+@require_http_methods(["GET"])
+def estado_cuenta_print_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return redirect("login")
+
+    id_sn = (request.GET.get("id_sn") or "").strip()
+    cliente = None
+    balance = 0.0
+    facturas_abiertas = []
+
+    if id_sn:
+        cliente = (
+            MaestroSn.objects.filter(id_sn=id_sn)
+            .values(
+                "id_sn",
+                "nom_socio",
+                "rnc_ced",
+                "dir_factura",
+                "tel1",
+            )
+            .first()
+        )
+        if cliente:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT COALESCE(SUM(DEBITO), 0) - COALESCE(SUM(CREDITO), 0)
+                    FROM DET_ED
+                    WHERE ID_SN = %s
+                    """,
+                    [id_sn],
+                )
+                row = cursor.fetchone()
+            balance = float(row[0]) if row and row[0] is not None else 0.0
+
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT FECHA_DOC, ID_DOC, TOTAL_DOC, SALDO, FECHA_VENC
+                    FROM CAB_FACTURA
+                    WHERE ID_SN = %s
+                      AND UPPER(ISNULL(EST_DOC, '')) = 'ABIERTO'
+                    ORDER BY FECHA_DOC, ID_DOC
+                    """,
+                    [id_sn],
+                )
+                rows = cursor.fetchall()
+
+            def _fmt_date(value):
+                if not value:
+                    return ""
+                if hasattr(value, "strftime"):
+                    return value.strftime("%d/%m/%Y")
+                return str(value)
+
+            def _to_float(value):
+                if value is None:
+                    return 0.0
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return 0.0
+
+            def _days_overdue(value):
+                if not value:
+                    return 0
+                try:
+                    d = value.date() if hasattr(value, "date") else value
+                    return max((timezone.localdate() - d).days, 0)
+                except Exception:
+                    return 0
+
+            docs = [row[1] for row in rows if row[1] is not None]
+            cuotas_by_doc = {}
+            if docs:
+                placeholders = ", ".join(["%s"] * len(docs))
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        f"""
+                        SELECT NO_DOC, NO_CUOTA, FECHA, FECHA_VENC, CUOTA, BALANCE, SALDO_INSOLUTO
+                        FROM DET_PRESTAMO
+                        WHERE NO_DOC IN ({placeholders})
+                        ORDER BY NO_DOC, NO_CUOTA
+                        """,
+                        docs,
+                    )
+                    cuotas_rows = cursor.fetchall()
+                for c in cuotas_rows:
+                    no_doc = c[0]
+                    cuotas_by_doc.setdefault(no_doc, []).append(
+                        {
+                            "no_cuota": c[1],
+                            "fecha": c[2],
+                            "fecha_venc": c[3],
+                            "cuota": c[4],
+                            "balance": c[5],
+                            "saldo_insoluto": c[6],
+                        }
+                    )
+
+            facturas_abiertas = []
+            for row in rows:
+                fecha_doc, id_doc, total_doc, saldo_doc, fecha_venc = row
+                cuotas = cuotas_by_doc.get(id_doc, [])
+                if cuotas:
+                    # Si existe financiamiento, se muestran las cuotas en lugar de la factura.
+                    for cuota in cuotas:
+                        no_cuota = cuota.get("no_cuota")
+                        id_doc_label = f"{id_doc}-{no_cuota}" if no_cuota is not None else id_doc
+                        saldo_cuota = cuota.get("balance")
+                        if saldo_cuota is None:
+                            saldo_cuota = cuota.get("saldo_insoluto")
+                        saldo_cuota_val = _to_float(saldo_cuota)
+                        if saldo_cuota_val <= 0:
+                            continue
+                        fecha_venc_cuota = cuota.get("fecha_venc") or fecha_venc
+                        facturas_abiertas.append(
+                            {
+                                "fecha_doc": _fmt_date(cuota.get("fecha") or fecha_doc),
+                                "id_doc": id_doc_label,
+                                "total_doc": _to_float(cuota.get("cuota")),
+                                "saldo": saldo_cuota_val,
+                                "fecha_venc": _fmt_date(fecha_venc_cuota),
+                                "dias": _days_overdue(fecha_venc_cuota),
+                            }
+                        )
+                else:
+                    saldo_doc_val = _to_float(saldo_doc)
+                    facturas_abiertas.append(
+                        {
+                            "fecha_doc": _fmt_date(fecha_doc),
+                            "id_doc": id_doc,
+                            "total_doc": _to_float(total_doc),
+                            "saldo": saldo_doc_val,
+                            "fecha_venc": _fmt_date(fecha_venc),
+                            "dias": _days_overdue(fecha_venc),
+                        }
+                    )
+
+    return render(
+        request,
+        "prefacturas_app/estado_cuenta_print.html",
+        {
+            "auth_payload": auth_payload,
+            "cliente": cliente,
+            "balance": balance,
+            "facturas_abiertas": facturas_abiertas,
+            "fecha_impresion": timezone.localdate(),
+        },
+    )
+
+
+@require_http_methods(["GET"])
+def buscar_stock_articulos_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    q = (request.GET.get("q") or "").strip()
+    stock_desde_raw = (request.GET.get("stock_desde") or "").strip()
+    stock_hasta_raw = (request.GET.get("stock_hasta") or "").strip()
+
+    def _to_dec_or_none(v):
+        if v == "":
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    stock_desde = _to_dec_or_none(stock_desde_raw)
+    stock_hasta = _to_dec_or_none(stock_hasta_raw)
+
+    sql = """
+        SELECT TOP 800 ID_ARTICULO, DESCRIP_ART, ISNULL(STOCK, 0), UM_INV, REFERENCIA
+        FROM MAESTRO_ARTICULO
+        WHERE 1=1
+    """
+    params = []
+    if q:
+        sql += " AND (ID_ARTICULO LIKE %s OR DESCRIP_ART LIKE %s OR REFERENCIA LIKE %s)"
+        like = f"%{q}%"
+        params.extend([like, like, like])
+    if stock_desde is not None:
+        sql += " AND ISNULL(STOCK, 0) >= %s"
+        params.append(stock_desde)
+    if stock_hasta is not None:
+        sql += " AND ISNULL(STOCK, 0) <= %s"
+        params.append(stock_hasta)
+    sql += " ORDER BY DESCRIP_ART, ID_ARTICULO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    results = []
+    for r in rows:
+        try:
+            stock = float(r[2] or 0)
+        except Exception:
+            stock = 0.0
+        results.append(
+            {
+                "id_articulo": r[0] or "",
+                "descrip_art": r[1] or "",
+                "stock": stock,
+                "uom": r[3] or "",
+                "referencia": r[4] or "",
+            }
+        )
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def stock_articulos_print_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return redirect("login")
+
+    q = (request.GET.get("q") or "").strip()
+    stock_desde_raw = (request.GET.get("stock_desde") or "").strip()
+    stock_hasta_raw = (request.GET.get("stock_hasta") or "").strip()
+
+    def _to_dec_or_none(v):
+        if v == "":
+            return None
+        try:
+            return Decimal(str(v))
+        except Exception:
+            return None
+
+    stock_desde = _to_dec_or_none(stock_desde_raw)
+    stock_hasta = _to_dec_or_none(stock_hasta_raw)
+
+    sql = """
+        SELECT ID_ARTICULO, DESCRIP_ART, ISNULL(STOCK, 0), UM_INV, REFERENCIA
+        FROM MAESTRO_ARTICULO
+        WHERE 1=1
+    """
+    params = []
+    if q:
+        sql += " AND (ID_ARTICULO LIKE %s OR DESCRIP_ART LIKE %s OR REFERENCIA LIKE %s)"
+        like = f"%{q}%"
+        params.extend([like, like, like])
+    if stock_desde is not None:
+        sql += " AND ISNULL(STOCK, 0) >= %s"
+        params.append(stock_desde)
+    if stock_hasta is not None:
+        sql += " AND ISNULL(STOCK, 0) <= %s"
+        params.append(stock_hasta)
+    sql += " ORDER BY DESCRIP_ART, ID_ARTICULO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    articulos = []
+    total_stock = 0.0
+    for r in rows:
+        try:
+            stock = float(r[2] or 0)
+        except Exception:
+            stock = 0.0
+        total_stock += stock
+        articulos.append(
+            {
+                "id_articulo": r[0] or "",
+                "descrip_art": r[1] or "",
+                "stock": stock,
+                "uom": r[3] or "",
+                "referencia": r[4] or "",
+            }
+        )
+
+    return render(
+        request,
+        "prefacturas_app/stock_articulos_print.html",
+        {
+            "articulos": articulos,
+            "total_stock": total_stock,
+            "q": q,
+            "stock_desde": stock_desde_raw,
+            "stock_hasta": stock_hasta_raw,
+            "fecha_impresion": timezone.localdate(),
+            "usuario_nombre": auth_payload.get("usuario_nombre", ""),
+        },
+    )
+
+
+@require_http_methods(["GET"])
+def buscar_clientes_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+    filtro = (request.GET.get("filtro") or "nombre").strip().lower()
+    clientes = MaestroSn.objects.exclude(bloqueado__iexact="Y")
+
+    if query:
+        if filtro == "codigo":
+            clientes = clientes.filter(id_sn__icontains=query)
+        elif filtro == "rnc":
+            clientes = clientes.filter(rnc_ced__icontains=query)
+        else:
+            clientes = clientes.filter(nom_socio__icontains=query)
+
+    if filtro == "codigo":
+        clientes = clientes.order_by("id_sn")
+    elif filtro == "rnc":
+        clientes = clientes.order_by("rnc_ced", "id_sn")
+    else:
+        clientes = clientes.order_by("nom_socio", "id_sn")
+
+    clientes = clientes.values(
+        "id_sn",
+        "nom_socio",
+        "rnc_ced",
+        "contacto",
+        "dir_factura",
+        "tel1",
+        "bloqueado",
+    )[:50]
+
+    return JsonResponse({"results": list(clientes)})
+
+
+@require_http_methods(["GET"])
+def buscar_prefacturas_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+    filtro = (request.GET.get("filtro") or "documento").strip().lower()
+    sql = """
+        SELECT TOP 50
+            ID_DOC, ID_SN, NOM_SOCIO, RNC_CED, CONTACTO, ENT_FACTURA, EST_DOC, FECHA_CONT, FECHA_DOC, FECHA_VENC, COMENTARIO
+        FROM CAB_PEDIDO
+    """
+    params = []
+    if query:
+        if filtro == "cliente":
+            sql += " WHERE ID_SN LIKE %s"
+            params.append(f"%{query}%")
+        elif filtro == "nombre":
+            sql += " WHERE NOM_SOCIO LIKE %s"
+            params.append(f"%{query}%")
+        else:
+            sql += " WHERE CAST(ID_DOC AS VARCHAR(50)) LIKE %s"
+            params.append(f"%{query}%")
+
+    if filtro == "cliente":
+        sql += " ORDER BY ID_SN, ID_DOC DESC"
+    elif filtro == "nombre":
+        sql += " ORDER BY NOM_SOCIO, ID_DOC DESC"
+    else:
+        sql += " ORDER BY TRY_CAST(ID_DOC AS BIGINT) DESC, ID_DOC DESC"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        pedidos = cursor.fetchall()
+
+    def _fmt_date(value):
+        if not value:
+            return ""
+        try:
+            return value.strftime("%Y-%m-%d")
+        except Exception:
+            return ""
+
+    results = []
+    for p in pedidos:
+        results.append(
+            {
+                "id_doc": str(p[0] or ""),
+                "id_sn": p[1] or "",
+                "nom_socio": p[2] or "",
+                "rnc_ced": p[3] or "",
+                "contacto": p[4] or "",
+                "ent_factura": p[5] or "",
+                "est_doc": p[6] or "",
+                "fecha_cont": _fmt_date(p[7]),
+                "fecha_doc": _fmt_date(p[8]),
+                "fecha_venc": _fmt_date(p[9]),
+                "comentario": p[10] or "",
+            }
+        )
+
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def buscar_articulos_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    q = (request.GET.get("q") or "").strip()
+    filtro = (request.GET.get("filtro") or "descripcion").strip().lower()
+    qs = MaestroArticulo.objects.exclude(bloqueado__iexact="Y")
+
+    if q:
+        if filtro == "articulo":
+            qs = qs.filter(id_articulo__icontains=q)
+        else:
+            qs = qs.filter(descrip_art__icontains=q)
+
+    qs = qs.order_by("id_articulo").values(
+        "id_articulo",
+        "descrip_art",
+        "referencia",
+        "um_inv",
+        "precio_det",
+        "id_impto_vt",
+        "bloqueado",
+    )[:80]
+
+    def _num(v):
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    results = [
+        {
+            "id_articulo": r.get("id_articulo") or "",
+            "descrip_art": r.get("descrip_art") or "",
+            "referencia": r.get("referencia") or "",
+            "um_inv": r.get("um_inv") or "",
+            "precio_det": _num(r.get("precio_det")),
+            "id_impto_vt": r.get("id_impto_vt"),
+            "bloqueado": (r.get("bloqueado") or "N"),
+        }
+        for r in qs
+    ]
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def buscar_grupos_articulos_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    q = (request.GET.get("q") or "").strip()
+    filtro = (request.GET.get("filtro") or "descripcion").strip().lower()
+    sql = """
+        SELECT TOP 120 ID_GRUPO, CODIGO, DESCRIPCION
+        FROM GRUPO_ARTICULO_CAB
+        WHERE ISNULL(ACTIVO, 'Y') <> 'N'
+    """
+    params = []
+    if q:
+        if filtro == "codigo":
+            sql += " AND CODIGO LIKE %s"
+            params.append(f"%{q}%")
+        else:
+            sql += " AND DESCRIPCION LIKE %s"
+            params.append(f"%{q}%")
+    if filtro == "codigo":
+        sql += " ORDER BY CODIGO"
+    else:
+        sql += " ORDER BY DESCRIPCION, CODIGO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    return JsonResponse(
+        {
+            "results": [
+                {
+                    "id_grupo": int(r[0]),
+                    "codigo": r[1] or "",
+                    "descripcion": r[2] or "",
+                }
+                for r in rows
+            ]
+        }
+    )
+
+
+@require_http_methods(["GET"])
+def detalle_grupo_articulos_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    id_grupo_raw = (request.GET.get("id_grupo") or "").strip()
+    if not id_grupo_raw:
+        return JsonResponse({"detail": "id_grupo requerido"}, status=400)
+    try:
+        id_grupo = int(id_grupo_raw)
+    except Exception:
+        return JsonResponse({"detail": "id_grupo invalido"}, status=400)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT ID_GRUPO, CODIGO, DESCRIPCION
+            FROM GRUPO_ARTICULO_CAB
+            WHERE ID_GRUPO = %s
+            """,
+            [id_grupo],
+        )
+        cab = cursor.fetchone()
+        if not cab:
+            return JsonResponse({"detail": "Grupo no encontrado"}, status=404)
+
+        cursor.execute(
+            """
+            SELECT D.ID_DET, D.ID_ARTICULO, A.REFERENCIA, A.DESCRIP_ART, D.CANTIDAD
+            FROM GRUPO_ARTICULO_DET D
+            LEFT JOIN MAESTRO_ARTICULO A ON A.ID_ARTICULO = D.ID_ARTICULO
+            WHERE D.ID_GRUPO = %s
+            ORDER BY D.ORDEN, D.ID_DET
+            """,
+            [id_grupo],
+        )
+        det_rows = cursor.fetchall()
+
+    def _num(v):
+        try:
+            return float(v)
+        except Exception:
+            return 0.0
+
+    return JsonResponse(
+        {
+            "grupo": {
+                "id_grupo": int(cab[0]),
+                "codigo": cab[1] or "",
+                "descripcion": cab[2] or "",
+            },
+            "detalles": [
+                {
+                    "id_det": int(r[0]),
+                    "id_articulo": r[1] or "",
+                    "referencia": r[2] or "",
+                    "descrip_art": r[3] or "",
+                    "cantidad": _num(r[4]),
+                }
+                for r in det_rows
+            ],
+        }
+    )
+
+
+@require_http_methods(["GET"])
+def detalle_grupo_articulos_prefactura_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    id_grupo_raw = (request.GET.get("id_grupo") or "").strip()
+    if not id_grupo_raw:
+        return JsonResponse({"detail": "id_grupo requerido"}, status=400)
+    try:
+        id_grupo = int(id_grupo_raw)
+    except Exception:
+        return JsonResponse({"detail": "id_grupo invalido"}, status=400)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT D.ID_ARTICULO, A.DESCRIP_ART, A.UM_INV, A.PRECIO_DET, A.ID_IMPTO_VT, D.CANTIDAD, ISNULL(A.BLOQUEADO, 'N')
+            FROM GRUPO_ARTICULO_DET D
+            INNER JOIN MAESTRO_ARTICULO A ON A.ID_ARTICULO = D.ID_ARTICULO
+            WHERE D.ID_GRUPO = %s
+            ORDER BY D.ORDEN, D.ID_DET
+            """,
+            [id_grupo],
+        )
+        rows = cursor.fetchall()
+
+    blocked_items = [
+        {
+            "id_articulo": str(r[0] or "").strip(),
+            "descrip_art": str(r[1] or "").strip(),
+        }
+        for r in rows
+        if _normalize_bloqueado(r[6]) == "Y"
+    ]
+    if blocked_items:
+        detalle = ", ".join(
+            [
+                f"{x['id_articulo']} - {x['descrip_art']}".strip(" -")
+                for x in blocked_items
+            ]
+        )
+        return JsonResponse(
+            {
+                "detail": f"No se puede cargar el grupo. Articulos bloqueados: {detalle}",
+                "blocked_articulos": blocked_items,
+            },
+            status=400,
+        )
+
+    def _num(v):
+        try:
+            return float(v)
+        except Exception:
+            return 0.0
+
+    return JsonResponse(
+        {
+            "results": [
+                {
+                    "id_articulo": r[0] or "",
+                    "descrip_art": r[1] or "",
+                    "um_inv": r[2] or "",
+                    "precio_det": _num(r[3]),
+                    "id_impto_vt": r[4],
+                    "cantidad": _num(r[5]),
+                }
+                for r in rows
+            ]
+        }
+    )
+
+
+@require_http_methods(["POST"])
+def guardar_grupo_articulos_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    def _to_int_or_none(v):
+        s = str(v or "").strip()
+        if not s:
+            return None
+        try:
+            return int(float(s))
+        except Exception:
+            return None
+
+    def _to_dec(v, default=Decimal("0")):
+        try:
+            if v is None or str(v).strip() == "":
+                return default
+            return Decimal(str(v))
+        except Exception:
+            return default
+
+    id_grupo = _to_int_or_none(payload.get("id_grupo"))
+    descripcion = str(payload.get("descripcion") or "").strip()
+    detalles = payload.get("detalles") or []
+    if not descripcion:
+        return JsonResponse({"detail": "Descripcion requerida"}, status=400)
+    if not isinstance(detalles, list):
+        return JsonResponse({"detail": "detalles invalido"}, status=400)
+
+    clean_detalles = []
+    orden = 0
+    for d in detalles:
+        if not isinstance(d, dict):
+            continue
+        id_articulo = str(d.get("id_articulo") or "").strip()
+        if not id_articulo:
+            continue
+        orden += 1
+        cantidad = _to_dec(d.get("cantidad"), Decimal("1"))
+        if cantidad <= 0:
+            cantidad = Decimal("1")
+        clean_detalles.append(
+            {
+                "orden": orden,
+                "id_articulo": id_articulo,
+                "cantidad": cantidad,
+            }
+        )
+
+    if not clean_detalles:
+        return JsonResponse({"detail": "Debes agregar al menos un articulo al grupo."}, status=400)
+
+    usuario_id = _to_int_or_none((auth_payload or {}).get("usuario_id"))
+    now = datetime.combine(timezone.localdate(), time.min)
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            blocked_items = _articulos_bloqueados_info(
+                cursor, [d["id_articulo"] for d in clean_detalles]
+            )
+            if blocked_items:
+                detalle = ", ".join(
+                    [
+                        f"{x['id_articulo']} - {x['descrip_art']}".strip(" -")
+                        for x in blocked_items
+                    ]
+                )
+                return JsonResponse(
+                    {
+                        "detail": f"No se puede guardar el grupo. Articulos bloqueados: {detalle}",
+                        "blocked_articulos": blocked_items,
+                    },
+                    status=400,
+                )
+            if id_grupo:
+                cursor.execute(
+                    """
+                    UPDATE GRUPO_ARTICULO_CAB
+                    SET DESCRIPCION = %s,
+                        FECHA_ACT = %s,
+                        ID_USUARIO = %s
+                    WHERE ID_GRUPO = %s
+                    """,
+                    [descripcion, now, usuario_id, id_grupo],
+                )
+                if (cursor.rowcount or 0) <= 0:
+                    return JsonResponse({"detail": "Grupo no encontrado"}, status=404)
+            else:
+                temp_codigo = f"TMP{uuid.uuid4().hex[:17]}"
+                cursor.execute(
+                    """
+                    INSERT INTO GRUPO_ARTICULO_CAB (CODIGO, DESCRIPCION, ACTIVO, FECHA_CREACION, FECHA_ACT, ID_USUARIO)
+                    OUTPUT INSERTED.ID_GRUPO
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    [temp_codigo, descripcion, "Y", now, now, usuario_id],
+                )
+                row = cursor.fetchone()
+                id_grupo = int((row[0] or 0))
+                if id_grupo <= 0:
+                    cursor.execute(
+                        "SELECT TOP 1 ID_GRUPO FROM GRUPO_ARTICULO_CAB WHERE CODIGO = %s ORDER BY ID_GRUPO DESC",
+                        [temp_codigo],
+                    )
+                    row2 = cursor.fetchone()
+                    id_grupo = int((row2[0] if row2 else 0) or 0)
+                if id_grupo <= 0:
+                    return JsonResponse({"detail": "No se pudo crear la cabecera del grupo."}, status=500)
+                codigo = f"GA{id_grupo:05d}"
+                cursor.execute(
+                    "UPDATE GRUPO_ARTICULO_CAB SET CODIGO = %s WHERE ID_GRUPO = %s",
+                    [codigo, id_grupo],
+                )
+
+            cursor.execute("SELECT COUNT(1) FROM GRUPO_ARTICULO_CAB WHERE ID_GRUPO = %s", [id_grupo])
+            exists_row = cursor.fetchone()
+            if int((exists_row[0] if exists_row else 0) or 0) <= 0:
+                return JsonResponse({"detail": "Grupo no disponible para guardar detalle."}, status=500)
+
+            cursor.execute("DELETE FROM GRUPO_ARTICULO_DET WHERE ID_GRUPO = %s", [id_grupo])
+            for d in clean_detalles:
+                cursor.execute(
+                    """
+                    INSERT INTO GRUPO_ARTICULO_DET (ID_GRUPO, ID_ARTICULO, CANTIDAD, ORDEN)
+                    VALUES (%s, %s, %s, %s)
+                    """,
+                    [id_grupo, d["id_articulo"], d["cantidad"], d["orden"]],
+                )
+
+            cursor.execute(
+                "SELECT CODIGO FROM GRUPO_ARTICULO_CAB WHERE ID_GRUPO = %s",
+                [id_grupo],
+            )
+            cab = cursor.fetchone()
+            codigo = (cab[0] if cab else "") or ""
+
+    return JsonResponse({"ok": True, "id_grupo": id_grupo, "codigo": codigo})
+
+
+@require_http_methods(["POST"])
+def actualizar_prefactura_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    id_doc = str(payload.get("id_doc") or "").strip()
+    if not id_doc:
+        return JsonResponse({"detail": "id_doc requerido"}, status=400)
+
+    def _parse_date(v):
+        s = str(v or "").strip()
+        if not s:
+            return None
+        try:
+            return datetime.strptime(s, "%Y-%m-%d")
+        except Exception:
+            return None
+
+    def _to_dec(v, default=Decimal("0")):
+        try:
+            if v is None or str(v).strip() == "":
+                return default
+            return Decimal(str(v))
+        except Exception:
+            return default
+
+    def _to_int_or_none(v):
+        s = str(v or "").strip()
+        if not s:
+            return None
+        try:
+            return int(float(s))
+        except Exception:
+            return None
+
+    est_doc_raw = str(payload.get("est_doc") or "").strip()
+    est_map = {
+        "abierto": "Abierto",
+        "cerrado": "Cerrado",
+        "cancelado": "Cancelado",
+    }
+    est_doc = est_map.get(est_doc_raw.lower(), "")
+    if est_doc not in {"Abierto", "Cerrado", "Cancelado"}:
+        return JsonResponse({"detail": "est_doc invalido"}, status=400)
+
+    detalles = payload.get("detalles") or []
+    if not isinstance(detalles, list):
+        return JsonResponse({"detail": "detalles invalido"}, status=400)
+
+    local_date = timezone.localdate()
+    periodo_cont = str(local_date.month)
+    ejercicio = local_date.year
+    usuario_id = _to_int_or_none((auth_payload or {}).get("usuario_id"))
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            id_sn_payload = str(payload.get("id_sn") or "").strip()
+            if id_sn_payload:
+                cursor.execute(
+                    """
+                    SELECT TOP 1 ISNULL(BLOQUEADO, 'N')
+                    FROM MAESTRO_SN
+                    WHERE ID_SN = %s
+                    """,
+                    [id_sn_payload],
+                )
+                sn_row = cursor.fetchone()
+                if sn_row and _normalize_bloqueado(sn_row[0]) == "Y":
+                    return JsonResponse(
+                        {"detail": "No se puede grabar la pre-factura: el cliente esta bloqueado."},
+                        status=400,
+                    )
+
+            detalle_articulos = {
+                str((d or {}).get("id_articulo") or "").strip()
+                for d in detalles
+                if isinstance(d, dict)
+            }
+            detalle_articulos.discard("")
+            blocked_items = _articulos_bloqueados_info(cursor, detalle_articulos)
+            if blocked_items:
+                detalle = ", ".join(
+                    [
+                        f"{x['id_articulo']} - {x['descrip_art']}".strip(" -")
+                        for x in blocked_items
+                    ]
+                )
+                return JsonResponse(
+                    {
+                        "detail": f"No se puede grabar la pre-factura. Articulos bloqueados: {detalle}",
+                        "blocked_articulos": blocked_items,
+                    },
+                    status=400,
+                )
+            referencia_map = {}
+            if detalle_articulos:
+                placeholders = ", ".join(["%s"] * len(detalle_articulos))
+                cursor.execute(
+                    f"""
+                    SELECT ID_ARTICULO, REFERENCIA
+                    FROM MAESTRO_ARTICULO
+                    WHERE ID_ARTICULO IN ({placeholders})
+                    """,
+                    list(detalle_articulos),
+                )
+                for art_row in cursor.fetchall():
+                    referencia_map[str(art_row[0] or "").strip()] = str(art_row[1] or "")
+
+            cursor.execute(
+                """
+                UPDATE CAB_PEDIDO
+                SET EST_DOC = %s,
+                    FECHA_CONT = %s,
+                    FECHA_VENC = %s,
+                    FECHA_DOC = %s,
+                    COMENTARIO = %s,
+                    SUBTOTAL = %s,
+                    TOTAL_DESC = %s,
+                    TOTAL_DOC = %s,
+                    TOTAL_ITBIS = %s,
+                    ID_CONDICION = %s,
+                    DIA = %s,
+                    CONDICION = %s,
+                    ID_PRECIO = %s
+                WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                """,
+                [
+                    est_doc,
+                    _parse_date(payload.get("fecha_cont")),
+                    _parse_date(payload.get("fecha_venc")),
+                    _parse_date(payload.get("fecha_doc")),
+                    str(payload.get("comentario") or ""),
+                    _to_dec(payload.get("subtotal")),
+                    _to_dec(payload.get("total_desc")),
+                    _to_dec(payload.get("total_doc")),
+                    _to_dec(payload.get("impuesto")),
+                    _to_int_or_none(payload.get("id_condicion")),
+                    _to_int_or_none(payload.get("dia")),
+                    str(payload.get("condicion") or ""),
+                    _to_int_or_none(payload.get("id_precio")),
+                    id_doc,
+                ],
+            )
+            if (cursor.rowcount or 0) <= 0:
+                return JsonResponse({"detail": "Pre-factura no encontrada"}, status=404)
+
+            cursor.execute(
+                "SELECT COALESCE(MAX(No_LINEA), 0) FROM DET_PEDIDO WHERE CAST(ID_DOC AS VARCHAR(50)) = %s",
+                [id_doc],
+            )
+            row = cursor.fetchone()
+            next_linea = int(row[0] or 0)
+
+            for d in detalles:
+                if not isinstance(d, dict):
+                    continue
+                id_detalle = _to_int_or_none(d.get("id_detalle"))
+                descrip_art = str(d.get("descrip_art") or "")
+                id_articulo = str(d.get("id_articulo") or "")
+                medida = str(d.get("uom") or "")
+                cantidad = _to_dec(d.get("cantidad"))
+                cant_und = _to_dec(d.get("cant_emp"), cantidad)
+                cant_ent = Decimal("0")
+                cant_pend = cantidad
+                precio = _to_dec(d.get("precio_unit"))
+                precio_bruto = _to_dec(d.get("precio_bruto"), precio)
+                porc_desc = _to_dec(d.get("porc_desc"))
+                id_impto = _to_int_or_none(d.get("id_itbis"))
+                id_almacen = _to_int_or_none(d.get("alm"))
+                # Mantener el mapeo actual de UI solicitado previamente.
+                cebe = str(d.get("proyecto") or "")
+                ceco = str(d.get("cebe") or "")
+                referencia = referencia_map.get(id_articulo, "")
+                total_precio = cantidad * precio
+                total_desc_monto = total_precio * (porc_desc / Decimal("100"))
+                total_precio_neto = total_precio - total_desc_monto
+                total_linea = total_precio_neto
+                precio_tras_desc = precio - (precio * (porc_desc / Decimal("100")))
+
+                if id_detalle:
+                    cursor.execute(
+                        """
+                        UPDATE DET_PEDIDO
+                        SET DESCRIP_ART = %s,
+                            ID_ARTICULO = %s,
+                            MEDIDA = %s,
+                            CANTIDAD = %s,
+                            CANT_UND = %s,
+                            CANT_ENT = %s,
+                            CANT_PEND = %s,
+                            PRECIO = %s,
+                            PRECIO_BRUTO = %s,
+                            TOTAL_LINEA = %s,
+                            TOTAL_PRECIO = %s,
+                            TOTAL_DESC = %s,
+                            TOTAL_PRECIO_NETO = %s,
+                            PRECIO_TRAS_DESC = %s,
+                            PORC_DESC = %s,
+                            ID_IMPTO = %s,
+                            ID_ALMACEN = %s,
+                            CECO = %s,
+                            CEBE = %s,
+                            CLASE_ART = %s,
+                            LOTE = %s,
+                            COSTO = %s,
+                            TOTAL_COSTO = %s,
+                            ID_VENDEDOR = %s,
+                            PORC_COM = %s,
+                            CTA_INGRESO = %s,
+                            CTA_GASTOS = %s,
+                            CTA_COSTOS = %s,
+                            CTA_INV = %s,
+                            CTA_IMPTO = %s,
+                            CTA_DEV_VENTA = %s,
+                            PERIODO_CONT = %s,
+                            EJERCICIO = %s,
+                            REFERENCIA = %s
+                        WHERE ID_DETALLE = %s
+                          AND CAST(ID_DOC AS VARCHAR(50)) = %s
+                        """,
+                        [
+                            descrip_art,
+                            id_articulo,
+                            medida,
+                            cantidad,
+                            cant_und,
+                            cant_ent,
+                            cant_pend,
+                            precio,
+                            precio_bruto,
+                            total_linea,
+                            total_precio,
+                            total_desc_monto,
+                            total_precio_neto,
+                            precio_tras_desc,
+                            porc_desc,
+                            id_impto,
+                            id_almacen,
+                            ceco,
+                            cebe,
+                            "Articulo",
+                            "No",
+                            Decimal("1"),
+                            Decimal("1"),
+                            usuario_id,
+                            Decimal("1"),
+                            "41010101",
+                            "11030102",
+                            "51010101",
+                            "11030101",
+                            "21020301",
+                            "41020201",
+                            periodo_cont,
+                            ejercicio,
+                            referencia,
+                            id_detalle,
+                            id_doc,
+                        ],
+                    )
+                else:
+                    next_linea += 1
+                    cursor.execute(
+                        """
+                        INSERT INTO DET_PEDIDO
+                        (ID_DOC, No_LINEA, DESCRIP_ART, ID_ARTICULO, MEDIDA, CANTIDAD, CANT_UND, CANT_ENT, CANT_PEND, PRECIO, PRECIO_BRUTO, TOTAL_LINEA, TOTAL_PRECIO, TOTAL_DESC, TOTAL_PRECIO_NETO, PRECIO_TRAS_DESC, PORC_DESC, ID_IMPTO, ID_ALMACEN, CECO, CEBE,
+                         CLASE_ART, LOTE, COSTO, TOTAL_COSTO, ID_VENDEDOR, PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS, CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PERIODO_CONT, EJERCICIO, REFERENCIA)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        [
+                            id_doc,
+                            next_linea,
+                            descrip_art,
+                            id_articulo,
+                            medida,
+                            cantidad,
+                            cant_und,
+                            cant_ent,
+                            cant_pend,
+                            precio,
+                            precio_bruto,
+                            total_linea,
+                            total_precio,
+                            total_desc_monto,
+                            total_precio_neto,
+                            precio_tras_desc,
+                            porc_desc,
+                            id_impto,
+                            id_almacen,
+                            ceco,
+                            cebe,
+                            "Articulo",
+                            "No",
+                            Decimal("1"),
+                            Decimal("1"),
+                            usuario_id,
+                            Decimal("1"),
+                            "41010101",
+                            "11030102",
+                            "51010101",
+                            "11030101",
+                            "21020301",
+                            "41020201",
+                            periodo_cont,
+                            ejercicio,
+                            referencia,
+                        ],
+                    )
+
+            cursor.execute(
+                """
+                UPDATE DET_PEDIDO
+                SET OBSERVACION = %s
+                WHERE ID_DETALLE = (
+                    SELECT TOP 1 ID_DETALLE
+                    FROM DET_PEDIDO
+                    WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                    ORDER BY No_LINEA, ID_DETALLE
+                )
+                """,
+                [str(payload.get("comentario_linea") or ""), id_doc],
+            )
+
+    return JsonResponse({"ok": True, "id_doc": id_doc})
+
+
+@require_http_methods(["POST"])
+def crear_prefactura_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    id_sn = str(payload.get("id_sn") or "").strip()
+    nom_socio = str(payload.get("nom_socio") or "").strip()
+    if not id_sn:
+        return JsonResponse({"detail": "Cliente requerido"}, status=400)
+    cliente_bloqueado = (
+        MaestroSn.objects.filter(id_sn=id_sn).values_list("bloqueado", flat=True).first()
+    )
+    if _normalize_bloqueado(cliente_bloqueado) == "Y":
+        return JsonResponse(
+            {"detail": "No se puede crear la pre-factura: el cliente esta bloqueado."},
+            status=400,
+        )
+
+    def _parse_date(v):
+        s = str(v or "").strip()
+        if not s:
+            return None
+        try:
+            return datetime.strptime(s, "%Y-%m-%d")
+        except Exception:
+            return None
+
+    def _to_dec(v, default=Decimal("0")):
+        try:
+            if v is None or str(v).strip() == "":
+                return default
+            return Decimal(str(v))
+        except Exception:
+            return default
+
+    def _to_int_or_none(v):
+        s = str(v or "").strip()
+        if not s:
+            return None
+        try:
+            return int(float(s))
+        except Exception:
+            return None
+
+    est_doc = "Abierto"
+    detalles = payload.get("detalles") or []
+    if not isinstance(detalles, list):
+        return JsonResponse({"detail": "detalles invalido"}, status=400)
+    detalles = [d for d in detalles if isinstance(d, dict) and str(d.get("id_articulo") or "").strip()]
+    if not detalles:
+        return JsonResponse({"detail": "Debes agregar al menos un articulo."}, status=400)
+
+    fecha_cont = _parse_date(payload.get("fecha_cont"))
+    fecha_venc = _parse_date(payload.get("fecha_venc"))
+    fecha_doc = _parse_date(payload.get("fecha_doc"))
+
+    now = timezone.localtime()
+    local_date = timezone.localdate()
+    today = datetime.combine(local_date, time.min)
+    periodo_cont = str(local_date.month)
+    ejercicio = local_date.year
+    usuario_id = _to_int_or_none((auth_payload or {}).get("usuario_id"))
+    terminal = socket.gethostname() or ""
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            detalle_articulos = {
+                str((d or {}).get("id_articulo") or "").strip()
+                for d in detalles
+                if isinstance(d, dict)
+            }
+            detalle_articulos.discard("")
+            blocked_items = _articulos_bloqueados_info(cursor, detalle_articulos)
+            if blocked_items:
+                detalle = ", ".join(
+                    [
+                        f"{x['id_articulo']} - {x['descrip_art']}".strip(" -")
+                        for x in blocked_items
+                    ]
+                )
+                return JsonResponse(
+                    {
+                        "detail": f"No se puede crear la pre-factura. Articulos bloqueados: {detalle}",
+                        "blocked_articulos": blocked_items,
+                    },
+                    status=400,
+                )
+            referencia_map = {}
+            if detalle_articulos:
+                placeholders = ", ".join(["%s"] * len(detalle_articulos))
+                cursor.execute(
+                    f"""
+                    SELECT ID_ARTICULO, REFERENCIA
+                    FROM MAESTRO_ARTICULO
+                    WHERE ID_ARTICULO IN ({placeholders})
+                    """,
+                    list(detalle_articulos),
+                )
+                for art_row in cursor.fetchall():
+                    referencia_map[str(art_row[0] or "").strip()] = str(art_row[1] or "")
+
+            cursor.execute(
+                """
+                SELECT ISNULL(MAX(TRY_CAST(ID_DOC AS BIGINT)), 0) + 1
+                FROM CAB_PEDIDO WITH (UPDLOCK, HOLDLOCK)
+                """
+            )
+            row = cursor.fetchone()
+            new_id_doc = int((row[0] or 0))
+            if new_id_doc <= 0:
+                new_id_doc = 1
+
+            cursor.execute(
+                """
+                INSERT INTO CAB_PEDIDO
+                (ID_DOC, EST_DOC, FECHA_CONT, FECHA_VENC, FECHA_DOC, FECHA_CREACION, FECHA_ACT,
+                 ID_SN, NOM_SOCIO, RNC_CED, CONTACTO, ENT_FACTURA, ENT_MERCANCIA,
+                 COMENTARIO, SUBTOTAL, TOTAL_DESC, TOTAL_DOC, TOTAL_ITBIS,
+                 ABONO, SALDO, ID_CONDICION, DIA, CONDICION, ID_PRECIO, ID_VENDEDOR, ID_USUARIO, TERMINAL,
+                 MON_DOC, ID_NCF, TIPO, PERIODO_CONT, EJERCICIO, CTA_ASOCIADA, ID_GASTO)
+                VALUES
+                (%s, %s, %s, %s, %s, %s, %s,
+                 %s, %s, %s, %s, %s, %s,
+                 %s, %s, %s, %s, %s,
+                 %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                 %s, %s, %s, %s, %s, %s, %s)
+                """,
+                [
+                    new_id_doc,
+                    est_doc,
+                    fecha_cont,
+                    fecha_venc,
+                    fecha_doc,
+                    today,
+                    None,
+                    id_sn,
+                    nom_socio,
+                    str(payload.get("rnc_ced") or ""),
+                    str(payload.get("contacto") or ""),
+                    str(payload.get("ent_factura") or ""),
+                    str(payload.get("ent_mercancia") or ""),
+                    str(payload.get("comentario") or ""),
+                    _to_dec(payload.get("subtotal")),
+                    _to_dec(payload.get("total_desc")),
+                    _to_dec(payload.get("total_doc")),
+                    _to_dec(payload.get("impuesto")),
+                    Decimal("0"),
+                    Decimal("0"),
+                    _to_int_or_none(payload.get("id_condicion")),
+                    _to_int_or_none(payload.get("dia")),
+                    str(payload.get("condicion") or ""),
+                    _to_int_or_none(payload.get("id_precio")),
+                    usuario_id,
+                    usuario_id,
+                    terminal[:50],
+                    "RD$",
+                    1,
+                    "FACTURA DE CONSUMO",
+                    periodo_cont,
+                    ejercicio,
+                    "11020101",
+                    2,
+                ],
+            )
+
+            next_linea = 0
+            for d in detalles:
+                next_linea += 1
+                descrip_art = str(d.get("descrip_art") or "")
+                id_articulo = str(d.get("id_articulo") or "")
+                medida = str(d.get("uom") or "")
+                cantidad = _to_dec(d.get("cantidad"))
+                cant_und = _to_dec(d.get("cant_emp"), cantidad)
+                precio = _to_dec(d.get("precio_unit"))
+                precio_bruto = _to_dec(d.get("precio_bruto"), precio)
+                porc_desc = _to_dec(d.get("porc_desc"))
+                id_impto = _to_int_or_none(d.get("id_itbis"))
+                id_almacen = _to_int_or_none(d.get("alm"))
+                cebe = str(d.get("proyecto") or "")
+                ceco = str(d.get("cebe") or "")
+                cant_ent = Decimal("0")
+                cant_pend = cantidad
+                referencia = referencia_map.get(id_articulo, "")
+                total_precio = cantidad * precio
+                total_desc_monto = total_precio * (porc_desc / Decimal("100"))
+                total_precio_neto = total_precio - total_desc_monto
+                total_linea = total_precio_neto
+                precio_tras_desc = precio - (precio * (porc_desc / Decimal("100")))
+
+                cursor.execute(
+                    """
+                    INSERT INTO DET_PEDIDO
+                    (ID_DOC, No_LINEA, DESCRIP_ART, ID_ARTICULO, MEDIDA, CANTIDAD, CANT_UND, CANT_ENT, CANT_PEND,
+                     PRECIO, PRECIO_BRUTO, TOTAL_LINEA, TOTAL_PRECIO, TOTAL_DESC, TOTAL_PRECIO_NETO, PRECIO_TRAS_DESC, PORC_DESC, ID_IMPTO, ID_ALMACEN, CECO, CEBE, FECHA_CONT,
+                     CLASE_ART, LOTE, COSTO, TOTAL_COSTO, ID_VENDEDOR, PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS,
+                     CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PERIODO_CONT, EJERCICIO, REFERENCIA)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    [
+                        new_id_doc,
+                        next_linea,
+                        descrip_art,
+                        id_articulo,
+                        medida,
+                        cantidad,
+                        cant_und,
+                        cant_ent,
+                        cant_pend,
+                        precio,
+                        precio_bruto,
+                        total_linea,
+                        total_precio,
+                        total_desc_monto,
+                        total_precio_neto,
+                        precio_tras_desc,
+                        porc_desc,
+                        id_impto,
+                        id_almacen,
+                        ceco,
+                        cebe,
+                        fecha_cont or fecha_doc or today,
+                        "Articulo",
+                        "No",
+                        Decimal("1"),
+                        Decimal("1"),
+                        usuario_id,
+                        Decimal("1"),
+                        "41010101",
+                        "11030102",
+                        "51010101",
+                        "11030101",
+                        "21020301",
+                        "41020201",
+                        periodo_cont,
+                        ejercicio,
+                        referencia,
+                    ],
+                )
+
+            cursor.execute(
+                """
+                UPDATE DET_PEDIDO
+                SET OBSERVACION = %s
+                WHERE ID_DETALLE = (
+                    SELECT TOP 1 ID_DETALLE
+                    FROM DET_PEDIDO
+                    WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                    ORDER BY No_LINEA, ID_DETALLE
+                )
+                """,
+                [str(payload.get("comentario_linea") or ""), str(new_id_doc)],
+            )
+
+    return JsonResponse({"ok": True, "id_doc": str(new_id_doc), "fecha_act": now.strftime("%Y-%m-%d")})
+
+
+@require_http_methods(["POST"])
+def actualizar_estado_prefactura_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    id_doc = str(payload.get("id_doc") or "").strip()
+    est_doc_raw = str(payload.get("est_doc") or "").strip()
+    est_map = {
+        "abierto": "Abierto",
+        "cerrado": "Cerrado",
+        "cancelado": "Cancelado",
+    }
+    est_doc = est_map.get(est_doc_raw.lower(), "")
+    if not id_doc:
+        return JsonResponse({"detail": "id_doc requerido"}, status=400)
+    if est_doc not in {"Abierto", "Cerrado", "Cancelado"}:
+        return JsonResponse({"detail": "est_doc invalido"}, status=400)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE CAB_PEDIDO
+            SET EST_DOC = %s
+            WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+            """,
+            [est_doc, id_doc],
+        )
+        updated = cursor.rowcount or 0
+
+    if updated <= 0:
+        return JsonResponse({"detail": "Pre-factura no encontrada"}, status=404)
+
+    return JsonResponse({"ok": True, "id_doc": id_doc, "est_doc": est_doc})
+
+
+@require_http_methods(["GET"])
+def detalle_prefactura_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    id_doc = (request.GET.get("id_doc") or "").strip()
+    if not id_doc:
+        return JsonResponse({"detail": "Parametro id_doc requerido"}, status=400)
+
+    detalles = (
+        DetPedido.objects.filter(id_doc=id_doc)
+        .order_by("no_linea", "id_detalle")
+        .values(
+            "id_detalle",
+            "descrip_art",
+            "id_articulo",
+            "cant_und",
+            "cantidad",
+            "cant_ent",
+            "medida",
+            "observacion",
+            "id_almacen",
+            "ceco",
+            "cebe",
+            "precio",
+            "precio_bruto",
+            "total_linea",
+            "porc_desc",
+            "id_impto",
+        )
+    )
+
+    def _num(v):
+        if v is None:
+            return None
+        try:
+            return float(v)
+        except Exception:
+            return None
+
+    results = []
+    for d in detalles:
+        results.append(
+            {
+                "id_detalle": d.get("id_detalle"),
+                "descrip_art": d.get("descrip_art") or "",
+                "id_articulo": d.get("id_articulo") or "",
+                "cant_emp": _num(d.get("cant_und")),
+                "cantidad": _num(d.get("cantidad")),
+                "entregado": _num(d.get("cant_ent")),
+                "uom": d.get("medida") or "",
+                "observacion": d.get("observacion") or "",
+                "alm": d.get("id_almacen"),
+                "proyecto": d.get("cebe") or "",
+                "cebe": d.get("ceco") or "",
+                "precio_unit": _num(d.get("precio")),
+                "precio_bruto": _num(d.get("precio_bruto")),
+                "valor": _num(d.get("total_linea")),
+                "porc_desc": _num(d.get("porc_desc")),
+                "id_itbis": d.get("id_impto"),
+            }
+        )
+
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["POST"])
+def guardar_comentario_linea_prefactura_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    id_doc = str(payload.get("id_doc") or "").strip()
+    observacion = str(payload.get("observacion") or "")
+    if not id_doc:
+        return JsonResponse({"detail": "id_doc requerido"}, status=400)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            UPDATE DET_PEDIDO
+            SET OBSERVACION = %s
+            WHERE ID_DETALLE = (
+                SELECT TOP 1 ID_DETALLE
+                FROM DET_PEDIDO
+                WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                ORDER BY No_LINEA, ID_DETALLE
+            )
+            """,
+            [observacion, id_doc],
+        )
+        updated = cursor.rowcount or 0
+
+    if updated <= 0:
+        return JsonResponse({"detail": "No se encontro primer detalle para el documento"}, status=404)
+
+    return JsonResponse({"ok": True, "id_doc": id_doc})
+
+
+@require_http_methods(["GET"])
+def buscar_unidad_medida_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT TOP 200 * FROM Unidad_medida ORDER BY 1")
+            rows = cursor.fetchall()
+            columns = [c[0].lower() for c in (cursor.description or [])]
+    except Exception:
+        return JsonResponse({"results": []})
+
+    preferred = [
+        "medida",
+        "descripcion",
+        "descrip",
+        "uom",
+        "unidad",
+        "nombre",
+        "id",
+        "codigo",
+    ]
+    idx = None
+    for name in preferred:
+        if name in columns:
+            idx = columns.index(name)
+            break
+    if idx is None:
+        idx = 0 if columns else None
+
+    values = []
+    seen = set()
+    if idx is not None:
+        for row in rows:
+            raw = row[idx]
+            val = str(raw or "").strip()
+            if not val:
+                continue
+            key = val.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            values.append(val)
+
+    return JsonResponse({"results": values})
+
+
+@require_http_methods(["GET"])
+def buscar_proyectos_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+    sql = """
+        SELECT TOP 200 CODIGO, DESCRIPCION
+        FROM PROYECTO
+        WHERE CODIGO IS NOT NULL AND LTRIM(RTRIM(CODIGO)) <> ''
+    """
+    params = []
+    if query:
+        sql += " AND (CODIGO LIKE %s OR DESCRIPCION LIKE %s)"
+        like = f"%{query}%"
+        params.extend([like, like])
+    sql += " ORDER BY CODIGO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    results = [
+        {
+            "codigo": str(r[0]).strip(),
+            "descripcion": str(r[1] or "").strip(),
+        }
+        for r in rows
+        if r and r[0] is not None and str(r[0]).strip()
+    ]
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def buscar_cebes_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+    sql = """
+        SELECT TOP 200 CECO, DESCRIPCION, ID_CODIGO
+        FROM DEPARTAMENTO
+        WHERE CECO IS NOT NULL AND LTRIM(RTRIM(CECO)) <> ''
+    """
+    params = []
+    if query:
+        sql += " AND (CECO LIKE %s OR DESCRIPCION LIKE %s)"
+        like = f"%{query}%"
+        params.extend([like, like])
+    sql += " ORDER BY ID_CODIGO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    results = [
+        {
+            "codigo": str(r[0]).strip(),
+            "descripcion": str(r[1] or "").strip(),
+        }
+        for r in rows
+        if r and r[0] is not None and str(r[0]).strip()
+    ]
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def buscar_grupo_cliente_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+
+    sql = """
+        SELECT TOP 200 ID_GRUPO, DESCRIPCION
+        FROM GRUPO_CLIENTE
+    """
+    params = []
+    if query:
+        sql += """
+            WHERE CAST(ID_GRUPO AS VARCHAR(50)) LIKE %s
+               OR DESCRIPCION LIKE %s
+        """
+        like = f"%{query}%"
+        params.extend([like, like])
+    sql += " ORDER BY ID_GRUPO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    results = [
+        {
+            "id_grupo": row[0],
+            "descripcion": row[1],
+        }
+        for row in rows
+    ]
+
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def buscar_vend_comp_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+
+    sql = """
+        SELECT TOP 200 ID_CODIGO, NOMBRE
+        FROM VEND_COMP
+    """
+    params = []
+    if query:
+        sql += """
+            WHERE CAST(ID_CODIGO AS VARCHAR(50)) LIKE %s
+               OR NOMBRE LIKE %s
+        """
+        like = f"%{query}%"
+        params.extend([like, like])
+    sql += " ORDER BY ID_CODIGO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    results = [
+        {
+            "id_codigo": row[0],
+            "nombre": row[1],
+        }
+        for row in rows
+    ]
+
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def buscar_condicion_pago_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+
+    sql = """
+        SELECT TOP 200 ID_CONDICION, DESCRIPCION, DIA
+        FROM CONDICION_PAGO
+    """
+    params = []
+    if query:
+        sql += """
+            WHERE CAST(ID_CONDICION AS VARCHAR(50)) LIKE %s
+               OR DESCRIPCION LIKE %s
+        """
+        like = f"%{query}%"
+        params.extend([like, like])
+    sql += " ORDER BY ID_CONDICION"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    results = [
+        {
+            "id_condicion": row[0],
+            "descripcion": row[1],
+            "dia": row[2],
+        }
+        for row in rows
+    ]
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def buscar_lista_precio_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    query = (request.GET.get("q") or "").strip()
+
+    sql = """
+        SELECT TOP 200 ID_PRECIO, DESCRIPCION, FACTOR
+        FROM LISTA_PRECIO
+    """
+    params = []
+    if query:
+        sql += """
+            WHERE CAST(ID_PRECIO AS VARCHAR(50)) LIKE %s
+               OR DESCRIPCION LIKE %s
+        """
+        like = f"%{query}%"
+        params.extend([like, like])
+    sql += " ORDER BY ID_PRECIO"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    def _factor_to_int(value):
+        if value is None:
+            return None
+        try:
+            return int(float(value))
+        except (TypeError, ValueError):
+            return None
+
+    results = [
+        {
+            "id_precio": row[0],
+            "descripcion": row[1],
+            "factor": _factor_to_int(row[2]),
+        }
+        for row in rows
+    ]
+    return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def detalle_cliente_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    id_sn = (request.GET.get("id_sn") or "").strip()
+    if not id_sn:
+        return JsonResponse({"detail": "Parametro id_sn requerido"}, status=400)
+
+    cliente = (
+        MaestroSn.objects.filter(id_sn=id_sn)
+        .values(
+            "id_sn",
+            "nom_socio",
+            "contacto",
+            "rnc_ced",
+            "dir_factura",
+            "dir_mercancia",
+            "nomref1",
+            "telref1",
+            "parentref1",
+            "nomref2",
+            "telref2",
+            "parentref2",
+            "tel1",
+            "tel2",
+            "fax",
+            "email",
+            "id_sector",
+            "comentario",
+            "id_grupo",
+            "descripcion",
+            "tipo_sn",
+            "id_vendedor",
+            "nom_vend",
+            "bloqueado",
+            "id_condicion",
+            "condicion",
+            "dia",
+            "tarifa_int",
+            "lim_credito",
+            "id_precio",
+            "saldo",
+            "cobro_elect",
+            "foto",
+        )
+        .first()
+    )
+
+    if not cliente:
+        return JsonResponse({"detail": "Cliente no encontrado"}, status=404)
+
+    # Balance dinamico: SUM(DEBITO) - SUM(CREDITO) en DET_ED por cliente.
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COALESCE(SUM(DEBITO), 0) - COALESCE(SUM(CREDITO), 0)
+            FROM DET_ED
+            WHERE ID_SN = %s
+            """,
+            [id_sn],
+        )
+        balance_row = cursor.fetchone()
+    cliente["saldo"] = float(balance_row[0]) if balance_row and balance_row[0] is not None else 0.0
+    cliente["foto_url"] = _build_foto_url(cliente.get("foto"))
+    return JsonResponse({"cliente": cliente})
+
+
+@require_http_methods(["POST"])
+def subir_foto_cliente_view(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    id_sn = (request.POST.get("id_sn") or "").strip()
+    foto_file = request.FILES.get("foto")
+    if not id_sn:
+        return JsonResponse({"detail": "id_sn requerido"}, status=400)
+    if not foto_file:
+        return JsonResponse({"detail": "Archivo de foto requerido"}, status=400)
+    if not str(getattr(foto_file, "content_type", "")).startswith("image/"):
+        return JsonResponse({"detail": "Solo se permiten imagenes"}, status=400)
+
+    qs = MaestroSn.objects.filter(id_sn=id_sn)
+    if not qs.exists():
+        return JsonResponse({"detail": "Cliente no encontrado"}, status=404)
+
+    ext = os.path.splitext(foto_file.name or "")[1].lower() or ".jpg"
+    file_name = f"{id_sn}_{timezone.now().strftime('%Y%m%d%H%M%S%f')}{ext}"
+    rel_dir = Path("clientes_fotos")
+    abs_dir = Path(settings.MEDIA_ROOT) / rel_dir
+    abs_dir.mkdir(parents=True, exist_ok=True)
+    abs_path = abs_dir / file_name
+
+    with abs_path.open("wb+") as destination:
+        for chunk in foto_file.chunks():
+            destination.write(chunk)
+
+    abs_path_str = str(abs_path)
+    qs.update(foto=abs_path_str, terminal=socket.gethostname())
+    return JsonResponse({"ok": True, "foto": abs_path_str, "foto_url": _build_foto_url(abs_path_str)})
+
+
+@require_http_methods(["POST"])
+def actualizar_cliente_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    id_sn = (payload.get("id_sn") or "").strip()
+    if not id_sn:
+        return JsonResponse({"detail": "id_sn requerido"}, status=400)
+
+    nom_socio = (payload.get("nom_socio") or "").strip()
+    if not nom_socio:
+        return JsonResponse({"detail": "El campo Nombre es obligatorio"}, status=400)
+
+    rnc_ced = (payload.get("rnc_ced") or "").strip()
+    if not rnc_ced:
+        return JsonResponse({"detail": "El campo RNC/CED es obligatorio"}, status=400)
+
+    id_sector_raw = payload.get("id_sector")
+    if id_sector_raw is None or str(id_sector_raw).strip() == "":
+        return JsonResponse({"detail": "El campo Sector es obligatorio"}, status=400)
+
+    dir_factura = (payload.get("dir_factura") or "").strip()
+    if not dir_factura:
+        return JsonResponse({"detail": "El campo Direccion de cliente es obligatorio"}, status=400)
+
+    qs = MaestroSn.objects.filter(id_sn=id_sn)
+    if not qs.exists():
+        return JsonResponse({"detail": "Cliente no encontrado"}, status=404)
+
+    def _clean(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = v.strip()
+            return v or None
+        return v
+
+    fecha_local = datetime.combine(timezone.localdate(), time.min)
+    update_data = {
+        "nom_socio": _clean(payload.get("nom_socio")),
+        "contacto": _clean(payload.get("contacto")),
+        "rnc_ced": _clean(payload.get("rnc_ced")),
+        "tel1": _clean(payload.get("tel1")),
+        "tel2": _clean(payload.get("tel2")),
+        "fax": _clean(payload.get("fax")),
+        "email": _clean(payload.get("email")),
+        "comentario": _clean(payload.get("comentario")),
+        "nom_vend": _clean(payload.get("nom_vend")),
+        "dir_factura": _clean(payload.get("dir_factura")),
+        "dir_mercancia": _clean(payload.get("dir_mercancia")),
+        "nomref1": _clean(payload.get("nomref1")),
+        "telref1": _clean(payload.get("telref1")),
+        "parentref1": _clean(payload.get("parentref1")),
+        "nomref2": _clean(payload.get("nomref2")),
+        "telref2": _clean(payload.get("telref2")),
+        "parentref2": _clean(payload.get("parentref2")),
+        "cobro_elect": "N",
+        "bloqueado": "Y" if bool(payload.get("bloqueado")) else "N",
+        "terminal": socket.gethostname(),
+        # Guardar solo fecha (hora 00:00:00) para FECHA_ACT.
+        "fecha_act": fecha_local,
+    }
+    if "foto" in payload:
+        update_data["foto"] = _clean(payload.get("foto"))
+
+    id_vendedor = _clean(payload.get("id_vendedor"))
+    if id_vendedor is not None:
+        try:
+            update_data["id_vendedor"] = int(str(id_vendedor))
+        except ValueError:
+            return JsonResponse({"detail": "id_vendedor invalido"}, status=400)
+    update_data["id_usuario"] = int(auth_payload["usuario_id"])
+
+    id_sector = _clean(payload.get("id_sector"))
+    if id_sector is not None:
+        try:
+            update_data["id_sector"] = int(str(id_sector))
+        except ValueError:
+            return JsonResponse({"detail": "id_sector invalido"}, status=400)
+
+    # Optional fields already present in the form.
+    id_grupo = _clean(payload.get("id_grupo"))
+    grupo_sync_data = None
+    if id_grupo is not None:
+        try:
+            update_data["id_grupo"] = int(str(id_grupo))
+        except ValueError:
+            return JsonResponse({"detail": "id_grupo invalido"}, status=400)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT TOP 1
+                    ISNULL(SERIE, ''),
+                    ISNULL(PREFIJO, ''),
+                    ISNULL(TIPO, ''),
+                    ISNULL(CTA_ASOCIADA, ''),
+                    ISNULL(CTA_ANTICIPO, ''),
+                    ISNULL(CTA_COMP_ANT, ''),
+                    ISNULL(DESCRIPCION, '')
+                FROM GRUPO_CLIENTE
+                WHERE ID_GRUPO = %s
+                """,
+                [update_data["id_grupo"]],
+            )
+            row = cursor.fetchone()
+        if not row:
+            return JsonResponse({"detail": "Grupo SN no encontrado"}, status=400)
+        grupo_sync_data = {
+            "serie": str(row[0] or "").strip(),
+            "prefijo": str(row[1] or "").strip(),
+            "tipo": str(row[2] or "").strip(),
+            "cta_asociada": str(row[3] or "").strip(),
+            "cta_anticipo": str(row[4] or "").strip(),
+            "cta_comp_ant": str(row[5] or "").strip(),
+            "descripcion": str(row[6] or "").strip(),
+        }
+        update_data["secuencia"] = grupo_sync_data["serie"] or None
+        update_data["clase_sn"] = grupo_sync_data["tipo"] or None
+        update_data["cta_asociada"] = grupo_sync_data["cta_asociada"] or None
+        update_data["cta_anticipo"] = grupo_sync_data["cta_anticipo"] or None
+        update_data["cta_comp_ant"] = grupo_sync_data["cta_comp_ant"] or None
+        update_data["descripcion"] = grupo_sync_data["descripcion"] or _clean(payload.get("descripcion"))
+    else:
+        update_data["descripcion"] = _clean(payload.get("descripcion"))
+
+    id_condicion = _clean(payload.get("id_condicion"))
+    if id_condicion is not None:
+        try:
+            update_data["id_condicion"] = int(str(id_condicion))
+        except ValueError:
+            return JsonResponse({"detail": "id_condicion invalido"}, status=400)
+
+    id_precio = _clean(payload.get("id_precio"))
+    if id_precio is not None:
+        try:
+            update_data["id_precio"] = int(str(id_precio))
+        except ValueError:
+            return JsonResponse({"detail": "id_precio invalido"}, status=400)
+
+    dia = _clean(payload.get("dia"))
+    if dia is not None:
+        try:
+            update_data["dia"] = int(str(dia))
+        except ValueError:
+            return JsonResponse({"detail": "dia invalido"}, status=400)
+
+    tarifa_int = _clean(payload.get("tarifa_int"))
+    if tarifa_int is not None:
+        try:
+            update_data["tarifa_int"] = float(str(tarifa_int))
+        except ValueError:
+            return JsonResponse({"detail": "tarifa_int invalido"}, status=400)
+    else:
+        update_data["tarifa_int"] = 0.0
+
+    lim_credito = _clean(payload.get("lim_credito"))
+    if lim_credito is not None:
+        try:
+            update_data["lim_credito"] = float(str(lim_credito))
+        except ValueError:
+            return JsonResponse({"detail": "lim_credito invalido"}, status=400)
+    else:
+        update_data["lim_credito"] = 0.0
+
+    qs.update(**update_data)
+    return JsonResponse({"ok": True})
+
+
+@require_http_methods(["POST"])
+def crear_cliente_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    nom_socio = (payload.get("nom_socio") or "").strip()
+    if not nom_socio:
+        return JsonResponse({"detail": "El campo Nombre es obligatorio"}, status=400)
+
+    rnc_ced = (payload.get("rnc_ced") or "").strip()
+    if not rnc_ced:
+        return JsonResponse({"detail": "El campo RNC/CED es obligatorio"}, status=400)
+
+    id_sector_raw = payload.get("id_sector")
+    if id_sector_raw is None or str(id_sector_raw).strip() == "":
+        return JsonResponse({"detail": "El campo Sector es obligatorio"}, status=400)
+
+    dir_factura = (payload.get("dir_factura") or "").strip()
+    if not dir_factura:
+        return JsonResponse({"detail": "El campo Direccion de cliente es obligatorio"}, status=400)
+
+    def _clean(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = v.strip()
+            return v or None
+        return v
+
+    def _int_or_none(value, field_name):
+        value = _clean(value)
+        if value is None:
+            return None
+        try:
+            return int(str(value))
+        except ValueError:
+            raise ValueError(f"{field_name} invalido")
+
+    fecha_registro = datetime.combine(timezone.localdate(), time.min)
+
+    try:
+        id_sector = _int_or_none(payload.get("id_sector"), "id_sector")
+        id_vendedor = _int_or_none(payload.get("id_vendedor"), "id_vendedor")
+        id_grupo = _int_or_none(payload.get("id_grupo"), "id_grupo")
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    if id_grupo is None:
+        return JsonResponse({"detail": "Debes seleccionar un Grupo SN"}, status=400)
+
+    tarifa_int_raw = _clean(payload.get("tarifa_int"))
+    lim_credito_raw = _clean(payload.get("lim_credito"))
+    try:
+        tarifa_int_val = float(str(tarifa_int_raw)) if tarifa_int_raw is not None else 0.0
+    except ValueError:
+        return JsonResponse({"detail": "tarifa_int invalido"}, status=400)
+    try:
+        lim_credito_val = float(str(lim_credito_raw)) if lim_credito_raw is not None else 0.0
+    except ValueError:
+        return JsonResponse({"detail": "lim_credito invalido"}, status=400)
+
+    with transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT TOP 1
+                    ISNULL(SERIE, ''),
+                    ISNULL(PREFIJO, ''),
+                    ISNULL(TIPO, ''),
+                    ISNULL(CTA_ASOCIADA, ''),
+                    ISNULL(CTA_ANTICIPO, ''),
+                    ISNULL(CTA_COMP_ANT, ''),
+                    ISNULL(DESCRIPCION, '')
+                FROM GRUPO_CLIENTE WITH (UPDLOCK, HOLDLOCK)
+                WHERE ID_GRUPO = %s
+                """,
+                [id_grupo],
+            )
+            grupo_row = cursor.fetchone()
+            if not grupo_row:
+                return JsonResponse({"detail": "Grupo SN no encontrado"}, status=400)
+
+            serie_raw = str(grupo_row[0] or "").strip()
+            prefijo = str(grupo_row[1] or "").strip()
+            clase_sn = str(grupo_row[2] or "").strip() or "Cliente"
+            cta_asociada = str(grupo_row[3] or "").strip() or "11020101"
+            cta_anticipo = str(grupo_row[4] or "").strip() or "21010204"
+            cta_comp_ant = str(grupo_row[5] or "").strip() or "21207000"
+            grupo_descripcion = str(grupo_row[6] or "").strip() or "CLIENTES"
+
+            if not serie_raw:
+                return JsonResponse({"detail": "El grupo seleccionado no tiene SERIE configurada"}, status=400)
+            if not prefijo:
+                return JsonResponse({"detail": "El grupo seleccionado no tiene PREFIJO configurado"}, status=400)
+
+            try:
+                next_seq_int = int(str(serie_raw))
+            except Exception:
+                return JsonResponse({"detail": "SERIE invalida en el grupo seleccionado"}, status=400)
+            next_seq = str(next_seq_int)
+            if not next_seq.startswith("1") or len(next_seq) < 2:
+                return JsonResponse({"detail": "La SERIE del grupo debe iniciar con 1 y tener al menos 2 digitos"}, status=400)
+
+            id_sn = f"{prefijo}{next_seq[1:]}"
+
+            # Salvaguarda por si existen duplicados inesperados.
+            if MaestroSn.objects.filter(id_sn=id_sn).exists():
+                return JsonResponse({"detail": "El ID_SN generado ya existe. Revisa la SERIE del grupo."}, status=400)
+
+            cursor.execute(
+                """
+                UPDATE GRUPO_CLIENTE
+                SET SERIE = %s
+                WHERE ID_GRUPO = %s
+                """,
+                [str(next_seq_int + 1), id_grupo],
+            )
+
+            insert_columns = [
+                "ID_SN",
+                "CLASE_SN",
+                "SECUENCIA",
+                "NOM_SOCIO",
+                "CONTACTO",
+                "RNC_CED",
+                "TEL1",
+                "TEL2",
+                "FAX",
+                "EMAIL",
+                "ID_SECTOR",
+                "COMENTARIO",
+                "NOM_VEND",
+                "ID_VENDEDOR",
+                "DIR_FACTURA",
+                "DIR_MERCANCIA",
+                "NOMREF1",
+                "TELREF1",
+                "PARENTREF1",
+                "NOMREF2",
+                "TELREF2",
+                "PARENTREF2",
+                "ID_GRUPO",
+                "TIPO_SN",
+                "BLOQUEADO",
+                "TERMINAL",
+                "ID_USUARIO",
+                "FOTO",
+                "DESCRIPCION",
+                "CTA_ASOCIADA",
+                "CTA_ANTICIPO",
+                "CTA_COMP_ANT",
+                "COBRO_ELECT",
+                "SALDO",
+                "SALDO_ANT",
+                "MORA",
+                "ID_CONDICION",
+                "DIA",
+                "CONDICION",
+                "LIM_CREDITO",
+                "TARIFA_INT",
+                "ID_PRECIO",
+                "FACTOR",
+                "MONEDA",
+                "FECHA_CREACION",
+                "FECHA_ACT",
+                "ID_NCF",
+                "TIPO_NCF",
+                "MOVIMIENTO",
+                "TIPO_MOV",
+                "RET2",
+                "RETIT",
+            ]
+            insert_values = [
+                id_sn,
+                clase_sn,
+                next_seq,
+                _clean(payload.get("nom_socio")),
+                _clean(payload.get("contacto")),
+                _clean(payload.get("rnc_ced")),
+                _clean(payload.get("tel1")),
+                _clean(payload.get("tel2")),
+                _clean(payload.get("fax")),
+                _clean(payload.get("email")),
+                id_sector,
+                _clean(payload.get("comentario")),
+                _clean(payload.get("nom_vend")),
+                id_vendedor,
+                _clean(payload.get("dir_factura")),
+                _clean(payload.get("dir_mercancia")),
+                _clean(payload.get("nomref1")),
+                _clean(payload.get("telref1")),
+                _clean(payload.get("parentref1")),
+                _clean(payload.get("nomref2")),
+                _clean(payload.get("telref2")),
+                _clean(payload.get("parentref2")),
+                id_grupo,
+                _clean(payload.get("tipo_sn")),
+                "Y" if bool(payload.get("bloqueado")) else "N",
+                socket.gethostname(),
+                int(auth_payload["usuario_id"]),
+                _clean(payload.get("foto")),
+                grupo_descripcion,
+                cta_asociada,
+                cta_anticipo,
+                cta_comp_ant,
+                "N",
+                0,
+                0,
+                0,
+                1,
+                0,
+                "CONTADO",
+                lim_credito_val,
+                tarifa_int_val,
+                1,
+                1,
+                "RD$",
+                fecha_registro,
+                fecha_registro,
+                2,
+                "FACTURA DE CONSUMO",
+                "N",
+                "C",
+                "N",
+                "N",
+            ]
+            placeholders = ", ".join(["%s"] * len(insert_columns))
+            cursor.execute(
+                f"INSERT INTO MAESTRO_SN ({', '.join(insert_columns)}) VALUES ({placeholders})",
+                insert_values,
+            )
+
+    return JsonResponse({"ok": True, "id_sn": id_sn, "secuencia": next_seq})
+
+
+@require_http_methods(["GET"])
+def obtener_formato_etiquetas_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+    usuario_id = int(auth_payload["usuario_id"])
+    registro = EtiquetaFormatoUsuario.objects.filter(id_usuario=usuario_id).first()
+    formato = {}
+    if registro and registro.formato_json:
+        try:
+            formato = json.loads(registro.formato_json)
+        except Exception:
+            formato = {}
+    return JsonResponse({"ok": True, "formato": formato})
+
+
+@require_http_methods(["POST"])
+def guardar_formato_etiquetas_view(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+    formato = payload.get("formato")
+    if not isinstance(formato, dict):
+        return JsonResponse({"detail": "formato invalido"}, status=400)
+
+    usuario_id = int(auth_payload["usuario_id"])
+    EtiquetaFormatoUsuario.objects.update_or_create(
+        id_usuario=usuario_id,
+        defaults={"formato_json": json.dumps(formato, ensure_ascii=False)},
+    )
+    return JsonResponse({"ok": True})
