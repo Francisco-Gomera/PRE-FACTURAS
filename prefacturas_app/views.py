@@ -707,17 +707,22 @@ def buscar_articulos_view(request):
     qs = MaestroArticulo.objects.exclude(bloqueado__iexact="Y")
 
     if q:
-        if filtro == "articulo":
-            qs = qs.filter(id_articulo__icontains=q)
+        if filtro == "codigo":
+            qs = qs.filter(referencia__icontains=q)
         else:
             qs = qs.filter(descrip_art__icontains=q)
 
-    qs = qs.order_by("id_articulo").values(
+    if filtro == "codigo":
+        qs = qs.order_by("referencia", "id_articulo")
+    else:
+        qs = qs.order_by("id_articulo")
+
+    qs = qs.values(
         "id_articulo",
         "descrip_art",
         "referencia",
-        "um_inv",
         "precio_det",
+        "stock",
         "id_impto_vt",
         "bloqueado",
     )[:80]
@@ -735,8 +740,8 @@ def buscar_articulos_view(request):
             "id_articulo": r.get("id_articulo") or "",
             "descrip_art": r.get("descrip_art") or "",
             "referencia": r.get("referencia") or "",
-            "um_inv": r.get("um_inv") or "",
             "precio_det": _num(r.get("precio_det")),
+            "stock": _num(r.get("stock")),
             "id_impto_vt": r.get("id_impto_vt"),
             "bloqueado": (r.get("bloqueado") or "N"),
         }

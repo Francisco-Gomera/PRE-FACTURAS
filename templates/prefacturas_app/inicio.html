@@ -226,6 +226,37 @@
             text-overflow: ellipsis;
         }
 
+        #articulo_modal_backdrop table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #articulo_modal_backdrop th,
+        #articulo_modal_backdrop td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #articulo_modal_backdrop th:nth-child(1),
+        #articulo_modal_backdrop td:nth-child(1) {
+            width: 20%;
+        }
+
+        #articulo_modal_backdrop th:nth-child(2),
+        #articulo_modal_backdrop td:nth-child(2) {
+            width: 48%;
+        }
+
+        #articulo_modal_backdrop th:nth-child(3),
+        #articulo_modal_backdrop td:nth-child(3) {
+            width: 16%;
+        }
+
+        #articulo_modal_backdrop th:nth-child(4),
+        #articulo_modal_backdrop td:nth-child(4) {
+            width: 16%;
+        }
+
         #stock_articulos_modal_backdrop th,
         #stock_articulos_modal_backdrop td {
             overflow: hidden;
@@ -2127,10 +2158,10 @@
             <div class="win-body">
                 <div class="search-row">
                     <label for="articulo_search_input">Buscar</label>
-                    <input id="articulo_search_input" type="text" placeholder="Descripcion o Articulo" />
+                    <input id="articulo_search_input" type="text" placeholder="Descripcion o Codigo" />
                     <select id="articulo_search_filter">
                         <option value="descripcion" selected>Descripcion</option>
-                        <option value="articulo">Articulo</option>
+                        <option value="codigo">Codigo</option>
                         <option value="grupo">Grupo</option>
                     </select>
                 </div>
@@ -2138,10 +2169,10 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Articulo</th>
+                                <th>Codigo</th>
                                 <th>Descripcion</th>
-                                <th>UoM</th>
                                 <th>Precio</th>
+                                <th>Stock</th>
                             </tr>
                         </thead>
                         <tbody id="articulo_results_body">
@@ -3227,10 +3258,10 @@
                 const safeJson = encodeURIComponent(JSON.stringify(row));
                 return `
                     <tr class="click-row" data-row="${safeJson}">
-                        <td>${escapeHtml(row.id_articulo || row.codigo || "")}</td>
+                        <td>${escapeHtml(row.referencia || row.codigo || row.id_articulo || "")}</td>
                         <td>${escapeHtml(row.descrip_art || "")}</td>
-                        <td>${escapeHtml(row.um_inv || "")}</td>
                         <td>${escapeHtml(fmtNum(row.precio_det, 2) || "0.00")}</td>
+                        <td>${escapeHtml(fmtNum(row.stock, 2) || "0.00")}</td>
                     </tr>
                 `;
             }).join("");
@@ -3250,9 +3281,10 @@
                     id_grupo: r.id_grupo,
                     codigo: r.codigo || "",
                     id_articulo: r.codigo || "",
+                    referencia: r.codigo || "",
                     descrip_art: `[GRUPO] ${r.descripcion || ""}`.trim(),
-                    um_inv: "",
                     precio_det: 0,
+                    stock: 0,
                 }));
                 if (filtro === "grupo") {
                     const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
@@ -3266,10 +3298,10 @@
                     return;
                 }
 
-                if (filtro === "descripcion" && articuloSelectionTarget === "prefactura" && q) {
+                if ((filtro === "descripcion" || filtro === "codigo") && articuloSelectionTarget === "prefactura" && q) {
                     const [resArt, resGrp] = await Promise.all([
                         fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } }),
-                        fetch(`/grupos-articulos/buscar/?q=${encodeURIComponent(q)}&filtro=descripcion`, {
+                        fetch(`/grupos-articulos/buscar/?q=${encodeURIComponent(q)}&filtro=${encodeURIComponent(filtro)}`, {
                             headers: { "X-Requested-With": "XMLHttpRequest" },
                         }),
                     ]);
