@@ -646,7 +646,7 @@ def buscar_prefacturas_view(request):
     filtro = (request.GET.get("filtro") or "documento").strip().lower()
     sql = """
         SELECT TOP 50
-            ID_DOC, ID_SN, NOM_SOCIO, RNC_CED, CONTACTO, ENT_FACTURA, EST_DOC, FECHA_CONT, FECHA_DOC, FECHA_VENC, COMENTARIO
+            ID_DOC, ID_SN, NOM_SOCIO, RNC_CED, CONTACTO, ENT_FACTURA, ENT_MERCANCIA, EST_DOC, FECHA_CONT, FECHA_DOC, FECHA_VENC, COMENTARIO, TOTAL_DOC
         FROM CAB_PEDIDO
     """
     params = []
@@ -690,11 +690,13 @@ def buscar_prefacturas_view(request):
                 "rnc_ced": p[3] or "",
                 "contacto": p[4] or "",
                 "ent_factura": p[5] or "",
-                "est_doc": p[6] or "",
-                "fecha_cont": _fmt_date(p[7]),
-                "fecha_doc": _fmt_date(p[8]),
-                "fecha_venc": _fmt_date(p[9]),
-                "comentario": p[10] or "",
+                "ent_mercancia": p[6] or "",
+                "est_doc": p[7] or "",
+                "fecha_cont": _fmt_date(p[8]),
+                "fecha_doc": _fmt_date(p[9]),
+                "fecha_venc": _fmt_date(p[10]),
+                "comentario": p[11] or "",
+                "total_doc": float(p[12]) if p[12] is not None else 0.0,
             }
         )
 

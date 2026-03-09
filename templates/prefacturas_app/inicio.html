@@ -215,6 +215,48 @@
             table-layout: fixed;
         }
 
+        #prefactura_modal_backdrop table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #prefactura_modal_backdrop th,
+        #prefactura_modal_backdrop td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(1),
+        #prefactura_modal_backdrop td:nth-child(1) {
+            width: 7%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(2),
+        #prefactura_modal_backdrop td:nth-child(2) {
+            width: 14%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(3),
+        #prefactura_modal_backdrop td:nth-child(3) {
+            width: 40%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(4),
+        #prefactura_modal_backdrop td:nth-child(4) {
+            width: 12%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(5),
+        #prefactura_modal_backdrop td:nth-child(5) {
+            width: 14%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(6),
+        #prefactura_modal_backdrop td:nth-child(6) {
+            width: 13%;
+        }
+
         #grupo_articulo_modal_backdrop table {
             min-width: 0;
             table-layout: fixed;
@@ -1553,10 +1595,14 @@
         }
 
         #prefactura_panel .actions-bar {
-            margin-top: -40px;
+            margin-top: 8px;
             padding-top: 0;
             border-top: none;
             align-items: flex-end;
+        }
+
+        #prefactura_tab_detalle.active ~ .actions-bar {
+            margin-top: -40px;
         }
 
         #prefactura_panel .grid-shell {
@@ -1873,7 +1919,7 @@
                                 <th>Nombre</th>
                                 <th>Estado</th>
                                 <th>Fecha doc.</th>
-                                <th>Fecha venc.</th>
+                                <th>Total</th>
                             </tr>
                         </thead>
                         <tbody id="prefactura_results_body">
@@ -2760,7 +2806,6 @@
                 "prefactura_fecha_doc",
                 "prefactura_sector_cliente",
                 "prefactura_dir_factura",
-                "prefactura_dir_mercancia",
                 "prefactura_id_condicion",
                 "prefactura_condicion_desc",
                 "prefactura_dias",
@@ -2789,6 +2834,13 @@
             fieldPrefMoraDia.value = fmtNum(data.tarifa_int, 2) || "0.00";
             fieldPrefLimCredito.value = fmtNum(data.lim_credito, 2) || "0.00";
             fieldPrefIdPrecio.value = data.id_precio ?? "";
+        }
+
+        function updatePrefacturaDireccionEntregaAvailability() {
+            const canEditEntrega = prefacturaDetalleEditable && prefacturaClienteSeleccionado;
+            if (!fieldPrefDirMercancia) return;
+            fieldPrefDirMercancia.readOnly = !canEditEntrega;
+            fieldPrefDirMercancia.disabled = !canEditEntrega;
         }
 
         async function cargarCondicionPagoClientePrefactura(idSn) {
@@ -2868,6 +2920,7 @@
             if (fieldPrefComentarioLinea) {
                 fieldPrefComentarioLinea.disabled = !(prefacturaDetalleEditable && prefacturaClienteSeleccionado);
             }
+            updatePrefacturaDireccionEntregaAvailability();
             if (btnPickPrefCondicion) {
                 btnPickPrefCondicion.disabled = !(prefacturaDetalleEditable && prefacturaClienteSeleccionado);
             }
@@ -2943,6 +2996,7 @@
             prefacturaLoadedClosedOrCanceled = false;
             prefacturaHideCloseCancelAfterOpen = false;
             updatePrefacturaDetalleAvailability();
+            updatePrefacturaDireccionEntregaAvailability();
         }
 
         function setPrefacturaNewState(setTodayDates = true, createInitialDetailLine = true) {
@@ -3013,6 +3067,7 @@
             prefacturaLoadedClosedOrCanceled = false;
             prefacturaHideCloseCancelAfterOpen = false;
             updatePrefacturaDetalleAvailability();
+            updatePrefacturaDireccionEntregaAvailability();
             btnOpenModal.focus();
         }
 
@@ -3027,6 +3082,7 @@
             btnPrefacturaCancelarEstado.disabled = false;
             prefacturaLoadedClosedOrCanceled = estadoActual === "Cerrado" || estadoActual === "Cancelado";
             prefacturaHideCloseCancelAfterOpen = false;
+            updatePrefacturaDireccionEntregaAvailability();
         }
 
         async function confirmarCambioEstadoPrefactura(targetEstado) {
@@ -3105,7 +3161,7 @@
                         <td>${escapeHtml(row.nom_socio || "")}</td>
                         <td>${escapeHtml(row.est_doc || "")}</td>
                         <td>${escapeHtml(row.fecha_doc || "")}</td>
-                        <td>${escapeHtml(row.fecha_venc || "")}</td>
+                        <td>${escapeHtml(fmtNum(row.total_doc, 2) || "0.00")}</td>
                     </tr>
                 `;
             }).join("");
@@ -4901,6 +4957,10 @@
             cargarListaPrecioPredeterminada();
             maestroClienteSeleccionado = false;
             maestroIsNewMode = true;
+            setTimeout(() => {
+                maestroNomSocio.focus();
+                maestroNomSocio.select?.();
+            }, 0);
         }
 
         function setMaestroLoadedState() {
@@ -6084,6 +6144,7 @@
             if (isNewPrefactura) {
                 prefacturaClienteSeleccionado = true;
                 updatePrefacturaDetalleAvailability();
+                updatePrefacturaDireccionEntregaAvailability();
                 if (fieldPrefComentarioLinea) {
                     fieldPrefComentarioLinea.disabled = false;
                 }
@@ -6117,8 +6178,8 @@
             fieldFechaVenc.value = data.fecha_venc || "";
             fieldPrefComentario.value = data.comentario || "";
             await cargarCondicionPagoClientePrefactura(data.id_sn || "");
-            if ((data.ent_factura || "").trim()) {
-                fieldPrefDirMercancia.value = data.ent_factura || "";
+            if ((data.ent_mercancia || "").trim()) {
+                fieldPrefDirMercancia.value = data.ent_mercancia || "";
             }
             setPrefacturaEstado(data.est_doc || "", false);
 
