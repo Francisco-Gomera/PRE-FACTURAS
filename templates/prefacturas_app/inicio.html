@@ -1042,7 +1042,7 @@
         .app {
             max-width: 1440px;
             border-top: none;
-            padding: 14px;
+            padding: 10px 14px;
         }
 
         .session-strip {
@@ -1050,44 +1050,51 @@
             border: 1px solid rgba(255, 255, 255, 0.22);
             border-radius: 14px;
             color: #eef6ff;
-            padding: 10px 14px;
-            margin-bottom: 12px;
+            padding: 6px 10px;
+            margin-bottom: 8px;
             box-shadow: 0 10px 28px rgba(15, 63, 120, 0.26);
         }
 
         .session-left {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 2px;
+        }
+
+        .session-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
         }
 
         .session-brand {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
         }
 
         .brand-tag {
             font-family: "Space Grotesk", "Outfit", sans-serif;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
-            letter-spacing: 0.7px;
+            letter-spacing: 0.5px;
             background: rgba(255, 255, 255, 0.17);
             border: 1px solid rgba(255, 255, 255, 0.34);
             border-radius: 999px;
-            padding: 4px 12px;
+            padding: 2px 10px;
         }
 
         .brand-company {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             letter-spacing: 0.4px;
             opacity: 0.95;
         }
 
         .session-user {
-            font-size: 14px;
+            font-size: 12px;
         }
 
         .session-strip strong {
@@ -1105,7 +1112,7 @@
             border: 1px solid rgba(255, 255, 255, 0.36);
             color: #ffffff;
             border-radius: 10px;
-            padding: 6px 14px;
+            padding: 4px 10px;
             transition: 0.2s ease;
         }
 
@@ -1480,6 +1487,13 @@
                 align-items: flex-start;
             }
 
+            .session-right {
+                width: 100%;
+                margin-left: 0;
+                justify-content: space-between;
+                flex-wrap: wrap;
+            }
+
             .brand-tag {
                 font-size: 16px;
             }
@@ -1491,30 +1505,20 @@
 
         /* Prefactura compacta: menos alto arriba, mas filas visibles en detalle */
         #prefactura_panel {
-            padding: 8px;
+            padding: 7px;
         }
 
         #prefactura_panel .header-grid {
-            gap: 6px;
+            grid-template-columns: minmax(0, 1fr) 288px;
+            gap: 5px;
         }
 
         #prefactura_panel .card {
-            padding: 5px 6px;
-        }
-
-        #prefactura_panel .title {
-            font-size: 27px;
-            margin: 1px 0 2px;
-            line-height: 1;
-        }
-
-        #prefactura_panel .title-sub {
-            margin: 0 0 5px;
-            font-size: 11.5px;
+            padding: 4px 6px;
         }
 
         #prefactura_panel .form-grid {
-            margin-top: 2px;
+            margin-top: 0;
             gap: 2px 6px;
         }
 
@@ -1533,22 +1537,44 @@
         }
 
         #prefactura_panel .quick-actions h4 {
-            margin-bottom: 4px;
-            font-size: 13px;
+            margin-bottom: 3px;
+            font-size: 12px;
         }
 
         #prefactura_panel .quick-actions button {
-            margin-bottom: 2px;
-            height: 26px;
+            margin-bottom: 1px;
+            height: 24px;
+            padding: 4px 8px;
+            font-size: 12px;
         }
 
         #prefactura_panel .detail-head {
-            margin-top: 6px;
+            margin-top: 3px;
+        }
+
+        #prefactura_panel .actions-bar {
+            margin-top: -40px;
+            padding-top: 0;
+            border-top: none;
+            align-items: flex-end;
         }
 
         #prefactura_panel .grid-shell {
-            min-height: 300px;
-            height: clamp(300px, 46vh, 520px);
+            min-height: 220px;
+            height: clamp(220px, 33vh, 360px);
+        }
+
+        #prefactura_panel .bottom-grid {
+            margin-top: 5px;
+            gap: 6px;
+        }
+
+        #prefactura_panel textarea {
+            height: 58px;
+        }
+
+        #prefactura_panel .totals-grid {
+            gap: 2px 6px;
         }
 
         #prefactura_panel .grid-shell th,
@@ -1627,14 +1653,14 @@
                     Nombre: <strong id="session_user_name" class="user-click">{{ auth_payload.usuario_nombre }}</strong>
                 </div>
             </div>
-            <a class="logout-link" href="{% url 'logout' %}">Cerrar sesion</a>
+            <div class="session-right">
+                <a class="logout-link" href="{% url 'logout' %}">Cerrar sesion</a>
+            </div>
         </div>
 
         <section id="prefactura_panel" class="panel">
             <div class="header-grid">
                 <div class="card">
-                    <h1 class="title">YEO SYSTEM 1.0</h1>
-                    <p class="title-sub">Modulo de pre-facturas · {{ empresa_nombre|default:"COMERCIAL ANITA SRL" }}</p>
                     <div class="form-grid">
                         <label>Cliente</label>
                         <div class="inline-input-btn">
@@ -1791,10 +1817,11 @@
             <div class="win-body">
                 <div class="search-row">
                     <label for="cliente_search_input">Buscar</label>
-                    <input id="cliente_search_input" type="text" placeholder="Codigo, Nombre o Cedula/RNC" />
+                    <input id="cliente_search_input" type="text" placeholder="Codigo, Nombre, Apodo o Cedula/RNC" />
                     <select id="cliente_search_filter">
                         <option value="nombre" selected>Nombre</option>
                         <option value="codigo">Codigo (ID_SN)</option>
+                        <option value="apodo">Apodo (CONTACTO)</option>
                         <option value="rnc">Cedula/RNC</option>
                     </select>
                     <button id="btn_gestion_clientes" type="button" class="btn-small">Crear / Editar clientes</button>

@@ -608,6 +608,8 @@ def buscar_clientes_view(request):
     if query:
         if filtro == "codigo":
             clientes = clientes.filter(id_sn__icontains=query)
+        elif filtro == "apodo":
+            clientes = clientes.filter(contacto__icontains=query)
         elif filtro == "rnc":
             clientes = clientes.filter(rnc_ced__icontains=query)
         else:
@@ -615,6 +617,8 @@ def buscar_clientes_view(request):
 
     if filtro == "codigo":
         clientes = clientes.order_by("id_sn")
+    elif filtro == "apodo":
+        clientes = clientes.order_by("contacto", "id_sn")
     elif filtro == "rnc":
         clientes = clientes.order_by("rnc_ced", "id_sn")
     else:
