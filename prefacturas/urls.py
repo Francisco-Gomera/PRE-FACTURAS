@@ -20,6 +20,15 @@ from django.urls import include, path
 
 urlpatterns = [
     path('', include('prefacturas_app.urls')),
+    path('app/', include('core.urls')),
+    path('app/prefacturas/', include('prefacturas_mod.urls')),
+    path('app/clientes/', include('clientes_mod.urls')),
+    path('app/inventario/', include('inventario.urls')),
+    path('app/reportes/', include('reportes.urls')),
+    path('app/etiquetas/', include('etiquetas.urls')),
+    path('app/ajustes/', include('ajustes.urls')),
+    path('app/cobros/', include('cobros.urls')),
+    path('app/cartas/', include('cartas.urls')),
 ]
 
 if settings.DEBUG:

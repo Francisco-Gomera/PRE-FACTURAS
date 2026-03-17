@@ -6,9 +6,11 @@ from django.core import signing
 from django.db import connection
 from django.db import transaction
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
+
+from ajustes.permissions import has_perm
 from django.views.decorators.http import require_http_methods
 from datetime import datetime, time
 import json
@@ -22,6 +24,27 @@ from .models_existing import DetPedido, MaestroSn, MaestroArticulo
 
 AUTH_COOKIE_NAME = "prefacturas_auth_v2"
 LEGACY_AUTH_COOKIE_NAMES = ["prefacturas_auth"]
+
+def _perm_denied_json():
+    return JsonResponse({"detail": "Acceso denegado."}, status=403)
+
+
+def _require_perm_json(request, modulo, permiso):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return JsonResponse({"detail": "No autenticado"}, status=401)
+    if not has_perm(auth_payload.get("usuario_id"), modulo, permiso):
+        return _perm_denied_json()
+    return auth_payload
+
+
+def _require_perm_or_denied(request, modulo, permiso):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
+        return redirect("login")
+    if not has_perm(auth_payload.get("usuario_id"), modulo, permiso):
+        return HttpResponse("Acceso denegado.", status=403)
+    return auth_payload
 
 
 def _normalize_bloqueado(value):
@@ -309,9 +332,9 @@ def cambiar_password_view(request):
 
 @require_http_methods(["GET"])
 def estado_cuenta_print_view(request):
-    auth_payload = _get_auth_payload(request)
-    if not auth_payload:
-        return redirect("login")
+    auth_payload = _require_perm_or_denied(request, "clientes", "ver_estado_cuenta")
+    if not isinstance(auth_payload, dict):
+        return auth_payload
 
     id_sn = (request.GET.get("id_sn") or "").strip()
     cliente = None
@@ -462,8 +485,9 @@ def estado_cuenta_print_view(request):
 
 @require_http_methods(["GET"])
 def buscar_stock_articulos_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "inventario", "stock_buscar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     q = (request.GET.get("q") or "").strip()
     stock_desde_raw = (request.GET.get("stock_desde") or "").strip()
@@ -522,9 +546,9 @@ def buscar_stock_articulos_view(request):
 
 @require_http_methods(["GET"])
 def stock_articulos_print_view(request):
-    auth_payload = _get_auth_payload(request)
-    if not auth_payload:
-        return redirect("login")
+    auth_payload = _require_perm_or_denied(request, "inventario", "stock_imprimir")
+    if not isinstance(auth_payload, dict):
+        return auth_payload
 
     q = (request.GET.get("q") or "").strip()
     stock_desde_raw = (request.GET.get("stock_desde") or "").strip()
@@ -598,8 +622,9 @@ def stock_articulos_print_view(request):
 
 @require_http_methods(["GET"])
 def buscar_clientes_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "clientes", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
     filtro = (request.GET.get("filtro") or "nombre").strip().lower()
@@ -639,8 +664,9 @@ def buscar_clientes_view(request):
 
 @require_http_methods(["GET"])
 def buscar_prefacturas_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "prefacturas", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
     filtro = (request.GET.get("filtro") or "documento").strip().lower()
@@ -705,8 +731,9 @@ def buscar_prefacturas_view(request):
 
 @require_http_methods(["GET"])
 def buscar_articulos_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "inventario", "stock_buscar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     q = (request.GET.get("q") or "").strip()
     filtro = (request.GET.get("filtro") or "descripcion").strip().lower()
@@ -758,8 +785,9 @@ def buscar_articulos_view(request):
 
 @require_http_methods(["GET"])
 def buscar_grupos_articulos_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "inventario", "grupos_buscar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     q = (request.GET.get("q") or "").strip()
     filtro = (request.GET.get("filtro") or "descripcion").strip().lower()
@@ -801,8 +829,9 @@ def buscar_grupos_articulos_view(request):
 
 @require_http_methods(["GET"])
 def detalle_grupo_articulos_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "inventario", "grupos_buscar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     id_grupo_raw = (request.GET.get("id_grupo") or "").strip()
     if not id_grupo_raw:
@@ -866,8 +895,9 @@ def detalle_grupo_articulos_view(request):
 
 @require_http_methods(["GET"])
 def detalle_grupo_articulos_prefactura_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "inventario", "grupos_buscar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     id_grupo_raw = (request.GET.get("id_grupo") or "").strip()
     if not id_grupo_raw:
@@ -938,9 +968,9 @@ def detalle_grupo_articulos_prefactura_view(request):
 
 @require_http_methods(["POST"])
 def guardar_grupo_articulos_view(request):
-    auth_payload = _get_auth_payload(request)
-    if not auth_payload:
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "inventario", "grupos_guardar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     try:
         payload = json.loads(request.body.decode("utf-8"))
@@ -1093,6 +1123,8 @@ def actualizar_prefactura_view(request):
     auth_payload = _get_auth_payload(request)
     if not auth_payload:
         return JsonResponse({"detail": "No autenticado"}, status=401)
+    if not has_perm(auth_payload.get("usuario_id"), "prefacturas", "guardar"):
+        return JsonResponse({"detail": "Permiso denegado"}, status=403)
 
     try:
         payload = json.loads(request.body.decode("utf-8"))
@@ -1431,6 +1463,8 @@ def crear_prefactura_view(request):
     auth_payload = _get_auth_payload(request)
     if not auth_payload:
         return JsonResponse({"detail": "No autenticado"}, status=401)
+    if not has_perm(auth_payload.get("usuario_id"), "prefacturas", "guardar"):
+        return JsonResponse({"detail": "Permiso denegado"}, status=403)
 
     try:
         payload = json.loads(request.body.decode("utf-8"))
@@ -1697,7 +1731,8 @@ def crear_prefactura_view(request):
 
 @require_http_methods(["POST"])
 def actualizar_estado_prefactura_view(request):
-    if not _get_auth_payload(request):
+    auth_payload = _get_auth_payload(request)
+    if not auth_payload:
         return JsonResponse({"detail": "No autenticado"}, status=401)
 
     try:
@@ -1718,6 +1753,11 @@ def actualizar_estado_prefactura_view(request):
     if est_doc not in {"Abierto", "Cerrado", "Cancelado"}:
         return JsonResponse({"detail": "est_doc invalido"}, status=400)
 
+    if est_doc == "Cerrado" and not has_perm(auth_payload.get("usuario_id"), "prefacturas", "cerrar"):
+        return JsonResponse({"detail": "Permiso denegado"}, status=403)
+    if est_doc == "Cancelado" and not has_perm(auth_payload.get("usuario_id"), "prefacturas", "cancelar"):
+        return JsonResponse({"detail": "Permiso denegado"}, status=403)
+
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -1737,8 +1777,9 @@ def actualizar_estado_prefactura_view(request):
 
 @require_http_methods(["GET"])
 def detalle_prefactura_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "prefacturas", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     id_doc = (request.GET.get("id_doc") or "").strip()
     if not id_doc:
@@ -1840,8 +1881,9 @@ def guardar_comentario_linea_prefactura_view(request):
 
 @require_http_methods(["GET"])
 def buscar_unidad_medida_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "prefacturas", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     try:
         with connection.cursor() as cursor:
@@ -1888,8 +1930,9 @@ def buscar_unidad_medida_view(request):
 
 @require_http_methods(["GET"])
 def buscar_proyectos_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "prefacturas", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
     sql = """
@@ -1921,8 +1964,9 @@ def buscar_proyectos_view(request):
 
 @require_http_methods(["GET"])
 def buscar_cebes_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "prefacturas", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
     sql = """
@@ -1954,8 +1998,9 @@ def buscar_cebes_view(request):
 
 @require_http_methods(["GET"])
 def buscar_grupo_cliente_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "clientes", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
 
@@ -1990,8 +2035,9 @@ def buscar_grupo_cliente_view(request):
 
 @require_http_methods(["GET"])
 def buscar_vend_comp_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "clientes", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
 
@@ -2026,8 +2072,9 @@ def buscar_vend_comp_view(request):
 
 @require_http_methods(["GET"])
 def buscar_condicion_pago_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "prefacturas", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
 
@@ -2062,8 +2109,9 @@ def buscar_condicion_pago_view(request):
 
 @require_http_methods(["GET"])
 def buscar_lista_precio_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "prefacturas", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     query = (request.GET.get("q") or "").strip()
 
@@ -2106,8 +2154,9 @@ def buscar_lista_precio_view(request):
 
 @require_http_methods(["GET"])
 def detalle_cliente_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "clientes", "ver")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     id_sn = (request.GET.get("id_sn") or "").strip()
     if not id_sn:
@@ -2174,8 +2223,9 @@ def detalle_cliente_view(request):
 
 @require_http_methods(["POST"])
 def subir_foto_cliente_view(request):
-    if not _get_auth_payload(request):
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "clientes", "editar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     id_sn = (request.POST.get("id_sn") or "").strip()
     foto_file = request.FILES.get("foto")
@@ -2208,14 +2258,17 @@ def subir_foto_cliente_view(request):
 
 @require_http_methods(["POST"])
 def actualizar_cliente_view(request):
-    auth_payload = _get_auth_payload(request)
-    if not auth_payload:
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "clientes", "editar")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except Exception:
         return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    if "bloqueado" in payload and not has_perm(auth_payload.get("usuario_id"), "clientes", "bloquear"):
+        return _perm_denied_json()
 
     id_sn = (payload.get("id_sn") or "").strip()
     if not id_sn:
@@ -2382,14 +2435,17 @@ def actualizar_cliente_view(request):
 
 @require_http_methods(["POST"])
 def crear_cliente_view(request):
-    auth_payload = _get_auth_payload(request)
-    if not auth_payload:
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "clientes", "crear")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
 
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except Exception:
         return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    if "bloqueado" in payload and not has_perm(auth_payload.get("usuario_id"), "clientes", "bloquear"):
+        return _perm_denied_json()
 
     nom_socio = (payload.get("nom_socio") or "").strip()
     if not nom_socio:
@@ -2622,9 +2678,9 @@ def crear_cliente_view(request):
 
 @require_http_methods(["GET"])
 def obtener_formato_etiquetas_view(request):
-    auth_payload = _get_auth_payload(request)
-    if not auth_payload:
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "etiquetas", "ver_formatos")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
     usuario_id = int(auth_payload["usuario_id"])
     registro = EtiquetaFormatoUsuario.objects.filter(id_usuario=usuario_id).first()
     formato = {}
@@ -2638,9 +2694,9 @@ def obtener_formato_etiquetas_view(request):
 
 @require_http_methods(["POST"])
 def guardar_formato_etiquetas_view(request):
-    auth_payload = _get_auth_payload(request)
-    if not auth_payload:
-        return JsonResponse({"detail": "No autenticado"}, status=401)
+    auth_payload = _require_perm_json(request, "etiquetas", "ver_formatos")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
     try:
         payload = json.loads(request.body.decode("utf-8"))
     except Exception:

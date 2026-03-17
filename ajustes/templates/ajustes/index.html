@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Ajustes</h2>
+<p class="page-subtitle">Parametros generales, permisos y configuraciones.</p>
+
+<div class="card-grid">
+  {% if submodules.parametros %}
+  <div class="info-card">
+    <h3>Parametros</h3>
+    <p>Valores globales del sistema.</p>
+    <a href="{% url 'ajustes:parametros' %}">Definir parametros</a>
+  </div>
+  {% endif %}
+  {% if submodules.usuarios %}
+  <div class="info-card">
+    <h3>Usuarios</h3>
+    <p>Roles, permisos y accesos.</p>
+    <a href="{% url 'ajustes:usuarios' %}">Definir usuarios</a>
+  </div>
+  {% endif %}
+  {% if submodules.integraciones %}
+  <div class="info-card">
+    <h3>Integraciones</h3>
+    <p>Conexiones y servicios externos.</p>
+    <a href="#">Definir integraciones</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

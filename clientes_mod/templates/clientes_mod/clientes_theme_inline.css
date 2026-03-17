@@ -1,0 +1,225 @@
+.content .main {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  min-height: calc(100vh - 120px);
+}
+
+.prefactura-page.app {
+  max-width: none;
+  padding: 0;
+  border-top: none;
+  min-height: auto;
+}
+
+.prefactura-page.app #maestro_modal_backdrop .win-modal {
+  min-height: calc(100vh - 120px);
+}
+
+/* Oculta la UI de prefacturas y otros modales */
+#prefactura_panel,
+#prefactura_modal_backdrop,
+#articulo_modal_backdrop,
+#grupo_articulo_modal_backdrop,
+#grupo_articulo_search_backdrop,
+#stock_articulos_modal_backdrop,
+#etiquetas_articulos_modal_backdrop,
+#etiquetas_formato_modal_backdrop {
+  display: none !important;
+}
+
+/* Mostrar maestro como modulo (no modal) */
+#maestro_modal_backdrop {
+  position: static;
+  inset: auto;
+  background: transparent;
+  display: block;
+}
+
+#maestro_modal_backdrop.open {
+  display: block;
+}
+
+#maestro_modal_backdrop .win-modal {
+  width: 100%;
+  max-width: none;
+  box-shadow: none;
+  border-radius: 0;
+  border: none;
+}
+
+#maestro_modal_backdrop .win-titlebar {
+  display: none;
+}
+
+#btn_close_maestro_modal {
+  display: none !important;
+}
+
+#btn_close_maestro_bottom {
+  display: none !important;
+}
+
+#maestro_modal_backdrop .win-body {
+  padding: 0;
+}
+
+/* Asegura que los modales activos se vean por encima del layout */
+.modal-backdrop {
+  z-index: 1300;
+}
+
+/* Maestro: ocultar titulo y unificar estilo del bloque superior */
+.maestro-title {
+  display: none;
+}
+
+.maestro-top {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.maestro-photo,
+.maestro-account,
+.maestro-account-inline {
+  background: #ffffff;
+  border: 1px solid var(--line);
+}
+
+/* Alinear maestro-top como el resto */
+.maestro-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px 190px;
+  gap: 12px;
+  align-items: start;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  padding: 10px;
+}
+
+.maestro-top h2.maestro-title {
+  margin-top: 0;
+}
+
+.maestro-photo,
+.maestro-account,
+.maestro-account-inline {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.maestro-photo {
+  padding: 4px;
+  gap: 4px;
+}
+
+.maestro-photo-box {
+  min-height: 140px;
+  height: 140px;
+}
+
+.maestro-form input,
+.maestro-form select,
+.maestro-side input,
+.maestro-side select {
+  height: 30px;
+}
+
+/* Compactar pestañas intermedias para evitar scroll */
+.maestro-tabs {
+  margin: 6px 0 0 0;
+  gap: 4px;
+}
+
+.maestro-tab {
+  padding: 4px 10px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.maestro-panel {
+  margin-top: 0;
+}
+
+.maestro-form {
+  grid-template-columns: 140px 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.maestro-account-inline {
+  padding: 6px;
+  gap: 6px;
+}
+
+.maestro-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.maestro-main {
+  min-width: 0;
+}
+
+.maestro-side {
+  display: grid;
+  gap: 6px;
+}
+
+.maestro-bloqueado {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+/* Mobile-first ajustes (sin afectar desktop) */
+@media (max-width: 900px) {
+  .maestro-top {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .maestro-form {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .maestro-side {
+    grid-template-columns: 1fr;
+  }
+
+  .maestro-bloqueado {
+    grid-template-columns: 1fr;
+  }
+
+  .group-picker {
+    display: grid;
+    grid-template-columns: 1fr 60px auto;
+    gap: 6px;
+  }
+
+  .maestro-photo {
+    padding: 6px;
+  }
+
+  .maestro-photo-box {
+    height: 120px;
+    min-height: 120px;
+  }
+
+  .maestro-tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .maestro-tab {
+    flex: 1 1 30%;
+    text-align: center;
+  }
+}

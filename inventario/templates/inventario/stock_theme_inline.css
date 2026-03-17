@@ -1,0 +1,96 @@
+.content .main {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.prefactura-page.app {
+  max-width: none;
+  padding: 0;
+  border-top: none;
+  min-height: auto;
+}
+
+/* Oculta pantallas y modales no usados */
+#prefactura_panel,
+#prefactura_modal_backdrop,
+#cliente_modal_backdrop,
+#maestro_modal_backdrop,
+#grupo_modal_backdrop,
+#vend_comp_modal_backdrop,
+#condicion_modal_backdrop,
+#lista_precio_modal_backdrop,
+#detalle_codigo_modal_backdrop,
+#articulo_modal_backdrop,
+#grupo_articulo_modal_backdrop,
+#grupo_articulo_search_backdrop,
+#etiquetas_articulos_modal_backdrop,
+#etiquetas_formato_modal_backdrop,
+#cambiar_password_modal_backdrop {
+  display: none !important;
+}
+
+/* Mostrar stock como pagina completa */
+#stock_articulos_modal_backdrop {
+  position: static;
+  inset: auto;
+  background: transparent;
+  display: block;
+}
+
+#stock_articulos_modal_backdrop.open {
+  display: block;
+}
+
+#stock_articulos_modal_backdrop .win-modal {
+  width: 100%;
+  max-width: none;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+#stock_articulos_modal_backdrop .win-titlebar {
+  display: none !important;
+}
+
+#stock_articulos_modal_backdrop .win-body {
+  padding: 10px;
+}
+
+#btn_close_stock_articulos_modal {
+  display: none !important;
+}
+
+.modal-backdrop {
+  z-index: 1300;
+}
+
+/* Estirar la tabla hasta el borde inferior del menu */
+#stock_articulos_modal_backdrop .win-modal {
+  height: calc(100vh - 115px);
+  max-height: calc(100vh - 115px);
+  display: flex;
+  flex-direction: column;
+}
+
+#stock_articulos_modal_backdrop .win-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#stock_articulos_modal_backdrop .search-grid {
+  flex: 1 1 auto;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+#stock_articulos_modal_backdrop table {
+  min-height: 1px;
+}

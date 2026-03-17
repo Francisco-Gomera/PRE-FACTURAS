@@ -1,0 +1,70 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Panel general</h2>
+<p class="page-subtitle">Accesos rapidos a los nuevos modulos. Las funciones se agregaran en la siguiente fase.</p>
+{% if access_denied %}
+<div class="info-card" style="border-color:#e24c4c; background:#fff5f5; color:#9a1b1b; margin-bottom:12px;">
+  Acceso denegado. No tienes permiso para ver ese modulo.
+</div>
+{% endif %}
+
+<div class="card-grid">
+  {% if visible_modules.prefacturas %}
+  <div class="info-card">
+    <h3>Prefacturas</h3>
+    <p>Crear, revisar y administrar documentos de venta.</p>
+    <a href="{% url 'prefacturas_mod:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+  {% if visible_modules.clientes %}
+  <div class="info-card">
+    <h3>Clientes</h3>
+    <p>Gestion de clientes, contactos y perfiles.</p>
+    <a href="{% url 'clientes_mod:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+  {% if visible_modules.inventario %}
+  <div class="info-card">
+    <h3>Inventario</h3>
+    <p>Stock, articulos, movimientos y ubicaciones.</p>
+    <a href="{% url 'inventario:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+  {% if visible_modules.reportes %}
+  <div class="info-card">
+    <h3>Reportes</h3>
+    <p>Analitica, exportaciones y KPIs.</p>
+    <a href="{% url 'reportes:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+  {% if visible_modules.etiquetas %}
+  <div class="info-card">
+    <h3>Etiquetas</h3>
+    <p>Impresion y formatos de etiquetas.</p>
+    <a href="{% url 'etiquetas:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+  {% if visible_modules.cobros %}
+  <div class="info-card">
+    <h3>Cobros</h3>
+    <p>Gestion de cobros, estados y alertas.</p>
+    <a href="{% url 'cobros:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+  {% if visible_modules.cartas %}
+  <div class="info-card">
+    <h3>Cartas</h3>
+    <p>Cartas de aviso y cartas de saldo.</p>
+    <a href="{% url 'cartas:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+  {% if visible_modules.ajustes %}
+  <div class="info-card">
+    <h3>Ajustes</h3>
+    <p>Parametros, permisos y configuraciones.</p>
+    <a href="{% url 'ajustes:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

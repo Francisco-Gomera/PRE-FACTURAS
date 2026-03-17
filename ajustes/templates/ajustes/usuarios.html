@@ -1,0 +1,559 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Usuarios, roles y permisos</h2>
+<p class="page-subtitle">Gestiona acceso por modulo, roles y permisos por usuario.</p>
+
+
+
+<div class="card-grid roles-grid">
+  <div class="info-card">
+    <h3>Permisos por usuario</h3>
+    <p class="helper-text">Asigna permisos directos por usuario.</p>
+    <button type="button" id="btn_open_user_perm_modal">Administrar permisos</button>
+  </div>
+</div>
+
+<div id="user_perm_modal" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="user_perm_modal_title">
+    <div class="win-titlebar">
+      <span id="user_perm_modal_title">Permisos por usuario</span>
+      <button id="btn_close_user_perm_modal" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="user-perm-grid">
+        <section class="user-perm-users">
+          <h4>Usuarios</h4>
+          <div class="user-list">
+            {% for u in usuarios %}
+            <label class="user-item">
+              <input type="checkbox" class="user-select" value="{{ u.id_usuario }}" data-has-firma="{{ u.has_firma|yesno:'1,0' }}" />
+              <span>{{ u.usuario }} - {{ u.nombre }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <form id="user_firma_form" method="post" action="{% url 'ajustes:guardar_firma_usuario' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="id_usuario" id="firma_user_id" />
+            <label class="helper-label" for="firma_png">Firma (PNG)</label>
+            <input id="firma_png" name="firma_png" type="file" accept="image/png" disabled />
+            <button type="submit" id="btn_save_firma" disabled>Guardar firma</button>
+            <p class="helper-text" id="firma_status">Selecciona un usuario para cargar firma.</p>
+          </form>
+        </section>
+        <section class="user-perm-perms">
+          <h4>Permisos</h4>
+          <label class="helper-label" for="perm_modelo_usuario">Modelo de ejemplo</label>
+          <select id="perm_modelo_usuario" disabled>
+            <option value="">Selecciona un usuario</option>
+            {% for u in usuarios %}
+            <option value="{{ u.id_usuario }}">{{ u.usuario }} - {{ u.nombre }}</option>
+            {% endfor %}
+          </select>
+          <p class="helper-text">Selecciona un usuario para editar permisos.</p>
+          <form id="user_perm_form" method="post" action="{% url 'ajustes:guardar_permisos_usuario' %}">
+            {% csrf_token %}
+            <input type="hidden" name="id_usuario" id="user_perm_id" />
+            <fieldset id="perm_table_fieldset" disabled>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Modulo</th>
+                      <th>Codigo</th>
+                      <th>Nombre</th>
+                      <th>Permitido</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for p in permisos_ui %}
+                    <tr class="perm-row level-{{ p.level }}" style="background: {{ p.color }};">
+                      <td>{{ p.modulo }}</td>
+                      <td>{{ p.codigo }}</td>
+                      <td>{{ p.nombre }}</td>
+                      <td class="check-cell">
+                        <input type="checkbox" name="perm_ids" value="{{ p.id }}" class="perm-check" />
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              <div class="modal-actions">
+                <button type="submit" id="btn_save_user_perms" disabled>Grabar permisos</button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
+      </div>
+    </div>
+  </div>
+</div>
+
+{{ user_perm_map|json_script:"userPermMap" }}
+
+<style>
+  :root {
+    --ua-bg: #f3f7ff;
+    --ua-card: #ffffff;
+    --ua-line: #d5e1f4;
+    --ua-title: #0f3f78;
+    --ua-text: #1b2b44;
+    --ua-muted: #5a6b80;
+    --ua-accent: #0f6edc;
+  }
+
+  .page-title {
+    font-size: 20px;
+    color: var(--ua-title);
+  }
+
+  .page-subtitle {
+    color: var(--ua-muted);
+    margin: 0 0 10px;
+  }
+
+  .roles-grid {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .roles-grid .info-card {
+    background: var(--ua-card);
+    border: 1px solid var(--ua-line);
+    border-radius: 14px;
+    padding: 10px;
+    box-shadow: 0 10px 22px rgba(10, 45, 110, 0.08);
+  }
+
+  .roles-grid h3 {
+    font-size: 13px;
+    margin: 0 0 6px;
+    color: var(--ua-text);
+  }
+
+  .roles-grid .helper-text {
+    margin: 0 0 6px;
+    font-size: 11px;
+    color: var(--ua-muted);
+  }
+
+  .roles-grid form {
+    display: grid;
+    gap: 6px;
+  }
+
+  .roles-grid form input,
+  .roles-grid form select {
+    height: 30px;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--ua-line);
+    background: #f7faff;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .roles-grid form button,
+  #btn_open_user_perm_modal {
+    height: 32px;
+    font-size: 12px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #1f7aed, #0f5fd1);
+    border: 1px solid #1a64c8;
+    color: #fff;
+    font-weight: 700;
+  }
+  .table-scroll {
+    max-height: 220px;
+    overflow: auto;
+    border: 1px solid var(--ua-line);
+    border-radius: 12px;
+    background: #fff;
+  }
+  .table-scroll table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .table-scroll th,
+  .table-scroll td {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1400;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+  .win-modal {
+    width: min(1100px, 96vw);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid var(--ua-line);
+    box-shadow: 0 18px 40px rgba(10, 45, 110, 0.2);
+  }
+  .win-titlebar {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: linear-gradient(90deg, #0f3b94, #2a67c7);
+    color: #fff;
+    padding: 0 10px;
+    font-size: 13px;
+    font-weight: 700;
+    border-radius: 16px 16px 0 0;
+  }
+  .win-titlebar button {
+    width: 28px;
+    height: 22px;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+  }
+  .win-body {
+    padding: 10px;
+    overflow: auto;
+  }
+  .user-perm-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+  .user-perm-users,
+  .user-perm-perms {
+    border: 1px solid var(--ua-line);
+    border-radius: 14px;
+    background: var(--ua-bg);
+    padding: 8px;
+  }
+  .user-perm-users h4,
+  .user-perm-perms h4 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: #0f3f78;
+  }
+  .helper-label {
+    display: block;
+    font-size: 11px;
+    color: var(--ua-muted);
+    margin: 2px 0 4px;
+  }
+  #perm_modelo_usuario {
+    width: 100%;
+    height: 30px;
+    border-radius: 10px;
+    border: 1px solid var(--ua-line);
+    background: #fff;
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+  .user-list {
+    max-height: 220px;
+    overflow: auto;
+    display: grid;
+    gap: 6px;
+  }
+  #user_firma_form {
+    margin-top: 8px;
+    display: grid;
+    gap: 6px;
+  }
+  #user_firma_form input[type="file"] {
+    font-size: 11px;
+    padding: 6px;
+    border-radius: 10px;
+    border: 1px solid var(--ua-line);
+    background: #fff;
+  }
+  #btn_save_firma {
+    height: 30px;
+    font-size: 12px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #1f7aed, #0f5fd1);
+    border: 1px solid #1a64c8;
+    color: #fff;
+    font-weight: 700;
+  }
+  .user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .user-perm-perms .table-scroll {
+    max-height: 360px;
+  }
+  #perm_table_fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+  }
+  #perm_table_fieldset[disabled] {
+    opacity: 0.65;
+    filter: grayscale(0.2);
+  }
+  .perm-row.level-module {
+    color: #ffffff;
+    font-weight: 700;
+  }
+  .perm-row.level-submodule {
+    color: #0f3f78;
+    font-weight: 600;
+  }
+  .perm-row.level-perm {
+    color: #24344b;
+  }
+  .check-cell {
+    text-align: center;
+  }
+  .modal-actions {
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .modal-actions button {
+    height: 32px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+  @media (max-width: 900px) {
+    .win-modal {
+      width: 100vw;
+      max-width: 100vw;
+      height: 100dvh;
+      max-height: 100dvh;
+      border-radius: 0;
+    }
+    .win-titlebar {
+      border-radius: 0;
+    }
+    .user-perm-perms .table-scroll {
+      max-height: 48vh;
+    }
+  }
+
+  @media (min-width: 901px) {
+    .roles-grid {
+      grid-template-columns: repeat(4, minmax(220px, 1fr));
+    }
+    .user-perm-grid {
+      grid-template-columns: 260px minmax(0, 1fr);
+    }
+    .user-list {
+      max-height: 360px;
+    }
+  }
+</style>
+
+<script>
+  const userPermMap = JSON.parse(document.getElementById("userPermMap").textContent || "{}");
+  const userPermModal = document.getElementById("user_perm_modal");
+  const openUserPermModalBtn = document.getElementById("btn_open_user_perm_modal");
+  const closeUserPermModalBtn = document.getElementById("btn_close_user_perm_modal");
+  const userPermIdInput = document.getElementById("user_perm_id");
+  const userCheckboxes = Array.from(document.querySelectorAll(".user-select"));
+  const permCheckboxes = Array.from(document.querySelectorAll(".perm-check"));
+  const permHelperText = document.querySelector(".user-perm-perms .helper-text");
+  const exampleSelect = document.getElementById("perm_modelo_usuario");
+  const permFieldset = document.getElementById("perm_table_fieldset");
+  const savePermsBtn = document.getElementById("btn_save_user_perms");
+  const firmaUserIdInput = document.getElementById("firma_user_id");
+  const firmaInput = document.getElementById("firma_png");
+  const firmaSaveBtn = document.getElementById("btn_save_firma");
+  const firmaStatus = document.getElementById("firma_status");
+
+  const setPermChecks = (userId) => {
+    const map = userPermMap[String(userId)] || {};
+    permCheckboxes.forEach((checkbox) => {
+      const permitido = map[String(checkbox.value)];
+      checkbox.checked = permitido === true;
+    });
+  };
+
+  const clearPermChecks = () => {
+    permCheckboxes.forEach((checkbox) => {
+      checkbox.checked = false;
+    });
+  };
+
+  const setSelectedUser = (userId) => {
+    userPermIdInput.value = userId;
+    if (permHelperText) {
+      permHelperText.textContent = `Editando permisos para usuario ID ${userId}.`;
+    }
+    if (firmaUserIdInput) {
+      firmaUserIdInput.value = userId;
+    }
+    if (firmaInput) {
+      firmaInput.disabled = false;
+      firmaInput.value = "";
+    }
+    if (firmaSaveBtn) {
+      firmaSaveBtn.disabled = false;
+    }
+    if (firmaStatus) {
+      const selected = document.querySelector(`.user-select[value="${userId}"]`);
+      const hasFirma = selected?.dataset?.hasFirma === "1";
+      firmaStatus.textContent = hasFirma
+        ? "Este usuario ya tiene firma registrada."
+        : "Sin firma registrada. Carga una imagen PNG.";
+    }
+    setPermChecks(userId);
+    if (exampleSelect) {
+      exampleSelect.disabled = false;
+      exampleSelect.value = "";
+    }
+    if (permFieldset) {
+      permFieldset.disabled = false;
+    }
+    if (savePermsBtn) {
+      savePermsBtn.disabled = false;
+    }
+  };
+
+  userCheckboxes.forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        userCheckboxes.forEach((other) => {
+          if (other !== checkbox) {
+            other.checked = false;
+          }
+        });
+        setSelectedUser(checkbox.value);
+      } else {
+        userPermIdInput.value = "";
+        if (permHelperText) {
+          permHelperText.textContent = "Selecciona un usuario para editar permisos.";
+        }
+        if (firmaUserIdInput) {
+          firmaUserIdInput.value = "";
+        }
+        if (firmaInput) {
+          firmaInput.disabled = true;
+          firmaInput.value = "";
+        }
+        if (firmaSaveBtn) {
+          firmaSaveBtn.disabled = true;
+        }
+        if (firmaStatus) {
+          firmaStatus.textContent = "Selecciona un usuario para cargar firma.";
+        }
+        clearPermChecks();
+        if (exampleSelect) {
+          exampleSelect.disabled = true;
+          exampleSelect.value = "";
+        }
+        if (permFieldset) {
+          permFieldset.disabled = true;
+        }
+        if (savePermsBtn) {
+          savePermsBtn.disabled = true;
+        }
+      }
+    });
+  });
+
+  if (openUserPermModalBtn) {
+    openUserPermModalBtn.addEventListener("click", () => {
+      userPermModal.classList.add("open");
+      userPermModal.setAttribute("aria-hidden", "false");
+    });
+  }
+
+  if (closeUserPermModalBtn) {
+    closeUserPermModalBtn.addEventListener("click", () => {
+      userPermModal.classList.remove("open");
+      userPermModal.setAttribute("aria-hidden", "true");
+      userPermIdInput.value = "";
+      userCheckboxes.forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+      if (permHelperText) {
+        permHelperText.textContent = "Selecciona un usuario para editar permisos.";
+      }
+      if (firmaUserIdInput) {
+        firmaUserIdInput.value = "";
+      }
+      if (firmaInput) {
+        firmaInput.disabled = true;
+        firmaInput.value = "";
+      }
+      if (firmaSaveBtn) {
+        firmaSaveBtn.disabled = true;
+      }
+      if (firmaStatus) {
+        firmaStatus.textContent = "Selecciona un usuario para cargar firma.";
+      }
+      clearPermChecks();
+      if (exampleSelect) {
+        exampleSelect.disabled = true;
+        exampleSelect.value = "";
+      }
+      if (permFieldset) {
+        permFieldset.disabled = true;
+      }
+      if (savePermsBtn) {
+        savePermsBtn.disabled = true;
+      }
+    });
+  }
+
+  if (userPermModal) {
+    userPermModal.addEventListener("click", (event) => {
+      if (event.target === userPermModal) {
+        closeUserPermModalBtn?.click();
+      }
+    });
+  }
+
+  const userPermForm = document.getElementById("user_perm_form");
+  if (userPermForm) {
+    userPermForm.addEventListener("submit", (event) => {
+      if (!userPermIdInput.value) {
+        event.preventDefault();
+        window.alert("Selecciona un usuario antes de grabar permisos.");
+      }
+    });
+  }
+
+  if (exampleSelect) {
+    exampleSelect.addEventListener("change", () => {
+      if (!userPermIdInput.value) {
+        exampleSelect.value = "";
+        return;
+      }
+      const exampleId = exampleSelect.value;
+      if (!exampleId) {
+        setPermChecks(userPermIdInput.value);
+        return;
+      }
+      const map = userPermMap[String(exampleId)] || {};
+      permCheckboxes.forEach((checkbox) => {
+        const permitido = map[String(checkbox.value)];
+        checkbox.checked = permitido === true;
+      });
+      if (permHelperText) {
+        permHelperText.textContent = `Permisos cargados desde usuario ID ${exampleId}.`;
+      }
+    });
+  }
+</script>
+
+{% endblock %}

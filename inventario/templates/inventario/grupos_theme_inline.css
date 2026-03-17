@@ -1,0 +1,83 @@
+.content .main {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.prefactura-page.app {
+  max-width: none;
+  padding: 0;
+  border-top: none;
+  min-height: auto;
+}
+
+/* Oculta pantallas y modales no usados */
+#prefactura_panel,
+#prefactura_modal_backdrop,
+#cliente_modal_backdrop,
+#maestro_modal_backdrop,
+#grupo_modal_backdrop,
+#vend_comp_modal_backdrop,
+#condicion_modal_backdrop,
+#lista_precio_modal_backdrop,
+#detalle_codigo_modal_backdrop,
+#stock_articulos_modal_backdrop,
+#etiquetas_articulos_modal_backdrop,
+#etiquetas_formato_modal_backdrop,
+#cambiar_password_modal_backdrop {
+  display: none !important;
+}
+
+/* Mostrar grupo de articulos como pagina completa */
+#grupo_articulo_modal_backdrop {
+  position: static;
+  inset: auto;
+  background: transparent;
+  display: block;
+}
+
+#grupo_articulo_modal_backdrop.open {
+  display: block;
+}
+
+#grupo_articulo_modal_backdrop .win-modal {
+  width: 100%;
+  max-width: none;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+#grupo_articulo_modal_backdrop .win-titlebar {
+  display: none !important;
+}
+
+#grupo_articulo_modal_backdrop .win-body {
+  padding: 10px;
+}
+
+#grupo_articulo_modal_backdrop .win-titlebar,
+#btn_close_grupo_articulo_modal,
+#grupo_articulo_modal_backdrop .win-titlebar button {
+  display: none !important;
+}
+
+#btn_ga_cerrar {
+  display: none !important;
+}
+
+.modal-backdrop {
+  z-index: 1300;
+}
+
+/* Permite que los modales se abran solo cuando tienen .open */
+#grupo_articulo_search_backdrop,
+#articulo_modal_backdrop {
+  display: none;
+}
+
+#grupo_articulo_search_backdrop.open,
+#articulo_modal_backdrop.open {
+  display: flex;
+}

@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block head_extra %}
+<style>
+{% include "prefacturas_mod/prefacturas_inline.css" %}
+</style>
+<style>
+{% include "prefacturas_mod/prefacturas_theme_inline.css" %}
+</style>
+{% endblock %}
+
+{% block content %}
+{% include "prefacturas_app/inicio_body.html" %}
+{% endblock %}

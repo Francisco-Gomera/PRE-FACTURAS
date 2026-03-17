@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Cartas</h2>
+<p class="page-subtitle">Cartas de aviso y cartas de saldo con formatos personalizados.</p>
+
+<div class="card-grid">
+  {% if submodules.cartas_aviso %}
+  <div class="info-card">
+    <h3>Cartas de aviso</h3>
+    <p>Comunicaciones por vencimiento o mora.</p>
+    <a href="#">Definir avisos</a>
+  </div>
+  {% endif %}
+  {% if submodules.cartas_saldo %}
+  <div class="info-card">
+    <h3>Cartas de saldo</h3>
+    <p>Resumen de saldos por cliente.</p>
+    <a href="{% url 'cartas:saldo' %}">Definir saldo</a>
+  </div>
+  {% endif %}
+  {% if submodules.plantillas %}
+  <div class="info-card">
+    <h3>Plantillas</h3>
+    <p>Diseño de cartas con variables.</p>
+    <a href="#">Definir plantillas</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

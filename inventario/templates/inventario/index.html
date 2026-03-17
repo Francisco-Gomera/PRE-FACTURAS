@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Inventario</h2>
+<p class="page-subtitle">Selecciona el modulo que deseas gestionar.</p>
+
+<div class="card-grid">
+  {% if submodules.articulos %}
+  <div class="info-card">
+    <h3>Articulos</h3>
+    <p>Alta, edicion, costos, precios y codigos.</p>
+    <a href="#">Abrir articulos</a>
+  </div>
+  {% endif %}
+  {% if submodules.grupos %}
+  <div class="info-card">
+    <h3>Grupos de articulos</h3>
+    <p>Crear y mantener grupos con sus detalles.</p>
+    <a href="{% url 'inventario:grupos' %}">Abrir grupos</a>
+  </div>
+  {% endif %}
+  {% if submodules.stock %}
+  <div class="info-card">
+    <h3>Stock</h3>
+    <p>Disponibilidad, existencias y ubicaciones.</p>
+    <a href="{% url 'inventario:stock' %}">Abrir stock</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

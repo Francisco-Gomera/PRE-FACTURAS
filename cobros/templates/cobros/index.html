@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Gestion de cobros</h2>
+<p class="page-subtitle">Herramientas para seguimiento, recordatorios y acuerdos.</p>
+
+<div class="card-grid">
+  {% if submodules.estado_cuenta %}
+  <div class="info-card">
+    <h3>Estado de cuenta</h3>
+    <p>Resumen por cliente y saldo pendiente.</p>
+    <a href="#">Definir estado</a>
+  </div>
+  {% endif %}
+  {% if submodules.alertas %}
+  <div class="info-card">
+    <h3>Alertas</h3>
+    <p>Notificaciones por vencimiento.</p>
+    <a href="#">Definir alertas</a>
+  </div>
+  {% endif %}
+  {% if submodules.acuerdos %}
+  <div class="info-card">
+    <h3>Acuerdos</h3>
+    <p>Planes y compromisos de pago.</p>
+    <a href="#">Definir acuerdos</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

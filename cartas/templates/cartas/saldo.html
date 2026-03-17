@@ -1,0 +1,1020 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="page-container">
+  <div class="page-header">
+    <h2 class="page-title">Cartas de Saldo</h2>
+    <p class="page-subtitle">Genera la carta de saldo para un cliente.</p>
+  </div>
+
+  <div class="carta-layout">
+    <div class="carta-form-container">
+      <div class="info-card carta-form">
+        <h3>Cliente</h3>
+        <div class="form-row">
+          <label for="saldo_cliente_id">Cliente</label>
+          <div class="inline-input">
+            <input id="saldo_cliente_id" type="text" readonly placeholder="Ninguno" />
+            <button id="btn_saldo_buscar_cliente" type="button" class="btn-small">Buscar</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="saldo_cliente_nombre">Nombre</label>
+          <input id="saldo_cliente_nombre" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="saldo_cliente_rnc">Cédula/RNC</label>
+          <input id="saldo_cliente_rnc" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="saldo_cliente_dir">Dirección</label>
+          <input id="saldo_cliente_dir" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="saldo_ciudad">Ciudad</label>
+          <input id="saldo_ciudad" type="text" value="" />
+        </div>
+        <div class="actions-row">
+          <button id="btn_saldo_imprimir_todas" type="button">Imprimir Todas</button>
+          <button id="btn_saldo_imprimir_una" type="button">Imprimir Seleccionada</button>
+        </div>
+      </div>
+
+      <div class="info-card" style="margin-top: 14px;">
+        <h3>Facturas Saldadas</h3>
+        <div class="facturas-wrap">
+          <table class="facturas-table">
+            <thead>
+              <tr>
+                <th style="width:40px;"></th>
+                <th>No. Factura</th>
+                <th>Fecha</th>
+                <th style="text-align:right;">Monto</th>
+              </tr>
+            </thead>
+            <tbody id="saldo_facturas_body">
+              <tr><td colspan="4" class="result-empty">Selecciona un cliente.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 10px; display:flex; gap:8px;">
+          <button id="btn_saldo_ver_todas" type="button" class="btn-small" style="flex:1;">Ver Todas</button>
+          <button id="btn_saldo_limpiar_sel" type="button" class="btn-small" style="flex:1;">Limpiar Seleccion</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="carta-preview-container">
+      <div id="saldo_preview" class="carta-preview-body">
+        <div class="result-empty">Selecciona un cliente para ver la carta.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="saldo_cliente_modal" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="saldo_modal_title">
+    <div class="win-titlebar">
+      <span id="saldo_modal_title">Seleccionar cliente</span>
+      <button id="btn_close_saldo_modal" type="button" aria-label="Cerrar">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="saldo_search_input">Buscar</label>
+        <input id="saldo_search_input" type="text" placeholder="Código, Nombre, Apodo o Cédula/RNC" />
+        <select id="saldo_search_filter">
+          <option value="nombre" selected>Nombre</option>
+          <option value="codigo">Código (ID_SN)</option>
+          <option value="apodo">Apodo</option>
+          <option value="rnc">Cédula/RNC</option>
+        </select>
+        <button id="btn_saldo_search" type="button" class="btn-small">Buscar</button>
+      </div>
+      <div class="search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Cédula/RNC</th>
+              <th>Apodo</th>
+            </tr>
+          </thead>
+          <tbody id="saldo_results_body">
+            <tr><td colspan="4" class="result-empty">Ingrese un texto y pulse Buscar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  :root {
+    --page-bg: #f0f4f8;
+    --card-bg: #ffffff;
+    --border-color: #d8e2f3;
+    --text-color: #334e68;
+    --text-light: #627d98;
+    --primary-color: #2a67c7;
+    --primary-dark: #1f5aad;
+    --white: #ffffff;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --border-radius: 12px;
+  }
+
+  /* Base and Mobile Styles */
+  .page-container {
+    padding: 16px;
+  }
+
+  .page-header {
+    margin-bottom: 16px;
+  }
+
+  .page-title {
+    color: var(--text-color);
+  }
+  
+  .page-subtitle {
+    color: var(--text-light);
+  }
+
+  .carta-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .carta-form-container {
+    position: static;
+  }
+
+  .info-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+
+  .info-card h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: var(--text-color);
+    font-size: 18px;
+  }
+
+  .form-row {
+    margin-bottom: 12px;
+  }
+
+  .form-row label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-light);
+  }
+
+  .form-row input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .form-row input[readonly] {
+    background-color: #e9ecef;
+    opacity: 1;
+  }
+
+  .inline-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+	  .actions-bar {
+	    margin-top: 16px;
+	    display: flex;
+	  }
+
+	  .actions-bar button {
+	    flex-grow: 1;
+	    height: 40px;
+    border-radius: 8px;
+    border: none;
+    background: var(--primary-color);
+    color: var(--white);
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+	  .actions-bar button:hover {
+	    background: var(--primary-dark);
+	  }
+
+	  .actions-row {
+	    margin-top: 14px;
+	    display: flex;
+	    gap: 10px;
+	  }
+	  .actions-row button {
+	    flex: 1 1 0;
+	    height: 40px;
+	    border-radius: 8px;
+	    border: none;
+	    background: var(--primary-color);
+	    color: var(--white);
+	    font-weight: 700;
+	    font-size: 14px;
+	    cursor: pointer;
+	    transition: background-color 0.2s;
+	  }
+	  .actions-row button:hover {
+	    background: var(--primary-dark);
+	  }
+
+	  .facturas-wrap {
+	    border: 1px solid var(--border-color);
+	    border-radius: 12px;
+	    overflow: auto;
+	    max-height: 240px;
+	    background: #fff;
+	  }
+	  .facturas-table {
+	    width: 100%;
+	    border-collapse: collapse;
+	  }
+	  .facturas-table th,
+	  .facturas-table td {
+	    padding: 10px 12px;
+	    font-size: 13px;
+	    border-bottom: 1px solid var(--border-color);
+	  }
+	  .facturas-table th {
+	    background: #f8f9fa;
+	    font-weight: 700;
+	    position: sticky;
+	    top: 0;
+	  }
+	  .facturas-row:hover {
+	    background: #f0f5ff;
+	  }
+	  .facturas-radio {
+	    display: flex;
+	    justify-content: center;
+	    align-items: center;
+	  }
+  
+  .btn-small {
+      padding: 0 14px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--primary-color);
+      background: var(--white);
+      color: var(--primary-color);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+  }
+
+  .btn-small:hover {
+      background: #f0f5ff;
+  }
+
+  .carta-preview-container {
+    background: var(--page-bg);
+  }
+  
+  .carta-preview-body {
+    padding: 16px;
+    border-radius: var(--border-radius);
+    min-height: 600px;
+    height: auto;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .result-empty {
+      color: var(--text-light);
+      font-style: italic;
+  }
+
+  /* A4 Document Preview */
+  .carta-doc {
+    width: 100%;
+    height: auto;
+    background: var(--card-bg);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    padding: 16mm;
+    font-family: "Times New Roman", serif;
+    color: #111;
+    line-height: 1.4;
+    font-size: 12pt;
+    transform: none; /* No scaling on mobile */
+  }
+
+  .carta-body {
+    flex: 1 1 auto;
+  }
+
+  .carta-header {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 20px;
+    align-items: start;
+    margin-bottom: 1cm;
+  }
+
+  .carta-logo {
+    width: 140px;
+    height: auto;
+  }
+  .carta-logo-img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+  .carta-header-info {
+    font-size: 10pt;
+  }
+
+  .carta-title {
+    text-align: center;
+    font-size: 24pt;
+    font-weight: 700;
+    margin: 1cm 0;
+  }
+  
+  .carta-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1cm;
+    font-size: 9pt;
+  }
+
+  .carta-table th,
+  .carta-table td {
+    border: 1px solid #333;
+    padding: 4px 6px;
+    text-align: left;
+  }
+  
+  .carta-table th {
+      font-weight: 700;
+  }
+
+  .carta-sign {
+    margin-top: 1cm;
+    text-align: center;
+  }
+  .firma-img {
+    max-width: 200px;
+    max-height: 90px;
+    margin: 0 auto;
+    object-fit: contain;
+  }
+  .sello-img {
+    max-width: 220px;
+    max-height: 120px;
+    margin: 0 auto 5px;
+    object-fit: contain;
+  }
+  hr.firma-line {
+    border: none;
+    border-top: 1px solid #111;
+    width: 250px;
+    margin: 8px auto 4px;
+  }
+
+  /* Modal Styles */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1400;
+  }
+  .modal-backdrop.open {
+    display: flex;
+  }
+  .win-modal {
+    width: min(980px, 94vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: 0 18px 40px rgba(10, 45, 110, 0.2);
+  }
+  .win-titlebar {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--primary-color);
+    color: var(--white);
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+  }
+  .win-titlebar button {
+      background: transparent;
+      border: none;
+      color: var(--white);
+      font-size: 20px;
+      cursor: pointer;
+  }
+  .win-body {
+    padding: 16px;
+    overflow: auto;
+  }
+  .search-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .search-grid {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    height: 400px;
+    display: block;
+    overflow-y: auto;
+  }
+  .search-grid table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .search-grid th,
+  .search-grid td {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .search-grid th {
+    background: #f8f9fa;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+  .search-grid tr.click-row {
+      cursor: pointer;
+  }
+  .search-grid tr.click-row:hover {
+      background: #f0f5ff;
+  }
+
+  /* Desktop Styles */
+  @media (min-width: 992px) {
+    .carta-layout {
+      grid-template-columns: 380px 1fr;
+    }
+    .carta-form-container {
+      position: sticky;
+      top: 20px;
+    }
+    .carta-preview-body {
+        height: calc(100vh - 150px);
+        padding: 24px;
+    }
+    .carta-doc {
+      width: 210mm;
+      height: 297mm;
+      transform-origin: top center;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .carta-layout {
+      grid-template-columns: 420px 1fr;
+    }
+  }
+
+	  /* Print Styles */
+			  @media print {
+			    @page {
+			      size: A4;
+			      /* Un margen real evita que el contenido se pase por redondeos o headers/footers del navegador. */
+			      margin: 10mm;
+			    }
+	    /* Hide UI chrome (keep the preview visible). */
+	    .sidebar,
+	    .topbar,
+	    .overlay,
+	    .page-header,
+	    .carta-form-container,
+	    .modal-backdrop {
+	      display: none !important;
+	    }
+
+		    body,
+		    html,
+		    .app-shell,
+		    .content,
+		    .main,
+		    .page-container {
+		      margin: 0 !important;
+		      padding: 0 !important;
+		      background: #fff !important;
+		    }
+
+		    html,
+		    body {
+		      height: 100% !important;
+		    }
+
+	    .app-shell {
+	      display: block !important;
+	      min-height: auto !important;
+	      gap: 0 !important;
+	    }
+
+	    .main {
+	      border: none !important;
+	      box-shadow: none !important;
+	      border-radius: 0 !important;
+	    }
+
+	    .carta-layout {
+	      display: block !important;
+	      grid-template-columns: 1fr !important;
+	      gap: 0 !important;
+	    }
+
+	    .carta-preview-container, 
+	    .carta-preview-body {
+	      display: block !important;
+	      width: 100% !important;
+	      height: auto !important;
+	      overflow: visible !important;
+	      padding: 0 !important;
+	      border: none !important;
+	      background: transparent !important;
+	    }
+
+		    .carta-doc {
+		      transform: none !important;
+		      box-shadow: none !important;
+		      border-radius: 0 !important;
+		      box-sizing: border-box !important;
+		      width: 100% !important;
+		      /* Dejar el padding al body para poder fijar la firma al fondo sin desbordes. */
+		      min-height: auto !important;
+		      padding: 0 !important;
+		      margin: 0 !important;
+		      display: block !important;
+		    }
+
+		    .carta-body {
+		      padding: 12mm 12mm 55mm 12mm !important; /* deja espacio para firma/sello */
+		    }
+
+		    .carta-sign {
+		      position: fixed !important;
+		      left: 10mm !important;
+		      right: 10mm !important;
+		      bottom: 18mm !important;
+		      margin: 0 !important;
+		      padding: 0 0 3mm 0 !important;
+		      text-align: center !important;
+		      z-index: 9999 !important;
+		      color: #111 !important;
+		    }
+
+		    hr.firma-line {
+		      border: none !important;
+		      border-top: 1px solid #111 !important;
+		      width: 250px !important;
+		      margin: 8px auto 4px !important;
+		      height: 0 !important;
+		    }
+
+		    .firma-text {
+		      display: block !important;
+		      font-size: 10pt !important;
+		      color: #111 !important;
+		    }
+
+		    .sello-img {
+		      max-width: 220px !important;
+		      max-height: 120px !important;
+		      margin-bottom: 5px !important;
+		    }
+
+		    .firma-img {
+		      max-width: 200px !important;
+		      max-height: 90px !important;
+		    }
+
+		    /* Compactar un poco para que no desborde a una segunda pagina. */
+		    .carta-header {
+		      margin-bottom: 6mm !important;
+		    }
+		    .carta-title {
+		      margin: 6mm 0 !important;
+		    }
+		    .carta-table {
+		      margin-top: 6mm !important;
+		    }
+		  }
+		</style>
+
+<script>
+  const empresaNombre = "{{ empresa_nombre|default:'COMERCIAL ANITA SRL'|escapejs }}";
+	  const saldoClienteId = document.getElementById("saldo_cliente_id");
+	  const saldoClienteNombre = document.getElementById("saldo_cliente_nombre");
+	  const saldoClienteRnc = document.getElementById("saldo_cliente_rnc");
+	  const saldoClienteDir = document.getElementById("saldo_cliente_dir");
+	  const saldoCiudad = document.getElementById("saldo_ciudad");
+	  const saldoPreview = document.getElementById("saldo_preview");
+	  const btnSaldoBuscarCliente = document.getElementById("btn_saldo_buscar_cliente");
+	  const btnSaldoImprimirTodas = document.getElementById("btn_saldo_imprimir_todas");
+	  const btnSaldoImprimirUna = document.getElementById("btn_saldo_imprimir_una");
+	  const btnSaldoVerTodas = document.getElementById("btn_saldo_ver_todas");
+	  const btnSaldoLimpiarSel = document.getElementById("btn_saldo_limpiar_sel");
+	  const saldoFacturasBody = document.getElementById("saldo_facturas_body");
+	  const saldoModal = document.getElementById("saldo_cliente_modal");
+	  const btnCloseSaldoModal = document.getElementById("btn_close_saldo_modal");
+	  const saldoSearchInput = document.getElementById("saldo_search_input");
+	  const saldoSearchFilter = document.getElementById("saldo_search_filter");
+	  const btnSaldoSearch = document.getElementById("btn_saldo_search");
+	  const saldoResultsBody = document.getElementById("saldo_results_body");
+	  const saldoDetalleUrl = "{% url 'cartas:saldo_detalle' %}";
+	  let saldoData = null;
+	  let selectedDocId = "";
+
+  function escapeHtml(value) {
+    return (value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("\"", "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function openSaldoModal() {
+    saldoModal.classList.add("open");
+    saldoModal.setAttribute("aria-hidden", "false");
+    saldoSearchInput.focus();
+  }
+
+  function closeSaldoModal() {
+    saldoModal.classList.remove("open");
+    saldoModal.setAttribute("aria-hidden", "true");
+  }
+  
+	  function updateCartaScale() {
+	    const cartaDoc = saldoPreview.querySelector(".carta-doc");
+	    if (!cartaDoc) return;
+    
+    // Only scale on desktop
+    if (window.innerWidth < 992) {
+      cartaDoc.style.transform = "none";
+      return;
+    }
+
+    const previewWidth = saldoPreview.clientWidth;
+    // 210mm is approx 794px. We use this for scaling ratio.
+    const scale = (previewWidth - 48) / 794; 
+	    cartaDoc.style.transform = `scale(${Math.min(1, scale)})`;
+	  }
+
+	  function getAllFacturas(data) {
+	    if (!data) return [];
+	    return Array.isArray(data.facturas) ? data.facturas : [];
+	  }
+
+	  function getFacturasForPreview(data) {
+	    const facturas = getAllFacturas(data);
+	    if (!selectedDocId) return facturas;
+	    return facturas.filter((f) => String(f.id_doc || "") === String(selectedDocId));
+	  }
+
+	  function setSelectedDoc(idDoc) {
+	    selectedDocId = (idDoc || "").trim();
+	    if (saldoData) {
+	      renderSaldoPreview(saldoData, getFacturasForPreview(saldoData));
+	    }
+	  }
+
+	  function renderFacturasSelector(facturas) {
+	    if (!saldoFacturasBody) return;
+	    const list = Array.isArray(facturas) ? facturas : [];
+	    if (!list.length) {
+	      saldoFacturasBody.innerHTML = '<tr><td colspan="4" class="result-empty">No hay facturas saldadas.</td></tr>';
+	      return;
+	    }
+	    saldoFacturasBody.innerHTML = list
+	      .map((f, idx) => {
+	        const idDoc = String(f.id_doc || "");
+	        const fecha = String(f.fecha_doc || "");
+	        const total = Number(f.total_doc || 0);
+	        const checked = selectedDocId && String(selectedDocId) === idDoc ? "checked" : "";
+	        return `
+	          <tr class="facturas-row" data-doc="${encodeURIComponent(idDoc)}">
+	            <td class="facturas-radio">
+	              <input type="radio" name="saldo_factura_pick" value="${escapeHtml(idDoc)}" ${checked} aria-label="Seleccionar" />
+	            </td>
+	            <td>${escapeHtml(idDoc)}</td>
+	            <td>${escapeHtml(fecha)}</td>
+	            <td style="text-align:right;">${escapeHtml(total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+	          </tr>
+	        `;
+	      })
+	      .join("");
+
+	    saldoFacturasBody.querySelectorAll("input[type='radio'][name='saldo_factura_pick']").forEach((el) => {
+	      el.addEventListener("change", () => setSelectedDoc(el.value));
+	    });
+	    saldoFacturasBody.querySelectorAll("tr.facturas-row").forEach((row) => {
+	      row.addEventListener("click", (ev) => {
+	        const input = row.querySelector("input[type='radio']");
+	        if (!input) return;
+	        if (ev.target && ev.target.tagName === "INPUT") return;
+	        input.checked = true;
+	        setSelectedDoc(input.value);
+	      });
+	    });
+	  }
+
+	  function renderSaldoPreview(data, facturasOverride) {
+	    if (!data || !data.cliente) {
+	      saldoPreview.innerHTML = "<div class='result-empty'>Selecciona un cliente para ver la carta.</div>";
+	      return;
+	    }
+	    const cliente = data.cliente;
+	    const facturas = Array.isArray(facturasOverride) ? facturasOverride : getAllFacturas(data);
+		    const rows = facturas.length
+		      ? facturas.map((f) => `
+	        <tr>
+	          <td>${escapeHtml(String(f.id_doc || ""))}</td>
+	          <td>${escapeHtml(String(f.fecha_doc || ""))}</td>
+	          <td style="text-align:right;">${escapeHtml(Number(f.total_doc || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+	          <td style="text-align:right;">${escapeHtml(Number(f.pagado || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+	          <td style="text-align:right;">${escapeHtml(Number(f.saldo || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+	          <td>${escapeHtml(String(f.fecha_pago || ""))}</td>
+	        </tr>
+	      `).join("")
+	      : `<tr><td colspan="6" style="text-align:center;">No hay documentos saldados para este cliente.</td></tr>`;
+
+    const empresa = data.empresa || {};
+    const empresaNombreFinal = empresa.nombre || empresaNombre;
+    const empresaDireccion = empresa.direccion || "";
+    const empresaTel1 = empresa.tel1 || "";
+    const empresaTel2 = empresa.tel2 || "";
+    const empresaEmail = empresa.email || "";
+    const empresaRnc = empresa.rnc || "";
+    const empresaLogoMime = empresa.logo_tipo || "image/png";
+    const empresaLogoHtml = empresa.logo_b64
+      ? `<img class="carta-logo-img" src="data:${empresaLogoMime};base64,${empresa.logo_b64}" alt="Logo" />`
+      : "";
+    const selloHtml = empresa.sello_b64
+      ? `<img class="sello-img" src="data:image/png;base64,${empresa.sello_b64}" alt="Sello" />`
+      : "";
+    const firmaHtml = data.firma_b64
+      ? `<img class="firma-img" src="data:image/png;base64,${data.firma_b64}" alt="Firma" />`
+      : "";
+	    if (data.cliente && saldoCiudad && !saldoCiudad.value) {
+	      saldoCiudad.value = data.cliente.comentario || "";
+	    }
+	    saldoPreview.innerHTML = `
+      <div class="carta-doc">
+        <div class="carta-body">
+          <header class="carta-header">
+            <div class="carta-logo">${empresaLogoHtml}</div>
+            <div class="carta-header-info">
+              <strong>${escapeHtml(empresaNombreFinal)}</strong><br/>
+              ${escapeHtml(empresaDireccion)}<br/>
+              Tel: ${escapeHtml(empresaTel1)} ${empresaTel2 ? ` / ${escapeHtml(empresaTel2)}` : ""} <br/> 
+              E-Mail: ${escapeHtml(empresaEmail)}<br/>
+              RNC: ${escapeHtml(empresaRnc)}
+            </div>
+          </header>
+          <div style="text-align:right; margin-bottom: 1cm;">
+            ${escapeHtml(data.fecha || "")}<br/>
+            Vicente Noble, Barahona, R.D.<br/>
+          </div>
+          
+          <h1 class="carta-title">CARTA DE SALDO</h1>
+
+          <div style="margin-bottom: 1cm;">
+            Señor(a):<br/>
+            <strong>${escapeHtml(cliente.nombre || "")}</strong><br/>
+            Cédula/Pasaporte: <strong>${escapeHtml(cliente.rnc_ced || "")}</strong><br/>
+	            Ciudad: <strong>${escapeHtml((saldoCiudad && saldoCiudad.value) || "")}</strong>
+	          </div>
+          
+          <p>Estimado Sr(a),</p>
+          <p>Por medio de la presente certificamos que en los archivos de nuestra empresa no existen deudas pendientes para los siguientes contratos de ventas:</p>
+          
+          <table class="carta-table">
+            <thead>
+              <tr>
+                <th>No. Factura</th>
+                <th>Fecha Factura</th>
+                <th>Monto</th>
+                <th>Pagado</th>
+                <th>Saldo</th>
+                <th>Fecha Últ. Pago</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || '<tr><td colspan="6" class="result-empty">Sin registros.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="carta-sign">
+          ${selloHtml}
+          ${firmaHtml}
+          <hr class="firma-line" />
+          <div class="firma-text">Firma y Sello</div>
+        </footer>
+      </div>
+    `;
+	    updateCartaScale();
+	  }
+
+  function renderSaldoResults(rows) {
+    if (!rows.length) {
+      saldoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">No se encontraron clientes.</td></tr>';
+      return;
+    }
+    saldoResultsBody.innerHTML = rows.map((row) => {
+      const safeJson = encodeURIComponent(JSON.stringify(row));
+      return `
+        <tr class="click-row" data-row="${safeJson}">
+          <td>${escapeHtml(row.id_sn || "")}</td>
+          <td>${escapeHtml(row.nom_socio || "")}</td>
+          <td>${escapeHtml(row.rnc_ced || "")}</td>
+          <td>${escapeHtml(row.contacto || "")}</td>
+        </tr>
+      `;
+    }).join("");
+    saldoResultsBody.querySelectorAll("tr.click-row").forEach((row) => {
+      row.addEventListener("click", async () => {
+        const raw = row.getAttribute("data-row");
+        if (!raw) return;
+        try {
+	          const data = JSON.parse(decodeURIComponent(raw));
+	          saldoClienteId.value = data.id_sn || "";
+	          saldoClienteNombre.value = data.nom_socio || "";
+	          if (saldoClienteRnc) saldoClienteRnc.value = data.rnc_ced || "";
+	          if (saldoClienteDir) saldoClienteDir.value = data.dir_factura || "";
+	          if (saldoCiudad) saldoCiudad.value = data.comentario || "";
+	          selectedDocId = "";
+	          if (saldoFacturasBody) {
+	            saldoFacturasBody.innerHTML = '<tr><td colspan="4" class="result-empty">Cargando...</td></tr>';
+	          }
+	          closeSaldoModal();
+	          await cargarSaldoDetalle(data.id_sn);
+	        } catch (error) {
+	          // no-op
+	        }
+      });
+    });
+  }
+
+  async function buscarSaldoClientes() {
+    const q = (saldoSearchInput.value || "").trim();
+    const filtro = (saldoSearchFilter.value || "nombre").trim().toLowerCase();
+    const url = `/clientes/buscar/?q=${encodeURIComponent(q)}&filtro=${encodeURIComponent(filtro)}`;
+    saldoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Buscando...</td></tr>';
+    try {
+      const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+      if (!res.ok) {
+        saldoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">No se pudo consultar clientes.</td></tr>';
+        return;
+      }
+      const data = await res.json();
+      renderSaldoResults(Array.isArray(data.results) ? data.results : []);
+    } catch (error) {
+      saldoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Error de conexión.</td></tr>';
+    }
+  }
+
+  async function cargarSaldoDetalle(idSn) {
+    if (!idSn) return;
+    try {
+      saldoPreview.innerHTML = '<div class="result-empty">Cargando...</div>';
+      const res = await fetch(`${saldoDetalleUrl}?id_sn=${encodeURIComponent(idSn)}`, {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      const contentType = res.headers.get("content-type") || "";
+      let data = {};
+      if (contentType.includes("application/json")) {
+        data = await res.json().catch(() => ({}));
+      } else {
+        const text = await res.text().catch(() => "");
+        data = { detail: text || "" };
+      }
+	      if (!res.ok) {
+	        const detail = data.detail || `No se pudo cargar la carta. (${res.status})`;
+	        saldoData = null;
+	        saldoPreview.innerHTML = `<div class='result-empty'>${escapeHtml(detail)}</div>`;
+	        if (saldoFacturasBody) {
+	          saldoFacturasBody.innerHTML = '<tr><td colspan="4" class="result-empty">No se pudo cargar facturas.</td></tr>';
+	        }
+	        return;
+	      }
+	      saldoData = data;
+	      selectedDocId = "";
+	      renderFacturasSelector(getAllFacturas(data));
+	      renderSaldoPreview(data, getFacturasForPreview(data));
+    } catch (error) {
+      saldoData = null;
+      saldoPreview.innerHTML = "<div class='result-empty'>Error de conexión.</div>";
+    }
+  }
+
+  btnSaldoBuscarCliente?.addEventListener("click", openSaldoModal);
+  btnCloseSaldoModal?.addEventListener("click", closeSaldoModal);
+  saldoModal?.addEventListener("click", (event) => {
+    if (event.target === saldoModal) closeSaldoModal();
+  });
+  btnSaldoSearch?.addEventListener("click", buscarSaldoClientes);
+  saldoSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      buscarSaldoClientes();
+    }
+    if (event.key === "Escape") {
+      closeSaldoModal();
+    }
+  });
+  function doPrint() {
+    requestAnimationFrame(() => window.print());
+  }
+
+  btnSaldoVerTodas?.addEventListener("click", () => {
+    setSelectedDoc("");
+    if (saldoData) renderFacturasSelector(getAllFacturas(saldoData));
+  });
+  btnSaldoLimpiarSel?.addEventListener("click", () => {
+    setSelectedDoc("");
+    if (saldoData) renderFacturasSelector(getAllFacturas(saldoData));
+  });
+
+  btnSaldoImprimirTodas?.addEventListener("click", () => {
+    if (!saldoData) {
+      window.alert("Selecciona un cliente antes de imprimir.");
+      return;
+    }
+    setSelectedDoc("");
+    renderFacturasSelector(getAllFacturas(saldoData));
+    renderSaldoPreview(saldoData, getFacturasForPreview(saldoData));
+    doPrint();
+  });
+
+  btnSaldoImprimirUna?.addEventListener("click", () => {
+    if (!saldoData) {
+      window.alert("Selecciona un cliente antes de imprimir.");
+      return;
+    }
+    if (!selectedDocId) {
+      window.alert("Selecciona una factura antes de imprimir.");
+      return;
+    }
+    renderSaldoPreview(saldoData, getFacturasForPreview(saldoData));
+    doPrint();
+  });
+
+  window.addEventListener("resize", updateCartaScale);
+	  document.addEventListener("DOMContentLoaded", () => {
+	    updateCartaScale();
+
+	    // Solo mostrar codigo + nombre (los campos siguen existiendo para la carta).
+	    [saldoClienteRnc, saldoClienteDir, saldoCiudad].forEach((el) => {
+	      const row = el?.closest?.(".form-row");
+	      if (row) row.style.display = "none";
+	    });
+
+	    // Hide main menu for a cleaner look if it exists
+	    const mainMenu = document.querySelector(".main-menu");
+	    if (mainMenu) {
+	      mainMenu.style.display = "none";
+	    }
+	  });
+</script>
+
+{% endblock %}
+
+
+

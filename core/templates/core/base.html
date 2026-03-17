@@ -1,0 +1,85 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ page_title|default:"YEO SYSTEM 1.0" }}</title>
+  <link rel="stylesheet" href="{% static 'core/app.css' %}" />
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Menu principal">
+      <div class="brand">
+        <div class="brand-title">YEO SYSTEM 1.0</div>
+        <div class="brand-subtitle">{{ empresa_nombre|default:"COMERCIAL ANITA SRL" }}</div>
+      </div>
+      <nav class="nav">
+        <a href="{% url 'core:dashboard' %}" class="{% if active_nav == 'dashboard' %}active{% endif %}">
+          Panel <span>Inicio</span>
+        </a>
+        {% if visible_modules.prefacturas %}
+        <a href="{% url 'prefacturas_mod:index' %}" class="{% if active_nav == 'prefacturas' %}active{% endif %}">
+          Prefacturas <span>Ventas</span>
+        </a>
+        {% endif %}
+        {% if visible_modules.clientes %}
+        <a href="{% url 'clientes_mod:index' %}" class="{% if active_nav == 'clientes' %}active{% endif %}">
+          Clientes <span>CRM</span>
+        </a>
+        {% endif %}
+        {% if visible_modules.inventario %}
+        <a href="{% url 'inventario:index' %}" class="{% if active_nav == 'inventario' %}active{% endif %}">
+          Inventario <span>Stock</span>
+        </a>
+        {% endif %}
+        {% if visible_modules.reportes %}
+        <a href="{% url 'reportes:index' %}" class="{% if active_nav == 'reportes' %}active{% endif %}">
+          Reportes <span>Analisis</span>
+        </a>
+        {% endif %}
+        {% if visible_modules.etiquetas %}
+        <a href="{% url 'etiquetas:index' %}" class="{% if active_nav == 'etiquetas' %}active{% endif %}">
+          Etiquetas <span>Impresion</span>
+        </a>
+        {% endif %}
+        {% if visible_modules.cobros %}
+        <a href="{% url 'cobros:index' %}" class="{% if active_nav == 'cobros' %}active{% endif %}">
+          Cobros <span>Gestion</span>
+        </a>
+        {% endif %}
+        {% if visible_modules.cartas %}
+        <a href="{% url 'cartas:index' %}" class="{% if active_nav == 'cartas' %}active{% endif %}">
+          Cartas <span>Avisos</span>
+        </a>
+        {% endif %}
+        {% if visible_modules.ajustes %}
+        <a href="{% url 'ajustes:index' %}" class="{% if active_nav == 'ajustes' %}active{% endif %}">
+          Ajustes <span>Parametros</span>
+        </a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-footer">
+        <a class="logout" href="{% url 'logout' %}">Cerrar sesion</a>
+      </div>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <button class="menu-toggle" id="menuToggle" type="button">Menu</button>
+        <h1>{{ page_title|default:"Panel" }}</h1>
+        <div class="user-chip">
+          Usuario: <strong>{{ auth_payload.usuario_login }}</strong> |
+          Nombre: <strong>{{ auth_payload.usuario_nombre }}</strong>
+        </div>
+      </header>
+      <main class="main">
+        {% block content %}{% endblock %}
+      </main>
+    </section>
+  </div>
+  <div class="overlay" id="navOverlay" aria-hidden="true"></div>
+  <script src="{% static 'core/app.js' %}"></script>
+</body>
+</html>

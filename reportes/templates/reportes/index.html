@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Reportes</h2>
+<p class="page-subtitle">Analitica ejecutiva con filtros rapidos.</p>
+
+<div class="card-grid">
+  {% if submodules.ventas %}
+  <div class="info-card">
+    <h3>Ventas</h3>
+    <p>Resumen por periodos y vendedores.</p>
+    <a href="#">Definir reporte</a>
+  </div>
+  {% endif %}
+  {% if submodules.clientes %}
+  <div class="info-card">
+    <h3>Clientes</h3>
+    <p>Top clientes, mora y tendencias.</p>
+    <a href="#">Definir reporte</a>
+  </div>
+  {% endif %}
+  {% if submodules.inventario %}
+  <div class="info-card">
+    <h3>Inventario</h3>
+    <p>Rotacion y quiebres de stock.</p>
+    <a href="#">Definir reporte</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

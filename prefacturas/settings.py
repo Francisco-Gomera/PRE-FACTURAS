@@ -42,6 +42,15 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'prefacturas_app',
+    'core',
+    'prefacturas_mod',
+    'clientes_mod',
+    'inventario',
+    'reportes',
+    'etiquetas',
+    'ajustes',
+    'cobros',
+    'cartas',
 ]
 
 MIDDLEWARE = [

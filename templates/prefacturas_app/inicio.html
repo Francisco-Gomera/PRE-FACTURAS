@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YEO SYSTEM 1.0 - Pre-Facturas</title>
+    <title>YEO SYSTEM 2.0 - Comercial Anita</title>
     <style>
         :root {
             --bg: #d8d8d8;
@@ -1081,6 +1081,12 @@
             color: var(--text);
         }
 
+        body.modal-open {
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+
         .app {
             max-width: 1440px;
             border-top: none;
@@ -1684,6 +1690,318 @@
             min-width: 56px;
             max-width: 56px;
         }
+
+        /* Ajustes moviles (iPhone y pantallas pequenas) */
+        @media (max-width: 640px) {
+            body {
+                font-size: 13px;
+                line-height: 1.35;
+            }
+
+            .app {
+                padding: 8px 8px 14px;
+            }
+
+            .session-strip {
+                padding: 10px;
+                gap: 6px;
+                border-radius: 12px;
+            }
+
+            .session-brand {
+                gap: 2px;
+            }
+
+            .brand-tag {
+                font-size: 14px;
+                letter-spacing: 0.4px;
+            }
+
+            .brand-company {
+                font-size: 12px;
+            }
+
+            .session-user {
+                font-size: 12px;
+            }
+
+            .logout-link {
+                width: 100%;
+                text-align: center;
+                padding: 8px 12px;
+            }
+
+            .header-grid {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "quick"
+                    "client";
+                align-items: start;
+                gap: 8px;
+                width: 100%;
+                justify-items: stretch;
+            }
+
+            #prefactura_panel .card {
+                padding: 6px;
+                border-radius: 12px;
+                background: #ffffff;
+                width: 100%;
+            }
+
+            #prefactura_panel .header-grid .card:first-child {
+                grid-area: client;
+                min-width: 0;
+            }
+
+            #prefactura_panel .header-grid .card:last-child {
+                grid-area: quick;
+                min-width: 0;
+                align-self: start;
+            }
+
+            #prefactura_panel .form-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                width: 100%;
+            }
+
+            #prefactura_panel .form-grid label {
+                margin-top: 0;
+                font-size: 11.5px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+                color: var(--muted);
+            }
+
+            #prefactura_panel .form-grid > label + input,
+            #prefactura_panel .form-grid > label + .inline-input-btn,
+            #prefactura_panel .form-grid > label + .status-control {
+                margin-top: -4px;
+            }
+
+            #prefactura_panel input,
+            #prefactura_panel select {
+                height: 34px;
+                font-size: 14px;
+                border-radius: 10px;
+            }
+
+            #prefactura_panel .btn-client {
+                height: 36px;
+                font-size: 13px;
+            }
+
+            .inline-input-btn {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            .status-control {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+
+            .status-control input {
+                grid-column: 1 / -1;
+                width: 100%;
+                min-width: 0;
+            }
+
+            .status-control .btn-small {
+                min-width: 0;
+                height: 34px;
+                font-size: 13px;
+            }
+
+            .quick-actions h4 {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .quick-actions button {
+                height: 34px;
+                font-size: 12px;
+            }
+
+            .quick-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 6px;
+                width: 100%;
+            }
+
+            .quick-actions button {
+                white-space: normal;
+                line-height: 1.1;
+                padding: 6px 8px;
+                height: auto;
+                min-height: 36px;
+            }
+
+            .quick-actions h4 {
+                grid-column: 1 / -1;
+                margin-bottom: 2px;
+            }
+
+            .detail-head {
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+            .detail-head .tab {
+                flex: 1 1 30%;
+                text-align: center;
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .toolbar {
+                width: 100%;
+                margin-left: 0;
+                justify-content: flex-start;
+            }
+
+            .toolbar .btn-small {
+                height: 32px;
+                font-size: 12px;
+            }
+
+            .grid-shell {
+                border-radius: 10px;
+                overflow: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .grid-shell table {
+                font-size: 12px;
+                min-width: 640px;
+            }
+
+            .grid-shell th,
+            .grid-shell td {
+                padding: 4px 6px;
+            }
+
+            .grid-shell td input,
+            .grid-shell td select {
+                height: 26px;
+                font-size: 12px;
+            }
+
+            /* Detalle prefactura: muestra solo columnas clave en movil */
+            #prefactura_panel .grid-shell table th:nth-child(2),
+            #prefactura_panel .grid-shell table td:nth-child(2),
+            #prefactura_panel .grid-shell table th:nth-child(3),
+            #prefactura_panel .grid-shell table td:nth-child(3),
+            #prefactura_panel .grid-shell table th:nth-child(5),
+            #prefactura_panel .grid-shell table td:nth-child(5),
+            #prefactura_panel .grid-shell table th:nth-child(6),
+            #prefactura_panel .grid-shell table td:nth-child(6),
+            #prefactura_panel .grid-shell table th:nth-child(7),
+            #prefactura_panel .grid-shell table td:nth-child(7),
+            #prefactura_panel .grid-shell table th:nth-child(8),
+            #prefactura_panel .grid-shell table td:nth-child(8),
+            #prefactura_panel .grid-shell table th:nth-child(9),
+            #prefactura_panel .grid-shell table td:nth-child(9),
+            #prefactura_panel .grid-shell table th:nth-child(11),
+            #prefactura_panel .grid-shell table td:nth-child(11),
+            #prefactura_panel .grid-shell table th:nth-child(14),
+            #prefactura_panel .grid-shell table td:nth-child(14) {
+                display: none;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(1),
+            #prefactura_panel .grid-shell table td:nth-child(1) {
+                min-width: 220px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(4),
+            #prefactura_panel .grid-shell table td:nth-child(4) {
+                width: 64px;
+                min-width: 64px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(10),
+            #prefactura_panel .grid-shell table td:nth-child(10) {
+                width: 84px;
+                min-width: 84px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(12),
+            #prefactura_panel .grid-shell table td:nth-child(12) {
+                width: 84px;
+                min-width: 84px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(13),
+            #prefactura_panel .grid-shell table td:nth-child(13) {
+                width: 56px;
+                min-width: 56px;
+            }
+
+            .bottom-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .totals-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+
+            .actions-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .actions-bar button {
+                width: 100%;
+                height: 40px;
+                font-size: 16px;
+            }
+
+            #prefactura_tab_detalle.active ~ .actions-bar {
+                margin-top: 10px;
+            }
+
+            .search-row {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .maestro-top {
+                grid-template-columns: 1fr;
+            }
+
+            .maestro-form {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .maestro-photo,
+            .maestro-account,
+            .maestro-account-inline {
+                padding: 6px;
+            }
+
+            .win-modal {
+                width: 100vw;
+                max-width: 100vw;
+                height: 100vh;
+                max-height: 100vh;
+                border-radius: 0;
+            }
+
+            .win-body {
+                padding: 10px;
+                max-height: calc(100vh - 40px);
+                overflow: auto;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1691,7 +2009,7 @@
         <div class="session-strip">
             <div class="session-left">
                 <div class="session-brand">
-                    <span class="brand-tag">YEO SYSTEM 1.0</span>
+                    <span class="brand-tag">YEO SYSTEM 2.0</span>
                     <span class="brand-company">{{ empresa_nombre|default:"COMERCIAL ANITA SRL" }}</span>
                 </div>
                 <div class="session-user">
@@ -2759,6 +3077,20 @@
             return num.toFixed(2);
         }
 
+        let modalOpenCount = 0;
+
+        function lockPageScroll() {
+            modalOpenCount = Math.max(0, modalOpenCount + 1);
+            document.body.classList.add("modal-open");
+        }
+
+        function unlockPageScroll() {
+            modalOpenCount = Math.max(0, modalOpenCount - 1);
+            if (modalOpenCount === 0) {
+                document.body.classList.remove("modal-open");
+            }
+        }
+
         function openModal(mode = "prefactura") {
             clienteSelectionTarget = mode;
             if (mode === "maestro") {
@@ -2770,6 +3102,7 @@
             }
             modalBackdrop.classList.add("open");
             modalBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             searchInput.value = "";
             searchFilter.value = "nombre";
             buscarClientes(true);
@@ -2779,6 +3112,7 @@
         function openPrefacturaModal() {
             prefacturaModalBackdrop.classList.add("open");
             prefacturaModalBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             prefacturaSearchInput.value = "";
             prefacturaSearchFilter.value = "documento";
             buscarPrefacturas(true);
@@ -2788,6 +3122,7 @@
         function closePrefacturaModal() {
             prefacturaModalBackdrop.classList.remove("open");
             prefacturaModalBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function getPrefacturaFixedReadonlyIds() {
@@ -3281,6 +3616,7 @@
             detalleCodigoSearchInput.value = "";
             detalleCodigoBackdrop.classList.add("open");
             detalleCodigoBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             cargarDetalleCodigoOptions("");
             detalleCodigoSearchInput.focus();
         }
@@ -3290,6 +3626,7 @@
             detalleCodigoBackdrop.setAttribute("aria-hidden", "true");
             detalleCodigoMode = "";
             detalleCodigoTargetInput = null;
+            unlockPageScroll();
         }
 
         function openArticuloModal(targetRow, initialQuery = "") {
@@ -3297,6 +3634,7 @@
             articuloTargetRow = targetRow || null;
             articuloBackdrop.classList.add("open");
             articuloBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             articuloSearchInput.value = initialQuery || "";
             articuloSearchFilter.value = "descripcion";
             buscarArticulos();
@@ -3308,6 +3646,7 @@
             gaSelectionRow = targetRow || null;
             articuloBackdrop.classList.add("open");
             articuloBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             articuloSearchInput.value = initialQuery || "";
             articuloSearchFilter.value = "descripcion";
             buscarArticulos();
@@ -3318,6 +3657,7 @@
             articuloSelectionTarget = "etiquetas";
             articuloBackdrop.classList.add("open");
             articuloBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             articuloSearchInput.value = initialQuery || "";
             articuloSearchFilter.value = filtro === "articulo" ? "articulo" : "descripcion";
             buscarArticulos();
@@ -3330,6 +3670,7 @@
             articuloTargetRow = null;
             gaSelectionRow = null;
             articuloSelectionTarget = "prefactura";
+            unlockPageScroll();
         }
 
         function renderArticulosResults(rows) {
@@ -3594,11 +3935,13 @@
             loadEtiquetaFormatoEditor();
             etiquetasFormatoBackdrop.classList.add("open");
             etiquetasFormatoBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
         }
 
         function closeEtiquetasFormatoModal() {
             etiquetasFormatoBackdrop.classList.remove("open");
             etiquetasFormatoBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function openCambiarPasswordModal() {
@@ -3607,12 +3950,14 @@
             cpPasswordConfirm.value = "";
             cambiarPasswordBackdrop.classList.add("open");
             cambiarPasswordBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             cpPasswordActual.focus();
         }
 
         function closeCambiarPasswordModal() {
             cambiarPasswordBackdrop.classList.remove("open");
             cambiarPasswordBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function closeAppAlert() {
@@ -3620,6 +3965,7 @@
             appAlertBackdrop.classList.remove("open");
             appAlertBackdrop.setAttribute("aria-hidden", "true");
             appAlertOpen = false;
+            unlockPageScroll();
             if (appAlertResolver) {
                 const resolve = appAlertResolver;
                 appAlertResolver = null;
@@ -3636,6 +3982,7 @@
             appAlertBackdrop.classList.add("open");
             appAlertBackdrop.setAttribute("aria-hidden", "false");
             appAlertOpen = true;
+            lockPageScroll();
             btnAppAlertOk?.focus();
         }
 
@@ -3668,6 +4015,7 @@
             appConfirmBackdrop.classList.remove("open");
             appConfirmBackdrop.setAttribute("aria-hidden", "true");
             appConfirmOpen = false;
+            unlockPageScroll();
             if (appConfirmResolver) {
                 const resolve = appConfirmResolver;
                 appConfirmResolver = null;
@@ -3682,6 +4030,7 @@
                 appConfirmBackdrop.classList.add("open");
                 appConfirmBackdrop.setAttribute("aria-hidden", "false");
                 appConfirmOpen = true;
+                lockPageScroll();
                 btnAppConfirmOk?.focus();
             });
         }
@@ -3781,6 +4130,7 @@
         function openStockArticulosModal() {
             stockArticulosBackdrop.classList.add("open");
             stockArticulosBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             buscarStockArticulos();
             stockArticulosQ.focus();
         }
@@ -3788,6 +4138,7 @@
         function closeStockArticulosModal() {
             stockArticulosBackdrop.classList.remove("open");
             stockArticulosBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function renderStockArticulosResults(rows) {
@@ -3828,12 +4179,14 @@
             await cargarFormatoEtiquetasUsuario();
             etiquetasBackdrop.classList.add("open");
             etiquetasBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             etiquetasQ.focus();
         }
 
         function closeEtiquetasModal() {
             etiquetasBackdrop.classList.remove("open");
             etiquetasBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function triggerEtiquetasSelector() {
@@ -4639,11 +4992,13 @@
             modalBackdrop.classList.remove("open");
             modalBackdrop.classList.remove("nested");
             modalBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function openMaestroModal() {
             maestroBackdrop.classList.add("open");
             maestroBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             activateMaestroTab("panel-general");
             setMaestroInitialState();
         }
@@ -4651,34 +5006,40 @@
         function closeMaestroModal() {
             maestroBackdrop.classList.remove("open");
             maestroBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function openGrupoModal() {
             grupoBackdrop.classList.add("open");
             grupoBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             cargarGruposCliente();
         }
 
         function closeGrupoModal() {
             grupoBackdrop.classList.remove("open");
             grupoBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function openVendCompModal() {
             vendCompBackdrop.classList.add("open");
             vendCompBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             cargarVendComp();
         }
 
         function closeVendCompModal() {
             vendCompBackdrop.classList.remove("open");
             vendCompBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function openCondicionModal(target = "maestro") {
             condicionSelectionTarget = target === "prefactura" ? "prefactura" : "maestro";
             condicionBackdrop.classList.add("open");
             condicionBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             cargarCondicionesPago();
         }
 
@@ -4686,17 +5047,20 @@
             condicionBackdrop.classList.remove("open");
             condicionBackdrop.setAttribute("aria-hidden", "true");
             condicionSelectionTarget = "maestro";
+            unlockPageScroll();
         }
 
         function openListaPrecioModal() {
             listaPrecioBackdrop.classList.add("open");
             listaPrecioBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             cargarListaPrecio();
         }
 
         function closeListaPrecioModal() {
             listaPrecioBackdrop.classList.remove("open");
             listaPrecioBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         function setGrupoSnSelection(grupo) {
@@ -4756,6 +5120,7 @@
         function openGrupoArticulosModal() {
             grupoArticuloBackdrop.classList.add("open");
             grupoArticuloBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             setGaInitialState();
         }
 
@@ -4763,6 +5128,7 @@
             grupoArticuloBackdrop.classList.remove("open");
             grupoArticuloBackdrop.setAttribute("aria-hidden", "true");
             setGaInitialState();
+            unlockPageScroll();
         }
 
         function addGaArticuloRow(item = {}) {
@@ -4822,6 +5188,7 @@
         function openGaSearchModal() {
             gaSearchBackdrop.classList.add("open");
             gaSearchBackdrop.setAttribute("aria-hidden", "false");
+            lockPageScroll();
             gaSearchInput.value = "";
             gaSearchFilter.value = "descripcion";
             cargarGaSearchResults();
@@ -4831,6 +5198,7 @@
         function closeGaSearchModal() {
             gaSearchBackdrop.classList.remove("open");
             gaSearchBackdrop.setAttribute("aria-hidden", "true");
+            unlockPageScroll();
         }
 
         async function cargarGrupoArticulo(idGrupo) {

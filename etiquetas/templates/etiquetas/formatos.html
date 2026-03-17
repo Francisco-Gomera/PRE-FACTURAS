@@ -1,0 +1,601 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Etiquetas - Formatos</h2>
+<p class="page-subtitle">Configura el formato de las etiquetas y guarda tu plantilla.</p>
+
+<div class="etiqueta-format-layout etiqueta-format-page">
+  <div class="etiqueta-format-panel">
+    <div class="etiqueta-format-group">
+      <h6>Tamano de etiqueta</h6>
+      <div class="etiqueta-format-grid">
+        <label>Ancho (mm)</label><input id="ef_card_width" type="text" inputmode="decimal" />
+        <label>Alto (mm)</label><input id="ef_card_height" type="text" inputmode="decimal" />
+        <label>Padding (mm)</label><input id="ef_card_padding" type="text" inputmode="decimal" />
+        <div></div><div></div>
+      </div>
+    </div>
+    <div id="etiqueta_format_fields_container"></div>
+  </div>
+  <div class="etiqueta-format-preview-shell">
+    <div id="etiquetas_formato_preview"></div>
+  </div>
+</div>
+
+<div class="actions-bar">
+  <button id="btn_etiquetas_formato_restaurar" type="button">Restaurar</button>
+  <button id="btn_etiquetas_formato_aplicar" type="button">Guardar formato</button>
+  <div class="spacer"></div>
+</div>
+
+<style>
+  .page-subtitle {
+    margin-bottom: 12px;
+  }
+  .actions-bar {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .actions-bar .spacer {
+    flex: 1 1 auto;
+  }
+  .actions-bar button {
+    height: 32px;
+    min-width: 140px;
+    border-radius: 10px;
+    border: 1px solid #1a64c8;
+    background: linear-gradient(180deg, #1f7aed, #0f5fd1);
+    color: #ffffff;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .etiqueta-format-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+    gap: 10px;
+    align-items: start;
+  }
+  .etiqueta-format-panel {
+    border: 1px solid #d8e2f3;
+    background: #f7faff;
+    padding: 8px;
+    border-radius: 14px;
+    box-shadow: 0 12px 26px rgba(10, 45, 110, 0.08);
+    max-height: 62vh;
+    overflow: auto;
+  }
+  .etiqueta-format-group {
+    border: 1px solid #d8e2f3;
+    background: #ffffff;
+    padding: 6px;
+    margin-bottom: 8px;
+    border-radius: 12px;
+  }
+  .etiqueta-format-group h6 {
+    margin: 0 0 6px;
+    font-size: 13px;
+  }
+  .etiqueta-format-grid {
+    display: grid;
+    grid-template-columns: 110px 1fr 90px 1fr;
+    gap: 4px 6px;
+    align-items: center;
+  }
+  .etiqueta-format-inline-checks {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .etiqueta-format-preview-shell {
+    border: 1px solid #d8e2f3;
+    background: #f7faff;
+    border-radius: 14px;
+    box-shadow: 0 12px 26px rgba(10, 45, 110, 0.08);
+    min-height: 62vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    overflow: auto;
+  }
+  .etiqueta-format-preview-shell .etiqueta-card {
+    transform: scale(1.8);
+    transform-origin: center center;
+  }
+  .etiqueta-card {
+    border: 1px solid #a8a8a8;
+    background: #fff;
+    padding: 5px 7px;
+    width: 205px;
+    min-height: 96px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    box-sizing: border-box;
+  }
+  .etq-empresa {
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: 0.2px;
+  }
+  .etq-articulo {
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+  }
+  .etq-ref {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 5px;
+  }
+  .etq-barcode {
+    height: 22px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-start;
+    gap: 0;
+    margin-top: 2px;
+    width: 100%;
+  }
+  .etq-barcode svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .etq-barcode-wrap {
+    margin-top: auto;
+    margin-bottom: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    width: 100%;
+  }
+  .etq-barcode-frame {
+    background: #fff;
+    padding: 0;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    max-width: 100%;
+  }
+  .etq-code {
+    text-align: left;
+    font-size: 11px;
+    letter-spacing: 0;
+    margin-top: 1px;
+    font-weight: 500;
+  }
+  .etq-precio {
+    margin-top: 1px;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .etiqueta-format-panel input,
+  .etiqueta-format-panel select {
+    height: 26px;
+    border-radius: 8px;
+    border: 1px solid #d6e1f3;
+    background: #ffffff;
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+  @media (max-width: 980px) {
+    .etiqueta-format-layout {
+      grid-template-columns: 1fr;
+    }
+    .etiqueta-format-panel,
+    .etiqueta-format-preview-shell {
+      min-height: 320px;
+      max-height: none;
+    }
+    .etiqueta-format-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<script>
+  const empresaNombre = "{{ empresa_nombre|default:'COMERCIAL ANITA SRL'|escapejs }}";
+  const efCardWidth = document.getElementById("ef_card_width");
+  const efCardHeight = document.getElementById("ef_card_height");
+  const efCardPadding = document.getElementById("ef_card_padding");
+  const etiquetaFormatFieldsContainer = document.getElementById("etiqueta_format_fields_container");
+  const etiquetasFormatoPreview = document.getElementById("etiquetas_formato_preview");
+  const btnEtiquetasFormatoRestaurar = document.getElementById("btn_etiquetas_formato_restaurar");
+  const btnEtiquetasFormatoAplicar = document.getElementById("btn_etiquetas_formato_aplicar");
+  let etiquetaFormatoConfig = getDefaultEtiquetaFormatoConfig();
+
+  function getCookie(name) {
+    const cookies = document.cookie ? document.cookie.split(";") : [];
+    for (const cookie of cookies) {
+      const trimmed = cookie.trim();
+      if (trimmed.startsWith(`${name}=`)) {
+        return decodeURIComponent(trimmed.slice(name.length + 1));
+      }
+    }
+    return "";
+  }
+
+  function escapeHtml(value) {
+    return (value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("\"", "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function parseNum(value) {
+    if (value === null || value === undefined || value === "") return 0;
+    const clean = String(value).replace(",", ".").replace(/[^\d.-]/g, "");
+    const n = Number(clean);
+    return Number.isNaN(n) ? 0 : n;
+  }
+
+  function clampNumber(value, fallback, min, max) {
+    const n = parseNum(value);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, n));
+  }
+
+  function getDefaultEtiquetaFormatoConfig() {
+    return {
+      card: { widthMm: 62, heightMm: 35, paddingMm: 1.4 },
+      empresa: { fontSizePt: 11, fontFamily: "Bahnschrift", bold: true, italic: false, xMm: 0, yMm: 0, align: "left" },
+      articulo: { fontSizePt: 7.2, fontFamily: "Bahnschrift", bold: true, italic: false, xMm: 0, yMm: 0.6, align: "left" },
+      referencia: { fontSizePt: 7, fontFamily: "Bahnschrift", bold: false, italic: false, xMm: 0, yMm: 1.2, align: "left" },
+      precio: { fontSizePt: 12, fontFamily: "Bahnschrift", bold: true, italic: false, xMm: 0, yMm: 0.4, align: "left" },
+      barcode: { xMm: 0, yMm: 0, heightMm: 8.5, moduleWidth: 0.96, align: "center" },
+      code: { fontSizePt: 7, fontFamily: "Bahnschrift", bold: false, italic: false, xMm: 0, yMm: 0.3, align: "center" },
+    };
+  }
+
+  function sanitizeEtiquetaFormatoConfig(raw) {
+    const base = getDefaultEtiquetaFormatoConfig();
+    const src = raw || {};
+    const fontAllow = ["Bahnschrift", "Segoe UI", "Arial", "Tahoma", "Verdana", "Calibri", "Times New Roman", "Courier New"];
+    const alignAllow = ["left", "center", "right"];
+    const txt = (v, def) => {
+      const s = String(v || "").trim();
+      return s || def;
+    };
+    const family = (v, def) => {
+      const s = txt(v, def);
+      return fontAllow.includes(s) ? s : def;
+    };
+    const align = (v, def) => {
+      const s = txt(v, def).toLowerCase();
+      return alignAllow.includes(s) ? s : def;
+    };
+    const bool = (v, def) => {
+      if (typeof v === "boolean") return v;
+      return def;
+    };
+    const field = (name) => ({
+      fontSizePt: clampNumber(src[name]?.fontSizePt, base[name].fontSizePt, 5, 48),
+      fontFamily: family(src[name]?.fontFamily, base[name].fontFamily),
+      bold: bool(src[name]?.bold, base[name].bold),
+      italic: bool(src[name]?.italic, base[name].italic),
+      xMm: clampNumber(src[name]?.xMm, base[name].xMm, -20, 20),
+      yMm: clampNumber(src[name]?.yMm, base[name].yMm, -20, 20),
+      align: align(src[name]?.align, base[name].align),
+    });
+    return {
+      card: {
+        widthMm: clampNumber(src.card?.widthMm, base.card.widthMm, 20, 120),
+        heightMm: clampNumber(src.card?.heightMm, base.card.heightMm, 15, 90),
+        paddingMm: clampNumber(src.card?.paddingMm, base.card.paddingMm, 0, 8),
+      },
+      empresa: field("empresa"),
+      articulo: field("articulo"),
+      referencia: field("referencia"),
+      precio: field("precio"),
+      barcode: {
+        xMm: clampNumber(src.barcode?.xMm, base.barcode.xMm, -20, 20),
+        yMm: clampNumber(src.barcode?.yMm, base.barcode.yMm, -20, 20),
+        heightMm: clampNumber(src.barcode?.heightMm, base.barcode.heightMm, 4, 20),
+        moduleWidth: clampNumber(src.barcode?.moduleWidth, base.barcode.moduleWidth, 0.3, 2.5),
+        align: align(src.barcode?.align, base.barcode.align),
+      },
+      code: field("code"),
+    };
+  }
+
+  function styleFromTextCfg(cfg) {
+    return `font-size:${cfg.fontSizePt}pt;font-family:${escapeHtml(cfg.fontFamily)};font-weight:${cfg.bold ? "700" : "400"};font-style:${cfg.italic ? "italic" : "normal"};text-align:${cfg.align};transform:translate(${cfg.xMm}mm,${cfg.yMm}mm);`;
+  }
+
+  function styleFromBarcodeCfg(cfg) {
+    return `height:${cfg.heightMm}mm;justify-content:${cfg.align === "left" ? "flex-start" : (cfg.align === "right" ? "flex-end" : "center")};transform:translate(${cfg.xMm}mm,${cfg.yMm}mm);`;
+  }
+
+  function buildFieldFormatGroupHtml(key, title) {
+    const alignOptions = `
+      <option value="left">Izquierda</option>
+      <option value="center">Centro</option>
+      <option value="right">Derecha</option>
+    `;
+    if (key === "barcode") {
+      return `
+        <div class="etiqueta-format-group" data-ef-group="${key}">
+          <h6>${title}</h6>
+          <div class="etiqueta-format-grid">
+            <label>Alto (mm)</label><input data-ef="${key}.heightMm" type="text" inputmode="decimal" />
+            <label>Modulo</label><input data-ef="${key}.moduleWidth" type="text" inputmode="decimal" />
+            <label>X (mm)</label><input data-ef="${key}.xMm" type="text" inputmode="decimal" />
+            <label>Y (mm)</label><input data-ef="${key}.yMm" type="text" inputmode="decimal" />
+            <label>Alineacion</label>
+            <select data-ef="${key}.align">${alignOptions}</select>
+            <div></div>
+          </div>
+        </div>
+      `;
+    }
+    return `
+      <div class="etiqueta-format-group" data-ef-group="${key}">
+        <h6>${title}</h6>
+        <div class="etiqueta-format-grid">
+          <label>Fuente</label>
+          <select data-ef="${key}.fontFamily">
+            <option>Bahnschrift</option>
+            <option>Segoe UI</option>
+            <option>Arial</option>
+            <option>Tahoma</option>
+            <option>Verdana</option>
+            <option>Calibri</option>
+            <option>Times New Roman</option>
+            <option>Courier New</option>
+          </select>
+          <label>Tamano (pt)</label><input data-ef="${key}.fontSizePt" type="text" inputmode="decimal" />
+          <label>X (mm)</label><input data-ef="${key}.xMm" type="text" inputmode="decimal" />
+          <label>Y (mm)</label><input data-ef="${key}.yMm" type="text" inputmode="decimal" />
+          <label>Alineacion</label>
+          <select data-ef="${key}.align">${alignOptions}</select>
+          <label>Estilo</label>
+          <div class="etiqueta-format-inline-checks">
+            <label><input data-ef="${key}.bold" type="checkbox" /> Bold</label>
+            <label><input data-ef="${key}.italic" type="checkbox" /> Italic</label>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function loadEtiquetaFormatoEditor() {
+    const cfg = sanitizeEtiquetaFormatoConfig(etiquetaFormatoConfig || getDefaultEtiquetaFormatoConfig());
+    etiquetaFormatoConfig = cfg;
+    efCardWidth.value = String(cfg.card.widthMm);
+    efCardHeight.value = String(cfg.card.heightMm);
+    efCardPadding.value = String(cfg.card.paddingMm);
+    etiquetaFormatFieldsContainer.innerHTML = [
+      buildFieldFormatGroupHtml("empresa", "Empresa"),
+      buildFieldFormatGroupHtml("articulo", "Articulo"),
+      buildFieldFormatGroupHtml("referencia", "Referencia"),
+      buildFieldFormatGroupHtml("precio", "Precio"),
+      buildFieldFormatGroupHtml("barcode", "Codigo de barras"),
+      buildFieldFormatGroupHtml("code", "Texto del codigo"),
+    ].join("");
+    Object.entries(cfg).forEach(([k, obj]) => {
+      if (k === "card") return;
+      Object.keys(obj).forEach((prop) => {
+        const node = etiquetaFormatFieldsContainer.querySelector(`[data-ef="${k}.${prop}"]`);
+        if (!node) return;
+        if (node.type === "checkbox") node.checked = !!obj[prop];
+        else node.value = String(obj[prop]);
+      });
+    });
+    renderEtiquetaFormatoPreview();
+  }
+
+  function readEtiquetaFormatoEditor() {
+    const next = sanitizeEtiquetaFormatoConfig(etiquetaFormatoConfig || getDefaultEtiquetaFormatoConfig());
+    next.card.widthMm = clampNumber(efCardWidth.value, next.card.widthMm, 20, 120);
+    next.card.heightMm = clampNumber(efCardHeight.value, next.card.heightMm, 15, 90);
+    next.card.paddingMm = clampNumber(efCardPadding.value, next.card.paddingMm, 0, 8);
+    etiquetaFormatFieldsContainer.querySelectorAll("[data-ef]").forEach((node) => {
+      const path = (node.getAttribute("data-ef") || "").split(".");
+      if (path.length !== 2) return;
+      const [a, b] = path;
+      if (!next[a]) return;
+      if (node.type === "checkbox") next[a][b] = !!node.checked;
+      else next[a][b] = node.value;
+    });
+    etiquetaFormatoConfig = sanitizeEtiquetaFormatoConfig(next);
+    return etiquetaFormatoConfig;
+  }
+
+  function buildEan13Bits(codeRaw) {
+    const digits = String(codeRaw || "").replace(/\D/g, "");
+    if (!digits) return { code: "", bits: "" };
+    let code = digits;
+    if (code.length < 12) {
+      code = code.padStart(12, "0");
+    }
+    if (code.length === 12) {
+      let sum = 0;
+      for (let i = 0; i < 12; i += 1) {
+        const n = parseInt(code[i], 10);
+        sum += (i % 2 === 0) ? n : (n * 3);
+      }
+      const check = (10 - (sum % 10)) % 10;
+      code += String(check);
+    }
+    if (code.length !== 13) {
+      return { code: code.slice(0, 13), bits: "" };
+    }
+    const L = {
+      "0": "0001101", "1": "0011001", "2": "0010011", "3": "0111101", "4": "0100011",
+      "5": "0110001", "6": "0101111", "7": "0111011", "8": "0110111", "9": "0001011",
+    };
+    const G = {
+      "0": "0100111", "1": "0110011", "2": "0011011", "3": "0100001", "4": "0011101",
+      "5": "0111001", "6": "0000101", "7": "0010001", "8": "0001001", "9": "0010111",
+    };
+    const R = {
+      "0": "1110010", "1": "1100110", "2": "1101100", "3": "1000010", "4": "1011100",
+      "5": "1001110", "6": "1010000", "7": "1000100", "8": "1001000", "9": "1110100",
+    };
+    const parity = {
+      "0": "LLLLLL", "1": "LLGLGG", "2": "LLGGLG", "3": "LLGGGL", "4": "LGLLGG",
+      "5": "LGGLLG", "6": "LGGGLL", "7": "LGLGLG", "8": "LGLGGL", "9": "LGGLGL",
+    };
+    const first = code[0];
+    const left = code.slice(1, 7);
+    const right = code.slice(7);
+    const p = parity[first] || "LLLLLL";
+    let bits = "101";
+    for (let i = 0; i < 6; i += 1) {
+      const d = left[i];
+      bits += (p[i] === "G" ? G[d] : L[d]);
+    }
+    bits += "01010";
+    for (let i = 0; i < 6; i += 1) {
+      bits += R[right[i]];
+    }
+    bits += "101";
+    return { code, bits };
+  }
+
+  function renderBarcodeModel(codeRaw, options = {}) {
+    const { code, bits } = buildEan13Bits(codeRaw);
+    const moduleWidth = Number(options.moduleWidth || 1.35);
+    const guardHeight = Number(options.guardHeight || 22);
+    const normalHeight = Number(options.normalHeight || 20);
+    const totalWidth = Math.max(1, bits.length * moduleWidth);
+    const totalHeight = Math.max(guardHeight, normalHeight);
+    let x = 0;
+    const rects = [];
+    for (let idx = 0; idx < bits.length; idx += 1) {
+      const isGuard = idx < 3 || (idx >= 45 && idx < 50) || idx >= 92;
+      const h = isGuard ? guardHeight : normalHeight;
+      if (bits[idx] === "1") {
+        rects.push(
+          `<rect x="${x.toFixed(3)}" y="0" width="${moduleWidth.toFixed(3)}" height="${h.toFixed(3)}" fill="#111"/>`
+        );
+      }
+      x += moduleWidth;
+    }
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth.toFixed(3)} ${totalHeight.toFixed(3)}" preserveAspectRatio="xMidYMid meet" aria-hidden="true" focusable="false">
+        <rect x="0" y="0" width="${totalWidth.toFixed(3)}" height="${totalHeight.toFixed(3)}" fill="#fff"/>
+        ${rects.join("")}
+      </svg>
+    `.trim();
+    const text = String(codeRaw || code || "");
+    return { svg, text };
+  }
+
+  function formatEtiquetaPrecio(value) {
+    const n = parseNum(value);
+    if (!Number.isFinite(n)) return "RD$ 0";
+    const noDecimals = Math.abs(n - Math.round(n)) < 0.00001;
+    return `RD$ ${n.toLocaleString("en-US", { minimumFractionDigits: noDecimals ? 0 : 2, maximumFractionDigits: noDecimals ? 0 : 2 })}`;
+  }
+
+  function buildEtiquetaCardHtml(row, options = {}) {
+    const cfg = sanitizeEtiquetaFormatoConfig(options.formato || etiquetaFormatoConfig || getDefaultEtiquetaFormatoConfig());
+    const barcode = renderBarcodeModel(row.id_articulo, {
+      moduleWidth: cfg.barcode.moduleWidth,
+      guardHeight: 24,
+      normalHeight: 20,
+    });
+    const cardStyle = `width:${cfg.card.widthMm}mm;min-height:${cfg.card.heightMm}mm;padding:${cfg.card.paddingMm}mm;`;
+    return `
+      <div class="etiqueta-card" style="${cardStyle}">
+        <div class="etq-empresa" style="${styleFromTextCfg(cfg.empresa)}">${escapeHtml(empresaNombre)}</div>
+        <div class="etq-articulo" style="${styleFromTextCfg(cfg.articulo)}">${escapeHtml(row.descrip_art)}</div>
+        <div class="etq-ref" style="${styleFromTextCfg(cfg.referencia)}">Ref: ${escapeHtml(row.referencia || "")}</div>
+        <div class="etq-precio" style="${styleFromTextCfg(cfg.precio)}">${escapeHtml(formatEtiquetaPrecio(row.precio_det))}</div>
+        <div class="etq-barcode-wrap">
+          <div class="etq-barcode-frame">
+            <div class="etq-barcode" style="${styleFromBarcodeCfg(cfg.barcode)}">${barcode.svg}</div>
+            <div class="etq-code" style="${styleFromTextCfg(cfg.code)}">${escapeHtml(barcode.text)}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderEtiquetaFormatoPreview() {
+    const cfg = readEtiquetaFormatoEditor();
+    etiquetasFormatoPreview.innerHTML = buildEtiquetaCardHtml({
+      id_articulo: "IR-191",
+      descrip_art: "LICUADORA REALES BASE NEGRA",
+      referencia: "IR-191",
+      precio_det: 4000,
+    }, { isPrint: true, formato: cfg, sample: true });
+  }
+
+  async function cargarFormatoEtiquetasUsuario() {
+    try {
+      const res = await fetch("/etiquetas/formato/obtener/", {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      if (!res.ok) return;
+      const data = await res.json().catch(() => ({}));
+      if (data && typeof data.formato === "object" && data.formato) {
+        etiquetaFormatoConfig = sanitizeEtiquetaFormatoConfig(data.formato);
+      }
+    } catch (error) {
+      // no-op
+    }
+  }
+
+  async function guardarFormatoEtiquetasUsuario(formato) {
+    try {
+      const res = await fetch("/etiquetas/formato/guardar/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        body: JSON.stringify({ formato }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        window.alert(data.detail || "No se pudo guardar el formato.");
+        return false;
+      }
+      return true;
+    } catch (error) {
+      window.alert("Error de conexion guardando formato.");
+      return false;
+    }
+  }
+
+  btnEtiquetasFormatoRestaurar?.addEventListener("click", () => {
+    etiquetaFormatoConfig = getDefaultEtiquetaFormatoConfig();
+    loadEtiquetaFormatoEditor();
+  });
+  btnEtiquetasFormatoAplicar?.addEventListener("click", async () => {
+    etiquetaFormatoConfig = readEtiquetaFormatoEditor();
+    const ok = await guardarFormatoEtiquetasUsuario(etiquetaFormatoConfig);
+    if (ok) window.alert("Formato guardado correctamente.");
+  });
+
+  efCardWidth?.addEventListener("input", renderEtiquetaFormatoPreview);
+  efCardHeight?.addEventListener("input", renderEtiquetaFormatoPreview);
+  efCardPadding?.addEventListener("input", renderEtiquetaFormatoPreview);
+  etiquetaFormatFieldsContainer?.addEventListener("input", renderEtiquetaFormatoPreview);
+  etiquetaFormatFieldsContainer?.addEventListener("change", renderEtiquetaFormatoPreview);
+
+  window.addEventListener("DOMContentLoaded", async () => {
+    await cargarFormatoEtiquetasUsuario();
+    loadEtiquetaFormatoEditor();
+  });
+</script>
+
+{% endblock %}

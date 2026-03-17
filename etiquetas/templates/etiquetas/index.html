@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Etiquetas</h2>
+<p class="page-subtitle">Diseno y gestion de formatos de etiquetas.</p>
+
+<div class="card-grid">
+  {% if submodules.formatos %}
+  <div class="info-card">
+    <h3>Formatos</h3>
+    <p>Editor visual de tamanos y campos.</p>
+    <a href="{% url 'etiquetas:formatos' %}">Definir formato</a>
+  </div>
+  {% endif %}
+  {% if submodules.impresion %}
+  <div class="info-card">
+    <h3>Impresion</h3>
+    <p>Seleccion rapida por articulo o grupo.</p>
+    <a href="{% url 'etiquetas:impresion' %}">Definir impresion</a>
+  </div>
+  {% endif %}
+  {% if submodules.historial %}
+  <div class="info-card">
+    <h3>Historial</h3>
+    <p>Ultimas impresiones y plantillas.</p>
+    <a href="#">Definir historial</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,621 @@
+:root {
+  --bg: transparent;
+  --panel: #ffffff;
+  --line: #d8e2f3;
+  --tab: #eef3ff;
+  --tab-active: #0f6edc;
+  --text: #152536;
+  --title: #0f3f78;
+  --white: #ffffff;
+  --btn: #ffffff;
+  --btn-border: #1a64c8;
+}
+
+body {
+  background: transparent;
+  font-family: "Outfit", "Segoe UI", sans-serif;
+}
+
+.prefactura-page {
+  width: 100%;
+}
+
+.content .main {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.prefactura-page.app {
+  max-width: none;
+  padding: 0;
+  border-top: none;
+  min-height: auto;
+}
+
+.prefactura-page .panel {
+  margin: 0;
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.panel {
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 40px rgba(10, 45, 110, 0.08);
+}
+
+.card {
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f6f9ff);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 26px rgba(10, 45, 110, 0.08);
+}
+
+.title {
+  font-family: "Space Grotesk", "Outfit", sans-serif;
+  font-size: 28px;
+  letter-spacing: 0.5px;
+  color: var(--title);
+  text-shadow: none;
+}
+
+.tab {
+  border-radius: 12px 12px 0 0;
+  padding: 4px 10px;
+  background: var(--tab);
+  border: 1px solid var(--line);
+  font-weight: 600;
+  height: 28px;
+  line-height: 20px;
+  font-size: 12px;
+}
+
+.tab.active {
+  background: var(--tab-active);
+  color: #fff;
+  border-color: var(--tab-active);
+}
+
+button {
+  border-radius: 12px;
+  border: 1px solid var(--btn-border);
+  background: linear-gradient(180deg, #1f7aed, #0f5fd1);
+  color: #ffffff;
+  font-family: inherit;
+  font-weight: 700;
+}
+
+.btn-small,
+.btn-client {
+  border-radius: 10px;
+}
+
+input,
+select,
+textarea {
+  background: #f7faff;
+  border: 1px solid #d6e1f3;
+  border-radius: 10px;
+}
+
+.grid-shell {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #f7faff;
+}
+
+/* Mobile-first ajustes (sin afectar desktop) */
+@media (max-width: 900px) {
+  #prefactura_panel,
+  #prefactura_panel * {
+    max-width: 100%;
+  }
+
+  #prefactura_panel input,
+  #prefactura_panel select,
+  #prefactura_panel textarea {
+    min-width: 0;
+    width: 100%;
+  }
+
+  #prefactura_panel .inline-input-btn,
+  #prefactura_panel .status-control,
+  #prefactura_panel .actions-bar,
+  #prefactura_panel .toolbar,
+  #prefactura_panel .bottom-grid {
+    min-width: 0;
+    width: 100%;
+  }
+
+  #prefactura_panel button,
+  #prefactura_panel .btn-small,
+  #prefactura_panel .btn-client {
+    min-width: 0;
+    width: 100%;
+  }
+
+  #prefactura_panel .grid-shell,
+  #prefactura_panel .grid-shell table {
+    min-width: 0;
+  }
+
+  .grid-shell {
+    overflow-x: hidden;
+  }
+
+  .grid-shell table {
+    width: 100%;
+  }
+
+  #prefactura_panel table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  #prefactura_panel th,
+  #prefactura_panel td {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  /* Simplificar columnas en movil para mejorar legibilidad */
+  #prefactura_panel .grid-shell table th:nth-child(2),
+  #prefactura_panel .grid-shell table td:nth-child(2),
+  #prefactura_panel .grid-shell table th:nth-child(3),
+  #prefactura_panel .grid-shell table td:nth-child(3),
+  #prefactura_panel .grid-shell table th:nth-child(5),
+  #prefactura_panel .grid-shell table td:nth-child(5),
+  #prefactura_panel .grid-shell table th:nth-child(6),
+  #prefactura_panel .grid-shell table td:nth-child(6),
+  #prefactura_panel .grid-shell table th:nth-child(7),
+  #prefactura_panel .grid-shell table td:nth-child(7),
+  #prefactura_panel .grid-shell table th:nth-child(8),
+  #prefactura_panel .grid-shell table td:nth-child(8),
+  #prefactura_panel .grid-shell table th:nth-child(9),
+  #prefactura_panel .grid-shell table td:nth-child(9),
+  #prefactura_panel .grid-shell table th:nth-child(11),
+  #prefactura_panel .grid-shell table td:nth-child(11),
+  #prefactura_panel .grid-shell table th:nth-child(14),
+  #prefactura_panel .grid-shell table td:nth-child(14) {
+    display: none;
+  }
+
+  #prefactura_panel .grid-shell table th:nth-child(1),
+  #prefactura_panel .grid-shell table td:nth-child(1) {
+    width: 44%;
+  }
+
+  #prefactura_panel .grid-shell table th:nth-child(4),
+  #prefactura_panel .grid-shell table td:nth-child(4) {
+    width: 14%;
+    text-align: right;
+  }
+
+  #prefactura_panel .grid-shell table th:nth-child(10),
+  #prefactura_panel .grid-shell table td:nth-child(10),
+  #prefactura_panel .grid-shell table th:nth-child(12),
+  #prefactura_panel .grid-shell table td:nth-child(12),
+  #prefactura_panel .grid-shell table th:nth-child(13),
+  #prefactura_panel .grid-shell table td:nth-child(13) {
+    width: 14%;
+    text-align: right;
+  }
+  .prefactura-page.app {
+    padding: 4px;
+  }
+
+  #prefactura_panel {
+    padding: 6px;
+  }
+
+  #prefactura_panel .header-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  #prefactura_panel .form-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  #prefactura_panel label {
+    font-size: 11px;
+  }
+
+  #prefactura_panel input,
+  #prefactura_panel select,
+  #prefactura_panel textarea {
+    height: 26px;
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+
+  #prefactura_panel textarea {
+    height: 46px;
+  }
+
+  .inline-input-btn {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .status-control {
+    flex-wrap: wrap;
+  }
+
+  .detail-head {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .detail-head .tab {
+    flex: 1 1 30%;
+    text-align: center;
+  }
+
+  .toolbar {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  #prefactura_panel .grid-shell {
+    height: clamp(160px, 26vh, 230px);
+  }
+
+  #prefactura_panel .bottom-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  #prefactura_panel .totals-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  .actions-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .actions-bar button {
+    width: 100%;
+    height: 30px;
+    font-size: 11px;
+    padding: 0 6px;
+  }
+}
+/* Maestro de clientes (modal) con el mismo look del modulo clientes */
+#maestro_modal_backdrop .win-modal {
+  width: min(1120px, 98vw);
+  max-width: 98vw;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 40px rgba(10, 45, 110, 0.12);
+}
+
+#maestro_modal_backdrop .win-titlebar {
+  display: flex;
+}
+
+#maestro_modal_backdrop .win-body {
+  padding: 10px;
+}
+
+#btn_close_maestro_modal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0;
+  width: 28px;
+  height: 22px;
+}
+
+.maestro-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px 190px;
+  gap: 12px;
+  align-items: start;
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  padding: 10px;
+}
+
+.maestro-photo,
+.maestro-account,
+.maestro-account-inline {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.maestro-form {
+  grid-template-columns: 140px 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.maestro-form input,
+.maestro-form select,
+.maestro-side input,
+.maestro-side select {
+  height: 30px;
+}
+
+.maestro-tabs {
+  margin: 6px 0 0 0;
+  gap: 4px;
+}
+
+.maestro-tab {
+  padding: 4px 10px;
+  height: 28px;
+  font-size: 12px;
+}
+
+.maestro-panel {
+  margin-top: 0;
+}
+
+.maestro-side {
+  display: grid;
+  gap: 6px;
+}
+
+.maestro-bloqueado {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.maestro-photo {
+  padding: 4px;
+  gap: 4px;
+}
+
+.maestro-photo-box {
+  min-height: 140px;
+  height: 140px;
+}
+
+@media (max-width: 900px) {
+  #cliente_modal_backdrop .win-modal {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #cliente_modal_backdrop .win-body {
+    padding: 8px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #cliente_modal_backdrop .search-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  #cliente_modal_backdrop .search-row label {
+    font-size: 11px;
+  }
+
+  #cliente_modal_backdrop .search-row input,
+  #cliente_modal_backdrop .search-row select,
+  #cliente_modal_backdrop .search-row button {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    font-size: 12px;
+  }
+
+  #cliente_modal_backdrop .search-grid {
+    max-height: calc(100dvh - 210px);
+  }
+
+  #cliente_modal_backdrop table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  #cliente_modal_backdrop th,
+  #cliente_modal_backdrop td {
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  #cliente_modal_backdrop th:nth-child(5),
+  #cliente_modal_backdrop td:nth-child(5),
+  #cliente_modal_backdrop th:nth-child(6),
+  #cliente_modal_backdrop td:nth-child(6) {
+    display: none;
+  }
+
+  #cliente_modal_backdrop th:nth-child(1),
+  #cliente_modal_backdrop td:nth-child(1) {
+    width: 22%;
+  }
+
+  #cliente_modal_backdrop th:nth-child(2),
+  #cliente_modal_backdrop td:nth-child(2) {
+    width: 38%;
+  }
+
+  #cliente_modal_backdrop th:nth-child(3),
+  #cliente_modal_backdrop td:nth-child(3) {
+    width: 20%;
+  }
+
+  #cliente_modal_backdrop th:nth-child(4),
+  #cliente_modal_backdrop td:nth-child(4) {
+    width: 20%;
+  }
+
+  #maestro_modal_backdrop .win-modal {
+    width: 100vw;
+    max-width: 100vw;
+    border-radius: 0;
+    height: 100dvh;
+    max-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #maestro_modal_backdrop .win-body {
+    padding: 6px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .maestro-top {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .maestro-form {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .maestro-side {
+    grid-template-columns: 1fr;
+  }
+
+  .maestro-bloqueado {
+    grid-template-columns: 1fr;
+  }
+
+  .maestro-tabs {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .maestro-tab {
+    flex: 1 1 30%;
+    text-align: center;
+  }
+
+  .maestro-photo {
+    padding: 6px;
+  }
+
+  .maestro-photo-box {
+    height: 120px;
+    min-height: 120px;
+  }
+
+  .maestro-content {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    padding: 6px;
+  }
+
+  .maestro-left,
+  .maestro-right {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .dir-grid-top {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .dir-block h5 {
+    font-size: 16px;
+  }
+
+  .refs-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .ref-form {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .cond-form {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .maestro-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .maestro-actions button {
+    flex: 1 1 48%;
+    min-width: 0;
+    height: 30px;
+    font-size: 12px;
+  }
+}
+
+/* Compactar detalle para evitar scroll vertical */
+#prefactura_panel .grid-shell {
+  min-height: 180px;
+  height: clamp(180px, 26vh, 260px);
+}
+
+#prefactura_panel .bottom-grid {
+  margin-top: 4px;
+  gap: 6px;
+}
+
+#prefactura_panel textarea {
+  height: 48px;
+}
+
+#prefactura_panel .totals-grid {
+  gap: 2px 6px;
+}
+
+#prefactura_panel input,
+#prefactura_panel select,
+#prefactura_panel textarea {
+  height: 26px;
+  font-size: 12px;
+}
+
+#prefactura_panel .btn-small {
+  height: 28px;
+  font-size: 12px;
+}
+
+th {
+  background: #f0f5ff;
+}
+
+.actions-bar button {
+  min-width: 132px;
+  height: 42px;
+  font-size: 14px;
+}
+
+/* Estirar panel para alinear borde inferior con el menu */
+.content .main {
+  min-height: calc(100vh - 120px);
+}
+
+.prefactura-page .panel {
+  min-height: calc(100vh - 120px);
+}
+
+@media (max-width: 900px) {
+  .actions-bar button {
+    width: 100%;
+  }
+}

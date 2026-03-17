@@ -1,5 +1,6 @@
 from django.urls import path
 
+from core.views import dashboard_view
 from .views import (
     actualizar_cliente_view,
     buscar_clientes_view,
@@ -28,7 +29,6 @@ from .views import (
     buscar_vend_comp_view,
     cambiar_password_view,
     guardar_formato_etiquetas_view,
-    inicio_view,
     login_view,
     obtener_formato_etiquetas_view,
     logout_view,
@@ -37,7 +37,7 @@ from .views import (
 
 urlpatterns = [
     path("", login_view, name="login"),
-    path("inicio/", inicio_view, name="inicio"),
+    path("inicio/", dashboard_view, name="inicio"),
     path("estado-cuenta/impresion/", estado_cuenta_print_view, name="estado_cuenta_impresion"),
     path("articulos/stock/buscar/", buscar_stock_articulos_view, name="buscar_stock_articulos"),
     path("articulos/stock/impresion/", stock_articulos_print_view, name="stock_articulos_impresion"),
