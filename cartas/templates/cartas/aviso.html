@@ -1,0 +1,935 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="page-container">
+  <div class="page-header">
+    <h2 class="page-title">Cartas de Aviso</h2>
+    <p class="page-subtitle">Genera avisos por balances vencidos y cuotas en atraso.</p>
+  </div>
+
+  <div class="carta-layout">
+    <div class="carta-form-container">
+      <div class="info-card carta-form">
+        <h3>Cliente</h3>
+        <div class="form-row">
+          <label for="aviso_cliente_id">Cliente</label>
+          <div class="inline-input">
+            <input id="aviso_cliente_id" type="text" readonly placeholder="Ninguno" />
+            <button id="btn_aviso_buscar_cliente" type="button" class="btn-small">Buscar</button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label for="aviso_cliente_nombre">Nombre</label>
+          <input id="aviso_cliente_nombre" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="aviso_cliente_rnc">Cédula/RNC</label>
+          <input id="aviso_cliente_rnc" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="aviso_cliente_dir">Dirección</label>
+          <input id="aviso_cliente_dir" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="aviso_ciudad">Ciudad</label>
+          <input id="aviso_ciudad" type="text" value="" />
+        </div>
+        <div class="actions-row">
+          <button id="btn_aviso_imprimir" type="button">Imprimir Aviso</button>
+        </div>
+      </div>
+
+      <div class="info-card" style="margin-top: 14px;">
+        <h3>Documentos en Atraso</h3>
+        <div class="facturas-wrap">
+          <table class="facturas-table">
+            <thead>
+              <tr>
+                <th>No. Factura</th>
+                <th>Cuota</th>
+                <th>Vence</th>
+                <th style="text-align:right;">Saldo</th>
+                <th style="text-align:right;">Días</th>
+              </tr>
+            </thead>
+            <tbody id="aviso_facturas_body">
+              <tr><td colspan="5" class="result-empty">Selecciona un cliente.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="carta-preview-container">
+      <div id="aviso_preview" class="carta-preview-body">
+        <div class="result-empty">Selecciona un cliente para ver la carta.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="aviso_cliente_modal" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="aviso_modal_title">
+    <div class="win-titlebar">
+      <span id="aviso_modal_title">Seleccionar cliente</span>
+      <button id="btn_close_aviso_modal" type="button" aria-label="Cerrar">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="aviso_search_input">Buscar</label>
+        <input id="aviso_search_input" type="text" placeholder="Código, Nombre, Apodo o Cédula/RNC" />
+        <select id="aviso_search_filter">
+          <option value="nombre" selected>Nombre</option>
+          <option value="codigo">Código (ID_SN)</option>
+          <option value="apodo">Apodo</option>
+          <option value="rnc">Cédula/RNC</option>
+        </select>
+        <button id="btn_aviso_search" type="button" class="btn-small">Buscar</button>
+      </div>
+      <div class="search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Cédula/RNC</th>
+              <th>Apodo</th>
+            </tr>
+          </thead>
+          <tbody id="aviso_results_body">
+            <tr><td colspan="4" class="result-empty">Ingrese un texto y pulse Buscar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  :root {
+    --page-bg: #f0f4f8;
+    --card-bg: #ffffff;
+    --border-color: #d8e2f3;
+    --text-color: #334e68;
+    --text-light: #627d98;
+    --primary-color: #2a67c7;
+    --primary-dark: #1f5aad;
+    --white: #ffffff;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    --border-radius: 12px;
+  }
+
+  .page-container {
+    padding: 16px;
+  }
+
+  .page-header {
+    margin-bottom: 16px;
+  }
+
+  .page-title {
+    color: var(--text-color);
+  }
+
+  .page-subtitle {
+    color: var(--text-light);
+  }
+
+  .carta-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .carta-form-container {
+    position: static;
+  }
+
+  .info-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+  }
+
+  .info-card h3 {
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: var(--text-color);
+    font-size: 18px;
+  }
+
+  .form-row {
+    margin-bottom: 12px;
+  }
+
+  .form-row label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-light);
+  }
+
+  .form-row input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .form-row input[readonly] {
+    background-color: #e9ecef;
+    opacity: 1;
+  }
+
+  .inline-input {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .actions-row {
+    margin-top: 14px;
+    display: flex;
+    gap: 10px;
+  }
+
+  .actions-row button {
+    flex: 1 1 0;
+    height: 40px;
+    border-radius: 8px;
+    border: none;
+    background: var(--primary-color);
+    color: var(--white);
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .actions-row button:hover {
+    background: var(--primary-dark);
+  }
+
+  .facturas-wrap {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: auto;
+    max-height: 280px;
+    background: #fff;
+  }
+
+  .facturas-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .facturas-table th,
+  .facturas-table td {
+    padding: 10px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .facturas-table th {
+    background: #f8f9fa;
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+  }
+
+  .btn-small {
+    padding: 0 14px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--primary-color);
+    background: var(--white);
+    color: var(--primary-color);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-small:hover {
+    background: #f0f5ff;
+  }
+
+  .carta-preview-container {
+    background: var(--page-bg);
+  }
+
+  .carta-preview-body {
+    padding: 16px;
+    border-radius: var(--border-radius);
+    min-height: 600px;
+    height: auto;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .result-empty {
+    color: var(--text-light);
+    font-style: italic;
+  }
+
+  .carta-doc {
+    width: 100%;
+    height: auto;
+    background: var(--card-bg);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    padding: 14mm;
+    font-family: "Times New Roman", serif;
+    color: #111;
+    line-height: 1.3;
+    font-size: 12pt;
+    transform: none;
+  }
+
+  .carta-body {
+    flex: 1 1 auto;
+  }
+
+  .carta-header {
+    display: grid;
+    grid-template-columns: 120px 1fr;
+    gap: 14px;
+    align-items: start;
+    margin-bottom: 12mm;
+  }
+
+  .carta-logo {
+    width: 120px;
+    text-align: center;
+  }
+
+  .carta-logo-img {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+  }
+
+  .carta-header-info {
+    font-size: 10pt;
+    font-weight: 700;
+  }
+
+  .carta-head-right {
+    margin: 6mm 0 7mm;
+    text-align: right;
+    font-size: 11pt;
+  }
+
+  .carta-title {
+    margin: 8mm 0 10mm;
+    text-align: center;
+    color: #d60000;
+    font-size: 26pt;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+  }
+
+  .carta-intro {
+    margin-bottom: 8mm;
+  }
+
+  .carta-intro p {
+    margin: 0 0 5mm;
+  }
+
+  .carta-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6mm;
+    font-size: 9pt;
+  }
+
+  .carta-table th,
+  .carta-table td {
+    border: 1px solid #333;
+    padding: 4px 5px;
+    text-align: left;
+  }
+
+  .carta-table th {
+    font-weight: 700;
+    background: #f3f3f3;
+  }
+
+  .text-right {
+    text-align: right;
+  }
+
+  .text-center {
+    text-align: center;
+  }
+
+  .alert-cell {
+    color: #d60000;
+    font-weight: 700;
+  }
+
+  .carta-totals {
+    margin-top: 3mm;
+    display: flex;
+    justify-content: flex-end;
+    gap: 26px;
+    font-weight: 700;
+    font-size: 11pt;
+  }
+
+  .carta-sign {
+    margin-top: 16mm;
+    text-align: center;
+  }
+
+  .firma-img {
+    max-width: 200px;
+    max-height: 90px;
+    margin: 0 auto;
+    object-fit: contain;
+  }
+
+  .sello-img {
+    max-width: 220px;
+    max-height: 120px;
+    margin: 0 auto 5px;
+    object-fit: contain;
+  }
+
+  hr.firma-line {
+    border: none;
+    border-top: 1px solid #111;
+    width: 280px;
+    margin: 8px auto 4px;
+  }
+
+  .firma-text {
+    display: block;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1400;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .win-modal {
+    width: min(980px, 94vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-bg);
+    border-radius: var(--border-radius);
+    box-shadow: 0 18px 40px rgba(10, 45, 110, 0.2);
+  }
+
+  .win-titlebar {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--primary-color);
+    color: var(--white);
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: var(--border-radius) var(--border-radius) 0 0;
+  }
+
+  .win-titlebar button {
+    background: transparent;
+    border: none;
+    color: var(--white);
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .win-body {
+    padding: 16px;
+    overflow: auto;
+  }
+
+  .search-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .search-grid {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    height: 400px;
+    display: block;
+    overflow-y: auto;
+  }
+
+  .search-grid table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .search-grid th,
+  .search-grid td {
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .search-grid th {
+    background: #f8f9fa;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+
+  .search-grid tr.click-row {
+    cursor: pointer;
+  }
+
+  .search-grid tr.click-row:hover {
+    background: #f0f5ff;
+  }
+
+  @media (min-width: 992px) {
+    .carta-layout {
+      grid-template-columns: 380px 1fr;
+    }
+
+    .carta-form-container {
+      position: sticky;
+      top: 20px;
+    }
+
+    .carta-preview-body {
+      height: calc(100vh - 150px);
+      padding: 24px;
+    }
+
+    .carta-doc {
+      width: 210mm;
+      min-height: 297mm;
+      transform-origin: top center;
+    }
+  }
+
+  @media print {
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+
+    .sidebar,
+    .topbar,
+    .overlay,
+    .page-header,
+    .carta-form-container,
+    .modal-backdrop {
+      display: none !important;
+    }
+
+    body,
+    html,
+    .app-shell,
+    .content,
+    .main,
+    .page-container {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #fff !important;
+    }
+
+    .app-shell,
+    .carta-layout,
+    .carta-preview-container,
+    .carta-preview-body {
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      padding: 0 !important;
+      border: none !important;
+      background: transparent !important;
+      gap: 0 !important;
+    }
+
+    .main {
+      border: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+    }
+
+    .carta-doc {
+      transform: none !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      width: 100% !important;
+      min-height: auto !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      display: block !important;
+    }
+
+    .carta-body {
+      padding: 8mm 8mm 8mm 8mm !important;
+    }
+
+    .carta-sign {
+      position: static !important;
+      margin-top: 8mm !important;
+      padding: 0 0 4mm 0 !important;
+      text-align: center !important;
+      page-break-inside: avoid !important;
+      display: block !important;
+    }
+
+    hr.firma-line {
+      display: block !important;
+      height: 0 !important;
+      border: none !important;
+      border-top: 1px solid #111 !important;
+      background: transparent !important;
+      width: 280px !important;
+      margin: 8px auto 4px !important;
+      opacity: 1 !important;
+    }
+
+    .firma-text {
+      display: block !important;
+      font-size: 10pt !important;
+      color: #111 !important;
+    }
+  }
+</style>
+
+<script>
+  const empresaNombre = "{{ empresa_nombre|default:'COMERCIAL ANITA SRL'|escapejs }}";
+  const avisoClienteId = document.getElementById("aviso_cliente_id");
+  const avisoClienteNombre = document.getElementById("aviso_cliente_nombre");
+  const avisoClienteRnc = document.getElementById("aviso_cliente_rnc");
+  const avisoClienteDir = document.getElementById("aviso_cliente_dir");
+  const avisoCiudad = document.getElementById("aviso_ciudad");
+  const avisoPreview = document.getElementById("aviso_preview");
+  const avisoFacturasBody = document.getElementById("aviso_facturas_body");
+  const btnAvisoBuscarCliente = document.getElementById("btn_aviso_buscar_cliente");
+  const btnAvisoImprimir = document.getElementById("btn_aviso_imprimir");
+  const avisoModal = document.getElementById("aviso_cliente_modal");
+  const btnCloseAvisoModal = document.getElementById("btn_close_aviso_modal");
+  const avisoSearchInput = document.getElementById("aviso_search_input");
+  const avisoSearchFilter = document.getElementById("aviso_search_filter");
+  const btnAvisoSearch = document.getElementById("btn_aviso_search");
+  const avisoResultsBody = document.getElementById("aviso_results_body");
+  const avisoDetalleUrl = "{% url 'cartas:aviso_detalle' %}";
+  let avisoData = null;
+
+  function escapeHtml(value) {
+    return String(value || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("\"", "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function formatMoney(value) {
+    return Number(value || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  function openAvisoModal() {
+    avisoModal.classList.add("open");
+    avisoModal.setAttribute("aria-hidden", "false");
+    avisoSearchInput.focus();
+  }
+
+  function closeAvisoModal() {
+    avisoModal.classList.remove("open");
+    avisoModal.setAttribute("aria-hidden", "true");
+  }
+
+  function updateCartaScale() {
+    const cartaDoc = avisoPreview.querySelector(".carta-doc");
+    if (!cartaDoc) return;
+    if (window.innerWidth < 992) {
+      cartaDoc.style.transform = "none";
+      return;
+    }
+    const previewWidth = avisoPreview.clientWidth;
+    const scale = (previewWidth - 48) / 794;
+    cartaDoc.style.transform = `scale(${Math.min(1, scale)})`;
+  }
+
+  function renderFacturasResumen(facturas) {
+    const list = Array.isArray(facturas) ? facturas : [];
+    if (!list.length) {
+      avisoFacturasBody.innerHTML = '<tr><td colspan="5" class="result-empty">El cliente no tiene documentos vencidos.</td></tr>';
+      return;
+    }
+    avisoFacturasBody.innerHTML = list.map((f) => `
+      <tr>
+        <td>${escapeHtml(f.id_doc || "")}</td>
+        <td>${escapeHtml(f.no_cuota || "Abierto")}</td>
+        <td>${escapeHtml(f.fecha_venc || "")}</td>
+        <td class="text-right">${escapeHtml(formatMoney(f.saldo || 0))}</td>
+        <td class="text-right">${escapeHtml(String(f.dias || 0))}</td>
+      </tr>
+    `).join("");
+  }
+
+  function renderAvisoPreview(data) {
+    if (!data || !data.cliente) {
+      avisoPreview.innerHTML = "<div class='result-empty'>Selecciona un cliente para ver la carta.</div>";
+      return;
+    }
+
+    const cliente = data.cliente || {};
+    const empresa = data.empresa || {};
+    const facturas = Array.isArray(data.facturas) ? data.facturas : [];
+    const totales = data.totales || {};
+    const empresaNombreFinal = empresa.nombre || empresaNombre;
+    const empresaDireccion = empresa.direccion || "";
+    const empresaTel1 = empresa.tel1 || "";
+    const empresaTel2 = empresa.tel2 || "";
+    const empresaEmail = empresa.email || "";
+    const empresaRnc = empresa.rnc || "";
+    const empresaLogoMime = empresa.logo_tipo || "image/png";
+    const empresaLogoHtml = empresa.logo_b64
+      ? `<img class="carta-logo-img" src="data:${empresaLogoMime};base64,${empresa.logo_b64}" alt="Logo" />`
+      : "";
+    const selloHtml = empresa.sello_b64
+      ? `<img class="sello-img" src="data:image/png;base64,${empresa.sello_b64}" alt="Sello" />`
+      : "";
+    const firmaHtml = data.firma_b64
+      ? `<img class="firma-img" src="data:image/png;base64,${data.firma_b64}" alt="Firma" />`
+      : "";
+
+    const rows = facturas.length
+      ? facturas.map((f) => `
+          <tr>
+            <td>${escapeHtml(f.id_doc || "")}</td>
+            <td class="text-center">${escapeHtml(f.no_cuota || "Abierto")}</td>
+            <td>${escapeHtml(f.fecha_venc || "")}</td>
+            <td class="text-right">${escapeHtml(formatMoney(f.monto || 0))}</td>
+            <td class="text-right">${escapeHtml(formatMoney(f.pagado || 0))}</td>
+            <td class="text-right">${escapeHtml(formatMoney(f.saldo || 0))}</td>
+            <td class="text-center alert-cell">${escapeHtml(String(f.dias || 0))}</td>
+            <td class="text-right">${escapeHtml(formatMoney(f.mora || 0))}</td>
+          </tr>
+        `).join("")
+      : '<tr><td colspan="8" class="text-center">El cliente no presenta balance en atraso.</td></tr>';
+
+    avisoPreview.innerHTML = `
+      <div class="carta-doc">
+        <div class="carta-body">
+          <header class="carta-header">
+            <div class="carta-logo">${empresaLogoHtml}</div>
+            <div class="carta-header-info">
+              <div style="font-size: 18pt;">${escapeHtml(empresaNombreFinal)}</div>
+              <div>${escapeHtml(empresaDireccion)}</div>
+              <div>Telefono: ${escapeHtml(empresaTel1)}${empresaTel2 ? `  ${escapeHtml(empresaTel2)}` : ""}</div>
+              <div>E-Mail: ${escapeHtml(empresaEmail)}</div>
+              <div>RNC: ${escapeHtml(empresaRnc)}</div>
+            </div>
+          </header>
+
+          <div class="carta-head-right">
+            <div>${escapeHtml(data.fecha || "")}</div>
+            <div>${escapeHtml((avisoCiudad && avisoCiudad.value) || "")}</div>
+            <div>${escapeHtml(data.hora || "")}</div>
+          </div>
+
+          <h1 class="carta-title">AVISO</h1>
+
+          <div class="carta-intro">
+            <p>Señor(a):</p>
+            <p><strong>${escapeHtml(cliente.nombre || "")}</strong><br/>
+            Céd./Rnc./Pasap.: <strong>${escapeHtml(cliente.rnc_ced || "")}</strong><br/>
+            Dirección: ${escapeHtml(cliente.direccion || "")}<br/>
+            Ciudad: ${escapeHtml((avisoCiudad && avisoCiudad.value) || "")}<br/>
+            Teléfono: ${escapeHtml(cliente.telefono || "")}</p>
+
+            <p>Estimado Sr (a),</p>
+            <p>Por medio de la presente le informamos que su cuenta se encuentra en ATRASO, le invitamos a ponerse al día con nosotros a la brevedad posible, evite cargos por mora.</p>
+            <p>El no cumplimiento de sus pagos nos da la autoridad de proceder con la recuperación de los artículos y/o electrodomésticos relacionados a su cuenta en atraso. A continuación detalle de deuda:</p>
+          </div>
+
+          <table class="carta-table">
+            <thead>
+              <tr>
+                <th>NoFactura</th>
+                <th>NoCuota</th>
+                <th>Fecha Venc.</th>
+                <th class="text-right">Monto</th>
+                <th class="text-right">Pagado</th>
+                <th class="text-right">Saldo</th>
+                <th class="text-center">Días de Atraso</th>
+                <th class="text-right">Mora</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+
+          <div class="carta-totals">
+            <div>Balance en Atraso --> ${escapeHtml(formatMoney(totales.saldo || 0))}</div>
+            <div>Total Mora --> ${escapeHtml(formatMoney(totales.mora || 0))}</div>
+          </div>
+        </div>
+
+        <footer class="carta-sign">
+          ${selloHtml}
+          ${firmaHtml}
+          <hr class="firma-line" />
+          <div class="firma-text">Firma y Sello</div>
+        </footer>
+      </div>
+    `;
+
+    updateCartaScale();
+  }
+
+  function renderAvisoResults(rows) {
+    if (!rows.length) {
+      avisoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">No se encontraron clientes.</td></tr>';
+      return;
+    }
+    avisoResultsBody.innerHTML = rows.map((row) => {
+      const safeJson = encodeURIComponent(JSON.stringify(row));
+      return `
+        <tr class="click-row" data-row="${safeJson}">
+          <td>${escapeHtml(row.id_sn || "")}</td>
+          <td>${escapeHtml(row.nom_socio || "")}</td>
+          <td>${escapeHtml(row.rnc_ced || "")}</td>
+          <td>${escapeHtml(row.contacto || "")}</td>
+        </tr>
+      `;
+    }).join("");
+
+    avisoResultsBody.querySelectorAll("tr.click-row").forEach((row) => {
+      row.addEventListener("click", async () => {
+        const raw = row.getAttribute("data-row");
+        if (!raw) return;
+        try {
+          const data = JSON.parse(decodeURIComponent(raw));
+          avisoClienteId.value = data.id_sn || "";
+          avisoClienteNombre.value = data.nom_socio || "";
+          avisoClienteRnc.value = data.rnc_ced || "";
+          avisoClienteDir.value = data.dir_factura || "";
+          if (avisoCiudad) {
+            avisoCiudad.value = data.sector || "";
+          }
+          avisoFacturasBody.innerHTML = '<tr><td colspan="5" class="result-empty">Cargando...</td></tr>';
+          closeAvisoModal();
+          await cargarAvisoDetalle(data.id_sn);
+        } catch (error) {
+          // no-op
+        }
+      });
+    });
+  }
+
+  async function buscarAvisoClientes() {
+    const q = (avisoSearchInput.value || "").trim();
+    const filtro = (avisoSearchFilter.value || "nombre").trim().toLowerCase();
+    const url = `/clientes/buscar/?q=${encodeURIComponent(q)}&filtro=${encodeURIComponent(filtro)}`;
+    avisoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Buscando...</td></tr>';
+    try {
+      const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+      if (!res.ok) {
+        avisoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">No se pudo consultar clientes.</td></tr>';
+        return;
+      }
+      const data = await res.json();
+      renderAvisoResults(Array.isArray(data.results) ? data.results : []);
+    } catch (error) {
+      avisoResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Error de conexión.</td></tr>';
+    }
+  }
+
+  async function cargarAvisoDetalle(idSn) {
+    if (!idSn) return;
+    try {
+      avisoPreview.innerHTML = '<div class="result-empty">Cargando...</div>';
+      const res = await fetch(`${avisoDetalleUrl}?id_sn=${encodeURIComponent(idSn)}`, {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail || `No se pudo cargar la carta. (${res.status})`;
+        avisoData = null;
+        avisoPreview.innerHTML = `<div class="result-empty">${escapeHtml(detail)}</div>`;
+        avisoFacturasBody.innerHTML = '<tr><td colspan="5" class="result-empty">No se pudo cargar el detalle.</td></tr>';
+        return;
+      }
+      avisoData = data;
+      if (data.cliente && avisoCiudad) {
+        avisoCiudad.value = data.cliente.sector || "";
+      }
+      renderFacturasResumen(data.facturas || []);
+      renderAvisoPreview(data);
+    } catch (error) {
+      avisoData = null;
+      avisoPreview.innerHTML = '<div class="result-empty">Error de conexión.</div>';
+      avisoFacturasBody.innerHTML = '<tr><td colspan="5" class="result-empty">Error de conexión.</td></tr>';
+    }
+  }
+
+  function doPrint() {
+    requestAnimationFrame(() => window.print());
+  }
+
+  btnAvisoBuscarCliente?.addEventListener("click", openAvisoModal);
+  btnCloseAvisoModal?.addEventListener("click", closeAvisoModal);
+  avisoModal?.addEventListener("click", (event) => {
+    if (event.target === avisoModal) closeAvisoModal();
+  });
+  btnAvisoSearch?.addEventListener("click", buscarAvisoClientes);
+  avisoSearchInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      buscarAvisoClientes();
+    }
+    if (event.key === "Escape") {
+      closeAvisoModal();
+    }
+  });
+  avisoCiudad?.addEventListener("input", () => {
+    if (avisoData) renderAvisoPreview(avisoData);
+  });
+  btnAvisoImprimir?.addEventListener("click", () => {
+    if (!avisoData) {
+      window.alert("Selecciona un cliente antes de imprimir.");
+      return;
+    }
+    renderAvisoPreview(avisoData);
+    doPrint();
+  });
+  window.addEventListener("resize", updateCartaScale);
+  document.addEventListener("DOMContentLoaded", () => {
+    updateCartaScale();
+    const mainMenu = document.querySelector(".main-menu");
+    if (mainMenu) mainMenu.style.display = "none";
+  });
+</script>
+
+{% endblock %}

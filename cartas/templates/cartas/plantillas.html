@@ -1,0 +1,42 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <h2 class="page-title">Plantillas de Cartas</h2>
+  <a href="#" class="btn btn-primary">Crear nueva plantilla</a>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <h3 class="card-title">Plantillas existentes</h3>
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Asunto</th>
+          <th>Activa</th>
+          <th>Fecha de Creación</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for plantilla in plantillas %}
+        <tr>
+          <td>{{ plantilla.nombre }}</td>
+          <td>{{ plantilla.asunto }}</td>
+          <td>{% if plantilla.activa %}Sí{% else %}No{% endif %}</td>
+          <td>{{ plantilla.fecha_creacion|date:"d/m/Y" }}</td>
+          <td>
+            <a href="#">Editar</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5">No hay plantillas creadas.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -45,15 +45,16 @@
         <div class="facturas-wrap">
           <table class="facturas-table">
             <thead>
-              <tr>
-                <th style="width:40px;"></th>
-                <th>No. Factura</th>
-                <th>Fecha</th>
-                <th style="text-align:right;">Monto</th>
-              </tr>
+	              <tr>
+	                <th style="width:40px;"></th>
+	                <th>No. Factura</th>
+	                <th>No. Cuota</th>
+	                <th>Fecha</th>
+	                <th style="text-align:right;">Monto</th>
+	              </tr>
             </thead>
             <tbody id="saldo_facturas_body">
-              <tr><td colspan="4" class="result-empty">Selecciona un cliente.</td></tr>
+	              <tr><td colspan="5" class="result-empty">Selecciona un cliente.</td></tr>
             </tbody>
           </table>
         </div>
@@ -575,41 +576,42 @@
 		      border-radius: 0 !important;
 		      box-sizing: border-box !important;
 		      width: 100% !important;
-		      /* Dejar el padding al body para poder fijar la firma al fondo sin desbordes. */
 		      min-height: auto !important;
 		      padding: 0 !important;
 		      margin: 0 !important;
 		      display: block !important;
 		    }
-
+		
 		    .carta-body {
-		      padding: 12mm 12mm 55mm 12mm !important; /* deja espacio para firma/sello */
+		      padding: 12mm 12mm 12mm 12mm !important;
 		    }
-
+		
 		    .carta-sign {
-		      position: fixed !important;
-		      left: 10mm !important;
-		      right: 10mm !important;
-		      bottom: 18mm !important;
-		      margin: 0 !important;
-		      padding: 0 0 3mm 0 !important;
+		      position: static !important;
+		      margin-top: 12mm !important;
+		      padding: 0 0 6mm 0 !important;
 		      text-align: center !important;
-		      z-index: 9999 !important;
+		      page-break-inside: avoid !important;
 		      color: #111 !important;
+		      display: block !important;
 		    }
-
+	
 		    hr.firma-line {
+		      display: block !important;
+		      height: 0 !important;
 		      border: none !important;
 		      border-top: 1px solid #111 !important;
+		      background: transparent !important;
 		      width: 250px !important;
 		      margin: 8px auto 4px !important;
-		      height: 0 !important;
+		      opacity: 1 !important;
 		    }
 
 		    .firma-text {
 		      display: block !important;
 		      font-size: 10pt !important;
 		      color: #111 !important;
+		      background: #fff !important;
 		    }
 
 		    .sello-img {
@@ -718,7 +720,7 @@
 	    if (!saldoFacturasBody) return;
 	    const list = Array.isArray(facturas) ? facturas : [];
 	    if (!list.length) {
-	      saldoFacturasBody.innerHTML = '<tr><td colspan="4" class="result-empty">No hay facturas saldadas.</td></tr>';
+	      saldoFacturasBody.innerHTML = '<tr><td colspan="5" class="result-empty">No hay facturas saldadas.</td></tr>';
 	      return;
 	    }
 	    saldoFacturasBody.innerHTML = list
@@ -731,10 +733,11 @@
 	          <tr class="facturas-row" data-doc="${encodeURIComponent(idDoc)}">
 	            <td class="facturas-radio">
 	              <input type="radio" name="saldo_factura_pick" value="${escapeHtml(idDoc)}" ${checked} aria-label="Seleccionar" />
-	            </td>
-	            <td>${escapeHtml(idDoc)}</td>
-	            <td>${escapeHtml(fecha)}</td>
-	            <td style="text-align:right;">${escapeHtml(total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+		            </td>
+		            <td>${escapeHtml(idDoc)}</td>
+		            <td>${escapeHtml(String(f.no_cuota || "Abierto"))}</td>
+		            <td>${escapeHtml(fecha)}</td>
+		            <td style="text-align:right;">${escapeHtml(total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
 	          </tr>
 	        `;
 	      })
@@ -763,16 +766,17 @@
 	    const facturas = Array.isArray(facturasOverride) ? facturasOverride : getAllFacturas(data);
 		    const rows = facturas.length
 		      ? facturas.map((f) => `
-	        <tr>
-	          <td>${escapeHtml(String(f.id_doc || ""))}</td>
-	          <td>${escapeHtml(String(f.fecha_doc || ""))}</td>
-	          <td style="text-align:right;">${escapeHtml(Number(f.total_doc || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
-	          <td style="text-align:right;">${escapeHtml(Number(f.pagado || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
-	          <td style="text-align:right;">${escapeHtml(Number(f.saldo || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
-	          <td>${escapeHtml(String(f.fecha_pago || ""))}</td>
-	        </tr>
-	      `).join("")
-	      : `<tr><td colspan="6" style="text-align:center;">No hay documentos saldados para este cliente.</td></tr>`;
+		        <tr>
+		          <td>${escapeHtml(String(f.id_doc || ""))}</td>
+		          <td>${escapeHtml(String(f.no_cuota || "Abierto"))}</td>
+		          <td>${escapeHtml(String(f.fecha_doc || ""))}</td>
+		          <td style="text-align:right;">${escapeHtml(Number(f.total_doc || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+		          <td style="text-align:right;">${escapeHtml(Number(f.pagado || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+		          <td style="text-align:right;">${escapeHtml(Number(f.saldo || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }))}</td>
+		          <td>${escapeHtml(String(f.fecha_pago || ""))}</td>
+		        </tr>
+		      `).join("")
+		      : `<tr><td colspan="7" style="text-align:center;">No hay documentos saldados para este cliente.</td></tr>`;
 
     const empresa = data.empresa || {};
     const empresaNombreFinal = empresa.nombre || empresaNombre;
@@ -818,8 +822,10 @@
             Señor(a):<br/>
             <strong>${escapeHtml(cliente.nombre || "")}</strong><br/>
             Cédula/Pasaporte: <strong>${escapeHtml(cliente.rnc_ced || "")}</strong><br/>
-	            Ciudad: <strong>${escapeHtml((saldoCiudad && saldoCiudad.value) || "")}</strong>
-	          </div>
+            Dirección: <strong>${escapeHtml(cliente.direccion || "")}</strong><br/>
+            Ciudad: <strong>${escapeHtml((saldoCiudad && saldoCiudad.value) || "")}</strong><br/>
+            Teléfono: <strong>${escapeHtml(cliente.telefono || "")}</strong>
+          </div>
           
           <p>Estimado Sr(a),</p>
           <p>Por medio de la presente certificamos que en los archivos de nuestra empresa no existen deudas pendientes para los siguientes contratos de ventas:</p>
@@ -828,6 +834,7 @@
             <thead>
               <tr>
                 <th>No. Factura</th>
+                <th>No. Cuota</th>
                 <th>Fecha Factura</th>
                 <th>Monto</th>
                 <th>Pagado</th>
@@ -836,7 +843,7 @@
               </tr>
             </thead>
             <tbody>
-              ${rows || '<tr><td colspan="6" class="result-empty">Sin registros.</td></tr>'}
+              ${rows || '<tr><td colspan="7" class="result-empty">Sin registros.</td></tr>'}
             </tbody>
           </table>
         </div>
