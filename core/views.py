@@ -7,6 +7,27 @@ from ajustes.permissions import ensure_admin_role, has_perm
 from prefacturas_app.views import _get_auth_payload
 
 
+def _load_table_columns(table_name):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = %s
+                ORDER BY ORDINAL_POSITION
+                """,
+                [table_name],
+            )
+            return [str(row[0]).strip().upper() for row in cursor.fetchall() if row and row[0]]
+    except Exception:
+        return []
+
+
+def _bool_db(value):
+    return str(value or "").strip().lower() in {"1", "true", "on", "si", "sÃ­", "y", "yes"}
+
+
 def _get_empresa_data():
     empresa = {
         "nombre": "COMERCIAL ANITA SRL",
@@ -18,46 +39,35 @@ def _get_empresa_data():
         "logo_b64": "",
         "logo_tipo": "",
         "sello_b64": "",
+        "habilitar_fact_stock": False,
     }
     try:
+        columns = set(_load_table_columns("EMPRESA"))
+        if not columns:
+            return empresa
+        select_columns = ["NOMBRE", "DIR_EMP", "TEL1", "TEL2", "EMAIL", "RNC_CED"]
+        for optional_column in ("LOGO", "LOGO_TIPO", "SELLO", "HABILITAR_FACT_STOCK"):
+            if optional_column in columns:
+                select_columns.append(optional_column)
         with connection.cursor() as cursor:
-            try:
-                cursor.execute(
-                    """
-                    SELECT TOP 1 NOMBRE, DIR_EMP, TEL1, TEL2, EMAIL, RNC_CED, LOGO, LOGO_TIPO, SELLO
-                    FROM EMPRESA
-                    """
-                )
-                row = cursor.fetchone()
-                if row:
-                    if row[0]:
-                        empresa["nombre"] = str(row[0]).strip()
-                    empresa["direccion"] = str(row[1]).strip() if row[1] else ""
-                    empresa["tel1"] = str(row[2]).strip() if row[2] else ""
-                    empresa["tel2"] = str(row[3]).strip() if row[3] else ""
-                    empresa["email"] = str(row[4]).strip() if row[4] else ""
-                    empresa["rnc"] = str(row[5]).strip() if row[5] else ""
-                    if row[6]:
-                        empresa["logo_b64"] = base64.b64encode(row[6]).decode("ascii")
-                    empresa["logo_tipo"] = str(row[7]).strip() if row[7] else ""
-                    if row[8]:
-                        empresa["sello_b64"] = base64.b64encode(row[8]).decode("ascii")
-            except Exception:
-                cursor.execute(
-                    """
-                    SELECT TOP 1 NOMBRE, DIR_EMP, TEL1, TEL2, EMAIL, RNC_CED
-                    FROM EMPRESA
-                    """
-                )
-                row = cursor.fetchone()
-                if row:
-                    if row[0]:
-                        empresa["nombre"] = str(row[0]).strip()
-                    empresa["direccion"] = str(row[1]).strip() if row[1] else ""
-                    empresa["tel1"] = str(row[2]).strip() if row[2] else ""
-                    empresa["tel2"] = str(row[3]).strip() if row[3] else ""
-                    empresa["email"] = str(row[4]).strip() if row[4] else ""
-                    empresa["rnc"] = str(row[5]).strip() if row[5] else ""
+            cursor.execute(f"SELECT TOP 1 {', '.join(select_columns)} FROM EMPRESA")
+            row = cursor.fetchone()
+            if not row:
+                return empresa
+            data = {select_columns[index]: row[index] for index in range(min(len(select_columns), len(row)))}
+            if data.get("NOMBRE"):
+                empresa["nombre"] = str(data.get("NOMBRE")).strip()
+            empresa["direccion"] = str(data.get("DIR_EMP") or "").strip()
+            empresa["tel1"] = str(data.get("TEL1") or "").strip()
+            empresa["tel2"] = str(data.get("TEL2") or "").strip()
+            empresa["email"] = str(data.get("EMAIL") or "").strip()
+            empresa["rnc"] = str(data.get("RNC_CED") or "").strip()
+            if data.get("LOGO"):
+                empresa["logo_b64"] = base64.b64encode(data.get("LOGO")).decode("ascii")
+            empresa["logo_tipo"] = str(data.get("LOGO_TIPO") or "").strip()
+            if data.get("SELLO"):
+                empresa["sello_b64"] = base64.b64encode(data.get("SELLO")).decode("ascii")
+            empresa["habilitar_fact_stock"] = _bool_db(data.get("HABILITAR_FACT_STOCK"))
     except Exception:
         return empresa
     return empresa

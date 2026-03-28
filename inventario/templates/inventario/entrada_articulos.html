@@ -1,0 +1,1100 @@
+{% extends "core/base.html" %}
+
+{% block head_extra %}
+<style>
+  .entry-page {
+    max-width: 1500px;
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    height: calc(100vh - 170px);
+    min-height: 0;
+  }
+
+  .entry-shell {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .entry-card {
+    background: linear-gradient(180deg, #ffffff, #f7fbff);
+    border: 1px solid #cedbef;
+    border-radius: 18px;
+    box-shadow: 0 16px 30px rgba(20, 55, 110, 0.08);
+    min-width: 0;
+  }
+
+  .entry-header-card {
+    padding: 10px 12px 12px;
+  }
+
+  .entry-title {
+    margin: 0 0 8px;
+    text-align: center;
+    font-size: 22px;
+    line-height: 1.05;
+    color: #0d3f8e;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .entry-header-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 520px) 220px 206px;
+    gap: 10px;
+    align-items: start;
+    justify-content: start;
+  }
+
+  .entry-form-grid {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 5px 10px;
+    align-items: center;
+  }
+
+  .entry-form-row-full {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+  }
+
+  .entry-form-grid label,
+  .entry-side-grid label,
+  .entry-comment-field label,
+  .entry-total-field label {
+    font-size: 12px;
+    font-weight: 800;
+    color: #163c73;
+  }
+
+  .entry-input,
+  .entry-select,
+  .entry-textarea {
+    width: 100%;
+    height: 24px;
+    border-radius: 8px;
+    border: 1px solid #d1dcef;
+    background: #f8fbff;
+    color: #1a2942;
+    padding: 2px 8px;
+    font-size: 12.5px;
+  }
+
+  .entry-input[readonly],
+  .entry-select:disabled,
+  .entry-input:disabled {
+    background: #eef4ff;
+    color: #294364;
+  }
+
+  .entry-select {
+    padding-right: 28px;
+  }
+
+  .entry-textarea {
+    height: 24px;
+    min-height: 24px;
+    resize: none;
+    padding-top: 2px;
+    overflow: hidden;
+  }
+
+  .entry-input.is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .entry-with-trigger,
+  .entry-provider-pick {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 26px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .entry-provider-code {
+    display: grid;
+    grid-template-columns: 168px 26px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .entry-trigger-btn {
+    width: 26px;
+    height: 24px;
+    border-radius: 8px;
+    border: 1px solid #1b6fde;
+    background: linear-gradient(180deg, #eff6ff, #daeafc);
+    color: #17406e;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .entry-side-grid {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 5px 6px;
+    align-items: center;
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .entry-side-grid .entry-input,
+  .entry-side-grid .entry-select {
+    text-align: right;
+    max-width: none;
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .entry-shortcuts {
+    display: grid;
+    gap: 4px;
+    align-content: start;
+    padding: 2px 0;
+    min-width: 0;
+  }
+
+  .entry-shortcuts h3 {
+    margin: 0 0 2px;
+    font-size: 12px;
+    color: #0f3f78;
+  }
+
+  .entry-shortcut-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 24px;
+    height: 24px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #1a66ce;
+    background: linear-gradient(180deg, #1f7aed, #125ec3);
+    color: #ffffff;
+    box-shadow: 0 6px 12px rgba(18, 94, 195, 0.18);
+    cursor: pointer;
+    text-align: left;
+    font-size: 11.5px;
+    text-decoration: none;
+  }
+
+  .entry-shortcut-btn strong {
+    font-size: inherit;
+    font-weight: 700;
+  }
+
+  .entry-shortcut-btn span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1;
+    flex: 0 0 24px;
+  }
+
+  .entry-shortcut-btn:hover {
+    filter: brightness(1.03);
+  }
+
+  .entry-tabs-card {
+    padding: 10px 12px 12px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .entry-tabs-head {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid #d5e0f2;
+    padding-bottom: 2px;
+  }
+
+  .entry-tabs-group {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+  }
+
+  .entry-tabs-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+    padding-bottom: 2px;
+  }
+
+  .entry-tab {
+    border: 1px solid #d2deef;
+    border-bottom: 0;
+    border-radius: 14px 14px 0 0;
+    padding: 7px 12px 6px;
+    background: #f3f8fe;
+    color: #305178;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .entry-tab.active {
+    background: #ffffff;
+    color: #0d3f8e;
+  }
+
+  .entry-tab-panel {
+    display: none;
+  }
+
+  .entry-tab-panel.active {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .entry-tab-panel.active[data-tab-panel="detalle"] {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .entry-toolbar-btn {
+    height: 24px;
+    min-width: 118px;
+    border-radius: 8px;
+    border: 1px solid #c9d8ec;
+    background: linear-gradient(180deg, #ffffff, #edf4ff);
+    color: #17406e;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0 12px;
+  }
+
+  .entry-grid-shell {
+    border: 1px solid #cfdbeb;
+    border-radius: 14px;
+    background: #ffffff;
+    overflow: hidden;
+    min-width: 0;
+    width: 100%;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .entry-grid-scroll {
+    min-height: 0;
+    max-height: none;
+    height: 100%;
+    overflow: auto;
+    width: 100%;
+  }
+
+  .entry-grid-shell table {
+    width: 100%;
+    min-width: 1220px;
+    border-collapse: collapse;
+  }
+
+  .entry-grid-shell th,
+  .entry-grid-shell td {
+    padding: 0 4px;
+    border-right: 1px solid #dde7f4;
+    border-bottom: 1px solid #e5edf8;
+    font-size: 10.5px;
+    line-height: 1;
+    height: 20px;
+    white-space: nowrap;
+  }
+
+  .entry-grid-shell th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef5ff;
+    color: #21446f;
+    text-align: left;
+    font-weight: 800;
+  }
+
+  .entry-grid-shell td:last-child,
+  .entry-grid-shell th:last-child {
+    border-right: 0;
+  }
+
+  .entry-grid-shell tbody tr:hover td {
+    background: #f8fbff;
+  }
+
+  .entry-grid-empty td {
+    height: 232px;
+    color: #6b7f9b;
+    text-align: center;
+    vertical-align: top;
+    padding-top: 18px;
+    white-space: normal;
+  }
+
+  .entry-tab-footer {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .entry-total-field {
+    display: grid;
+    gap: 4px;
+    justify-items: end;
+  }
+
+  .entry-total-field .entry-input {
+    width: 124px;
+  }
+
+  .entry-finanzas-box {
+    min-height: 408px;
+    border: 1px dashed #d1dcef;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fbfdff, #f3f8fe);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    text-align: center;
+    color: #5b7090;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .entry-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-end;
+    min-height: 56px;
+  }
+
+  .entry-actions-left {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .entry-action,
+  .entry-close-btn {
+    height: 56px;
+    min-width: 104px;
+    border-radius: 12px;
+    border: 1px solid #8ca0bc;
+    background: linear-gradient(180deg, #ffffff, #e4ebf6);
+    box-shadow: 0 2px 0 rgba(36, 53, 79, 0.26);
+    color: #223a61;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .entry-action.is-disabled {
+    opacity: 0.52;
+    cursor: not-allowed;
+  }
+
+  .entry-close-btn {
+    min-width: 128px;
+  }
+
+  .entry-action-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    border: 2px solid #607796;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+    color: #4d6382;
+  }
+
+  .entry-action:disabled,
+  .entry-toolbar-btn:disabled,
+  .entry-trigger-btn:disabled {
+    opacity: 0.52;
+    cursor: not-allowed;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1400;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .win-modal {
+    width: min(1100px, 96vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #ffffff, #f7fbff);
+    border-radius: 18px;
+    border: 1px solid #cddbef;
+    box-shadow: 0 18px 40px rgba(10, 45, 110, 0.2);
+  }
+
+  .win-titlebar {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #0f4da2;
+    color: #ffffff;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 800;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .win-titlebar button {
+    border: none;
+    background: transparent;
+    color: #ffffff;
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .win-body {
+    padding: 14px;
+    overflow: auto;
+  }
+
+  .search-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 170px auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .search-row label {
+    font-size: 12px;
+    font-weight: 800;
+    color: #163c73;
+  }
+
+  .search-grid {
+    border: 1px solid #cfdbeb;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #ffffff;
+    height: min(58vh, 520px);
+  }
+
+  .search-grid-scroll {
+    height: 100%;
+    overflow: auto;
+  }
+
+  .search-grid table {
+    width: 100%;
+    min-width: 860px;
+    border-collapse: collapse;
+  }
+
+  .search-grid th,
+  .search-grid td {
+    padding: 8px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid #dfe8f5;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .search-grid th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef5ff;
+    color: #21446f;
+    font-weight: 800;
+  }
+
+  .search-grid tr.click-row {
+    cursor: pointer;
+  }
+
+  .search-grid tr.click-row:hover td {
+    background: #f3f8ff;
+  }
+
+  .result-empty {
+    color: #6b7f9b;
+    text-align: center;
+    font-style: italic;
+  }
+
+  @media (max-width: 1280px) {
+    .entry-header-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .entry-side-grid {
+      grid-template-columns: 82px minmax(0, 220px);
+      justify-content: start;
+    }
+
+    .entry-shortcuts {
+      max-width: 220px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .entry-page,
+    .entry-shell {
+      height: auto;
+      min-height: 0;
+    }
+
+    .entry-shell {
+      grid-template-rows: auto auto;
+    }
+
+    .entry-tabs-card {
+      grid-template-rows: auto auto auto;
+      overflow: visible;
+    }
+
+    .entry-tab-footer {
+      grid-template-columns: 1fr;
+    }
+
+    .entry-actions {
+      grid-template-columns: 1fr;
+      display: grid;
+    }
+
+    .entry-actions-left {
+      width: 100%;
+    }
+
+    .entry-action,
+    .entry-close-btn {
+      flex: 1 1 120px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .entry-form-grid,
+    .entry-form-row-full,
+    .entry-side-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .entry-tabs-head,
+    .entry-tabs-group,
+    .entry-tabs-actions {
+      flex-wrap: wrap;
+    }
+
+    .entry-tabs-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="entry-page">
+  <div class="entry-shell">
+    <section class="entry-card entry-header-card">
+      <div class="entry-header-grid">
+        <div class="entry-form-grid">
+          <label for="entrada_codigo">Codigo</label>
+          <input id="entrada_codigo" class="entry-input" type="text" value="" />
+
+          <label for="entrada_descripcion">Descripcion</label>
+          <input id="entrada_descripcion" class="entry-input" type="text" value="" />
+
+          <label for="entrada_asunto">Asunto</label>
+          <input id="entrada_asunto" class="entry-input" type="text" value="" />
+
+          <label for="entrada_departamento">Departamento</label>
+          <select id="entrada_departamento" class="entry-select">
+            <option value=""></option>
+            <option>Compras</option>
+            <option>Almacen</option>
+            <option>Importaciones</option>
+          </select>
+
+          <label for="entrada_proveedor_codigo">Prov.</label>
+          <div class="entry-provider-pick">
+            <div class="entry-provider-code">
+              <input id="entrada_proveedor_codigo" class="entry-input" type="text" value="" />
+              <button type="button" class="entry-trigger-btn" aria-label="Buscar proveedor">...</button>
+            </div>
+            <span></span>
+          </div>
+
+          <label for="entrada_proveedor_nombre">Nombre</label>
+          <input id="entrada_proveedor_nombre" class="entry-input" type="text" value="" />
+        </div>
+
+        <div class="entry-side-grid">
+          <label for="entrada_no">No.</label>
+          <input id="entrada_no" class="entry-input is-num" type="text" value="" readonly />
+
+          <label for="entrada_estado">Estado doc.</label>
+          <input id="entrada_estado" class="entry-input" type="text" value="" readonly />
+
+          <label for="entrada_fecha_cont">Fecha cont.</label>
+          <input id="entrada_fecha_cont" class="entry-input" type="date" />
+
+          <label for="entrada_fecha_venc">Fecha venc.</label>
+          <input id="entrada_fecha_venc" class="entry-input" type="date" />
+
+          <label for="entrada_fecha_doc">Fecha doc.</label>
+          <input id="entrada_fecha_doc" class="entry-input" type="date" />
+        </div>
+
+        <aside class="entry-shortcuts">
+          <h3>Acceso directo</h3>
+          <a href="{% url 'inventario:articulos' %}" class="entry-shortcut-btn">
+            <strong>Articulos</strong>
+            <span>A</span>
+          </a>
+          <a href="{% url 'inventario:salida_articulos' %}" class="entry-shortcut-btn">
+            <strong>Salida articulos</strong>
+            <span>S</span>
+          </a>
+          <a href="{% url 'factura:facturacion' %}" class="entry-shortcut-btn">
+            <strong>Facturacion</strong>
+            <span>F</span>
+          </a>
+          <a href="{% url 'caja:cuentas_por_cobrar' %}" class="entry-shortcut-btn">
+            <strong>Cuentas por cobrar</strong>
+            <span>C</span>
+          </a>
+        </aside>
+      </div>
+    </section>
+
+    <section class="entry-card entry-tabs-card">
+      <div class="entry-tabs-head">
+        <div class="entry-tabs-group" role="tablist" aria-label="Entrada tabs">
+          <button type="button" class="entry-tab active" data-tab-target="detalle" role="tab" aria-selected="true">Detalle</button>
+          <button type="button" class="entry-tab" data-tab-target="finanzas" role="tab" aria-selected="false">Finanzas</button>
+        </div>
+        <div class="entry-tabs-actions">
+          <button type="button" class="entry-toolbar-btn">Borrar linea</button>
+        </div>
+      </div>
+
+      <div class="entry-tab-panel active" data-tab-panel="detalle">
+        <div class="entry-grid-shell">
+          <div class="entry-grid-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripcion art./serv.</th>
+                  <th>Articulo</th>
+                  <th>Cant. Emp.</th>
+                  <th>Cant.</th>
+                  <th>UoM</th>
+                  <th>Alm.</th>
+                  <th>Pedido Cte.</th>
+                  <th>Proyecto</th>
+                  <th>CeCo</th>
+                  <th>Costo unit.</th>
+                  <th>Valor</th>
+                  <th>Cuenta mayor</th>
+                </tr>
+              </thead>
+              <tbody id="entrada_detalle_body">
+                <tr class="entry-grid-empty">
+                  <td colspan="12">La rejilla del detalle quedara disponible aqui para capturar los articulos de entrada.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="entry-tab-footer">
+          <div class="entry-comment-field">
+            <label for="entrada_comentario">Comentario:</label>
+            <textarea id="entrada_comentario" class="entry-textarea"></textarea>
+          </div>
+          <div class="entry-total-field">
+            <label for="entrada_total_doc">Total Doc.</label>
+            <input id="entrada_total_doc" class="entry-input is-num" type="text" value="" readonly />
+          </div>
+        </div>
+      </div>
+
+      <div class="entry-tab-panel" data-tab-panel="finanzas">
+        <div class="entry-finanzas-box">
+          La pestaña de finanzas quedo reservada dentro del layout para conectar su informacion contable en el siguiente paso.
+        </div>
+      </div>
+
+      <div class="entry-actions">
+        <div class="entry-actions-left">
+          <button id="btn_entrada_nuevo" type="button" class="entry-action">
+            <span class="entry-action-icon">+</span>
+            <span>Nuevo</span>
+          </button>
+          <button id="btn_entrada_buscar" type="button" class="entry-action">
+            <span class="entry-action-icon">?</span>
+            <span>Buscar</span>
+          </button>
+          <button id="btn_entrada_cancel" type="button" class="entry-action is-disabled" disabled>
+            <span class="entry-action-icon">x</span>
+            <span>Cancel</span>
+          </button>
+          <button id="btn_entrada_grabar" type="button" class="entry-action is-disabled" disabled>
+            <span class="entry-action-icon">G</span>
+            <span>Grabar</span>
+          </button>
+          <button id="btn_entrada_print" type="button" class="entry-action is-disabled" disabled>
+            <span class="entry-action-icon">P</span>
+            <span>Printer</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<div id="entrada_search_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="entrada_search_title">
+    <div class="win-titlebar">
+      <span id="entrada_search_title">Buscar entrada de articulos</span>
+      <button id="btn_close_entrada_search" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="entrada_search_q">Buscar</label>
+        <input id="entrada_search_q" class="entry-input" type="text" placeholder="Documento, codigo, descripcion o proveedor" />
+        <select id="entrada_search_filtro" class="entry-select">
+          <option value="documento">Documento</option>
+          <option value="codigo">Codigo</option>
+          <option value="descripcion">Descripcion</option>
+          <option value="proveedor">Proveedor</option>
+        </select>
+        <button id="btn_entrada_search_exec" type="button" class="entry-toolbar-btn">Buscar</button>
+      </div>
+      <div class="search-grid">
+        <div class="search-grid-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Codigo</th>
+                <th>Descripcion</th>
+                <th>Proveedor</th>
+                <th>Fecha</th>
+                <th>Total</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="entrada_search_results_body">
+              <tr><td colspan="7" class="result-empty">Pulsa Buscar para consultar las entradas registradas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll(".entry-tab"));
+    var panels = Array.prototype.slice.call(document.querySelectorAll(".entry-tab-panel"));
+    var btnNuevo = document.getElementById("btn_entrada_nuevo");
+    var btnBuscar = document.getElementById("btn_entrada_buscar");
+    var btnCancel = document.getElementById("btn_entrada_cancel");
+    var btnPrint = document.getElementById("btn_entrada_print");
+    var btnGrabar = document.getElementById("btn_entrada_grabar");
+    var fieldCodigo = document.getElementById("entrada_codigo");
+    var fieldDescripcion = document.getElementById("entrada_descripcion");
+    var fieldAsunto = document.getElementById("entrada_asunto");
+    var fieldDepartamento = document.getElementById("entrada_departamento");
+    var fieldProveedorCodigo = document.getElementById("entrada_proveedor_codigo");
+    var fieldProveedorNombre = document.getElementById("entrada_proveedor_nombre");
+    var fieldNo = document.getElementById("entrada_no");
+    var fieldEstado = document.getElementById("entrada_estado");
+    var fieldFechaCont = document.getElementById("entrada_fecha_cont");
+    var fieldFechaVenc = document.getElementById("entrada_fecha_venc");
+    var fieldFechaDoc = document.getElementById("entrada_fecha_doc");
+    var fieldComentario = document.getElementById("entrada_comentario");
+    var fieldTotalDoc = document.getElementById("entrada_total_doc");
+    var detailBody = document.getElementById("entrada_detalle_body");
+    var searchBackdrop = document.getElementById("entrada_search_backdrop");
+    var btnCloseSearch = document.getElementById("btn_close_entrada_search");
+    var btnSearchExec = document.getElementById("btn_entrada_search_exec");
+    var fieldSearchQ = document.getElementById("entrada_search_q");
+    var fieldSearchFiltro = document.getElementById("entrada_search_filtro");
+    var searchResultsBody = document.getElementById("entrada_search_results_body");
+    var config = {
+      searchUrl: "{% url 'inventario:entrada_articulos_buscar' %}",
+      detailUrl: "{% url 'inventario:entrada_articulos_detalle' %}",
+      today: "{{ server_today_iso|default:''|escapejs }}",
+    };
+    var activeLookup = "";
+
+    function setButtonDisabled(button, disabled) {
+      if (!button) return;
+      button.disabled = !!disabled;
+      button.classList.toggle("is-disabled", !!disabled);
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function resetDetailPlaceholder(message) {
+      if (!detailBody) return;
+      detailBody.innerHTML = '<tr class="entry-grid-empty"><td colspan="12">' + escapeHtml(message || "Sin detalle disponible.") + "</td></tr>";
+    }
+
+    function clearEntryForm() {
+      activeLookup = "";
+      if (fieldCodigo) fieldCodigo.value = "";
+      if (fieldDescripcion) fieldDescripcion.value = "";
+      if (fieldAsunto) fieldAsunto.value = "";
+      if (fieldDepartamento) fieldDepartamento.value = "";
+      if (fieldProveedorCodigo) fieldProveedorCodigo.value = "";
+      if (fieldProveedorNombre) fieldProveedorNombre.value = "";
+      if (fieldNo) fieldNo.value = "";
+      if (fieldEstado) fieldEstado.value = "";
+      if (fieldFechaCont) fieldFechaCont.value = config.today || "";
+      if (fieldFechaVenc) fieldFechaVenc.value = "";
+      if (fieldFechaDoc) fieldFechaDoc.value = config.today || "";
+      if (fieldComentario) fieldComentario.value = "";
+      if (fieldTotalDoc) fieldTotalDoc.value = "";
+      resetDetailPlaceholder("La rejilla del detalle quedara disponible aqui para capturar los articulos de entrada.");
+      setButtonDisabled(btnCancel, true);
+      setButtonDisabled(btnPrint, true);
+      setButtonDisabled(btnGrabar, true);
+    }
+
+    function openSearchModal() {
+      if (!searchBackdrop) return;
+      searchBackdrop.classList.add("open");
+      searchBackdrop.setAttribute("aria-hidden", "false");
+      if (fieldSearchQ) {
+        fieldSearchQ.focus();
+        fieldSearchQ.select();
+      }
+      fetchSearchResults();
+    }
+
+    function closeSearchModal() {
+      if (!searchBackdrop) return;
+      searchBackdrop.classList.remove("open");
+      searchBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function renderDetailRows(rows) {
+      if (!detailBody) return;
+      if (!Array.isArray(rows) || !rows.length) {
+        resetDetailPlaceholder("Esta entrada no tiene lineas de detalle registradas.");
+        return;
+      }
+      detailBody.innerHTML = rows.map(function (row) {
+        return "<tr>" +
+          "<td>" + escapeHtml(row.descripcion || "") + "</td>" +
+          "<td>" + escapeHtml(row.articulo || "") + "</td>" +
+          "<td>" + escapeHtml(row.cant_emp || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.cantidad || "") + "</td>" +
+          "<td>" + escapeHtml(row.uom || "") + "</td>" +
+          "<td>" + escapeHtml(row.alm || "") + "</td>" +
+          "<td>" + escapeHtml(row.pedido_cte || "") + "</td>" +
+          "<td>" + escapeHtml(row.proyecto || "") + "</td>" +
+          "<td>" + escapeHtml(row.ceco || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.costo_unit || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.valor || "") + "</td>" +
+          "<td>" + escapeHtml(row.cuenta_mayor || "") + "</td>" +
+        "</tr>";
+      }).join("");
+    }
+
+    function fillEntryRecord(record) {
+      var entry = (record && record.entry) || {};
+      activeLookup = String(entry.lookup || entry.no_doc || entry.no || "").trim();
+      if (fieldCodigo) fieldCodigo.value = entry.codigo || "";
+      if (fieldDescripcion) fieldDescripcion.value = entry.descripcion || "";
+      if (fieldAsunto) fieldAsunto.value = entry.asunto || "";
+      if (fieldDepartamento) fieldDepartamento.value = entry.departamento || "";
+      if (fieldProveedorCodigo) fieldProveedorCodigo.value = entry.proveedor_codigo || "";
+      if (fieldProveedorNombre) fieldProveedorNombre.value = entry.proveedor_nombre || "";
+      if (fieldNo) fieldNo.value = entry.no || entry.no_doc || "";
+      if (fieldEstado) fieldEstado.value = entry.estado || "";
+      if (fieldFechaCont) fieldFechaCont.value = entry.fecha_cont || "";
+      if (fieldFechaVenc) fieldFechaVenc.value = entry.fecha_venc || "";
+      if (fieldFechaDoc) fieldFechaDoc.value = entry.fecha_doc || "";
+      if (fieldComentario) fieldComentario.value = entry.comentario || "";
+      if (fieldTotalDoc) fieldTotalDoc.value = entry.total_doc || "";
+      renderDetailRows((record && record.detalles) || []);
+      setButtonDisabled(btnCancel, false);
+    }
+
+    async function loadEntryRecord(lookupValue) {
+      var lookup = String(lookupValue || "").trim();
+      if (!lookup) return;
+      resetDetailPlaceholder("Cargando detalle...");
+      try {
+        var res = await fetch(config.detailUrl + "?no_doc=" + encodeURIComponent(lookup), {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          resetDetailPlaceholder(data.detail || "No se pudo cargar la entrada seleccionada.");
+          return;
+        }
+        fillEntryRecord(data);
+        closeSearchModal();
+      } catch (error) {
+        resetDetailPlaceholder("Error de conexion cargando la entrada.");
+      }
+    }
+
+    function renderSearchResults(rows) {
+      if (!searchResultsBody) return;
+      if (!Array.isArray(rows) || !rows.length) {
+        searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">No se encontraron entradas.</td></tr>';
+        return;
+      }
+      searchResultsBody.innerHTML = rows.map(function (row) {
+        var proveedor = [row.proveedor_codigo || "", row.proveedor_nombre || ""].filter(Boolean).join(" - ");
+        return "<tr class=\"click-row\" data-lookup=\"" + escapeHtml(row.no_doc || "") + "\">" +
+          "<td>" + escapeHtml(row.no_doc || "") + "</td>" +
+          "<td>" + escapeHtml(row.codigo || "") + "</td>" +
+          "<td title=\"" + escapeHtml(row.descripcion || "") + "\">" + escapeHtml(row.descripcion || "") + "</td>" +
+          "<td title=\"" + escapeHtml(proveedor) + "\">" + escapeHtml(proveedor) + "</td>" +
+          "<td>" + escapeHtml(row.fecha_doc || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.total_doc_fmt || "") + "</td>" +
+          "<td>" + escapeHtml(row.estado || "") + "</td>" +
+        "</tr>";
+      }).join("");
+      Array.prototype.forEach.call(searchResultsBody.querySelectorAll("tr[data-lookup]"), function (row) {
+        row.addEventListener("click", function () {
+          loadEntryRecord(row.getAttribute("data-lookup") || "");
+        });
+      });
+    }
+
+    async function fetchSearchResults() {
+      if (!searchResultsBody) return;
+      searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">Buscando entradas...</td></tr>';
+      try {
+        var res = await fetch(
+          config.searchUrl + "?q=" + encodeURIComponent((fieldSearchQ && fieldSearchQ.value) || "") + "&filtro=" + encodeURIComponent((fieldSearchFiltro && fieldSearchFiltro.value) || "documento"),
+          { headers: { "X-Requested-With": "XMLHttpRequest" } }
+        );
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">' + escapeHtml(data.detail || "No se pudo cargar la lista.") + "</td></tr>";
+          return;
+        }
+        renderSearchResults(data.results || []);
+      } catch (error) {
+        searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">Error de conexion al buscar entradas.</td></tr>';
+      }
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        var target = tab.getAttribute("data-tab-target");
+        tabs.forEach(function (item) {
+          item.classList.remove("active");
+          item.setAttribute("aria-selected", "false");
+        });
+        panels.forEach(function (panel) {
+          panel.classList.toggle("active", panel.getAttribute("data-tab-panel") === target);
+        });
+        tab.classList.add("active");
+        tab.setAttribute("aria-selected", "true");
+      });
+    });
+
+    if (btnBuscar) {
+      btnBuscar.addEventListener("click", openSearchModal);
+    }
+    if (btnNuevo) {
+      btnNuevo.addEventListener("click", clearEntryForm);
+    }
+    if (btnCancel) {
+      btnCancel.addEventListener("click", clearEntryForm);
+    }
+    if (btnCloseSearch) {
+      btnCloseSearch.addEventListener("click", closeSearchModal);
+    }
+    if (btnSearchExec) {
+      btnSearchExec.addEventListener("click", fetchSearchResults);
+    }
+    if (searchBackdrop) {
+      searchBackdrop.addEventListener("click", function (event) {
+        if (event.target === searchBackdrop) {
+          closeSearchModal();
+        }
+      });
+    }
+    if (fieldSearchQ) {
+      fieldSearchQ.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          fetchSearchResults();
+        }
+      });
+    }
+    if (fieldSearchFiltro) {
+      fieldSearchFiltro.addEventListener("change", fetchSearchResults);
+    }
+
+    clearEntryForm();
+  });
+</script>
+{% endblock %}

@@ -40,6 +40,18 @@
             <button type="submit" id="btn_save_firma" disabled>Guardar firma</button>
             <p class="helper-text" id="firma_status">Selecciona un usuario para cargar firma.</p>
           </form>
+          <form id="user_caja_pref_form" method="post" action="{% url 'ajustes:guardar_preferencia_caja_usuario' %}">
+            {% csrf_token %}
+            <input type="hidden" name="id_usuario" id="caja_pref_user_id" />
+            <label class="helper-label" for="caja_pref_metodo">Caja: metodo por defecto</label>
+            <select id="caja_pref_metodo" name="metodo_pago_default" disabled>
+              <option value="">Sin preferencia (Efectivo)</option>
+              <option value="Efectivo">Efectivo</option>
+              <option value="Transferencia">Transferencia</option>
+            </select>
+            <button type="submit" id="btn_save_caja_pref" disabled>Guardar metodo</button>
+            <p class="helper-text" id="caja_pref_status">Selecciona un usuario para definir el metodo inicial de Caja.</p>
+          </form>
         </section>
         <section class="user-perm-perms">
           <h4>Permisos</h4>
@@ -91,6 +103,7 @@
 </div>
 
 {{ user_perm_map|json_script:"userPermMap" }}
+{{ user_caja_pref_map|json_script:"userCajaPrefMap" }}
 
 <style>
   :root {
@@ -274,6 +287,11 @@
     display: grid;
     gap: 6px;
   }
+  #user_caja_pref_form {
+    margin-top: 8px;
+    display: grid;
+    gap: 6px;
+  }
   #user_firma_form input[type="file"] {
     font-size: 11px;
     padding: 6px;
@@ -281,7 +299,17 @@
     border: 1px solid var(--ua-line);
     background: #fff;
   }
-  #btn_save_firma {
+  #user_caja_pref_form select {
+    height: 30px;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--ua-line);
+    background: #fff;
+    width: 100%;
+  }
+  #btn_save_firma,
+  #btn_save_caja_pref {
     height: 30px;
     font-size: 12px;
     border-radius: 10px;
@@ -364,6 +392,7 @@
 
 <script>
   const userPermMap = JSON.parse(document.getElementById("userPermMap").textContent || "{}");
+  const userCajaPrefMap = JSON.parse(document.getElementById("userCajaPrefMap").textContent || "{}");
   const userPermModal = document.getElementById("user_perm_modal");
   const openUserPermModalBtn = document.getElementById("btn_open_user_perm_modal");
   const closeUserPermModalBtn = document.getElementById("btn_close_user_perm_modal");
@@ -378,6 +407,10 @@
   const firmaInput = document.getElementById("firma_png");
   const firmaSaveBtn = document.getElementById("btn_save_firma");
   const firmaStatus = document.getElementById("firma_status");
+  const cajaPrefUserIdInput = document.getElementById("caja_pref_user_id");
+  const cajaPrefMethodSelect = document.getElementById("caja_pref_metodo");
+  const cajaPrefSaveBtn = document.getElementById("btn_save_caja_pref");
+  const cajaPrefStatus = document.getElementById("caja_pref_status");
 
   const setPermChecks = (userId) => {
     const map = userPermMap[String(userId)] || {};
@@ -414,6 +447,22 @@
       firmaStatus.textContent = hasFirma
         ? "Este usuario ya tiene firma registrada."
         : "Sin firma registrada. Carga una imagen PNG.";
+    }
+    if (cajaPrefUserIdInput) {
+      cajaPrefUserIdInput.value = userId;
+    }
+    if (cajaPrefMethodSelect) {
+      cajaPrefMethodSelect.disabled = false;
+      cajaPrefMethodSelect.value = userCajaPrefMap[String(userId)] || "";
+    }
+    if (cajaPrefSaveBtn) {
+      cajaPrefSaveBtn.disabled = false;
+    }
+    if (cajaPrefStatus) {
+      const currentMethod = userCajaPrefMap[String(userId)] || "";
+      cajaPrefStatus.textContent = currentMethod
+        ? `Metodo actual para Caja: ${currentMethod}.`
+        : "Sin preferencia guardada. Caja usara Efectivo por defecto.";
     }
     setPermChecks(userId);
     if (exampleSelect) {
@@ -454,6 +503,19 @@
         }
         if (firmaStatus) {
           firmaStatus.textContent = "Selecciona un usuario para cargar firma.";
+        }
+        if (cajaPrefUserIdInput) {
+          cajaPrefUserIdInput.value = "";
+        }
+        if (cajaPrefMethodSelect) {
+          cajaPrefMethodSelect.disabled = true;
+          cajaPrefMethodSelect.value = "";
+        }
+        if (cajaPrefSaveBtn) {
+          cajaPrefSaveBtn.disabled = true;
+        }
+        if (cajaPrefStatus) {
+          cajaPrefStatus.textContent = "Selecciona un usuario para definir el metodo inicial de Caja.";
         }
         clearPermChecks();
         if (exampleSelect) {
@@ -501,6 +563,19 @@
       if (firmaStatus) {
         firmaStatus.textContent = "Selecciona un usuario para cargar firma.";
       }
+      if (cajaPrefUserIdInput) {
+        cajaPrefUserIdInput.value = "";
+      }
+      if (cajaPrefMethodSelect) {
+        cajaPrefMethodSelect.disabled = true;
+        cajaPrefMethodSelect.value = "";
+      }
+      if (cajaPrefSaveBtn) {
+        cajaPrefSaveBtn.disabled = true;
+      }
+      if (cajaPrefStatus) {
+        cajaPrefStatus.textContent = "Selecciona un usuario para definir el metodo inicial de Caja.";
+      }
       clearPermChecks();
       if (exampleSelect) {
         exampleSelect.disabled = true;
@@ -530,6 +605,26 @@
         event.preventDefault();
         window.alert("Selecciona un usuario antes de grabar permisos.");
       }
+    });
+  }
+
+  const userCajaPrefForm = document.getElementById("user_caja_pref_form");
+  if (userCajaPrefForm) {
+    userCajaPrefForm.addEventListener("submit", (event) => {
+      if (!cajaPrefUserIdInput.value) {
+        event.preventDefault();
+        window.alert("Selecciona un usuario antes de guardar la preferencia de Caja.");
+      }
+    });
+  }
+
+  if (cajaPrefMethodSelect) {
+    cajaPrefMethodSelect.addEventListener("change", () => {
+      if (!cajaPrefStatus) return;
+      const currentMethod = cajaPrefMethodSelect.value;
+      cajaPrefStatus.textContent = currentMethod
+        ? `Se guardara ${currentMethod} como metodo inicial de Caja para este usuario.`
+        : "Se quitara la preferencia y Caja volvera a usar Efectivo por defecto.";
     });
   }
 

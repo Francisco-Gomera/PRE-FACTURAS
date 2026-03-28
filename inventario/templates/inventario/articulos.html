@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Articulos</h2>
+<p class="page-subtitle">Submodulo listo para administrar el maestro de articulos.</p>
+
+<div class="card-grid">
+  <div class="info-card">
+    <h3>Articulos</h3>
+    <p>Desde aqui se preparara el mantenimiento de codigos, descripciones, costos, precios y datos base de inventario.</p>
+    <a href="{% url 'inventario:index' %}">Volver a inventario</a>
+  </div>
+</div>
+{% endblock %}

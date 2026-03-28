@@ -1,0 +1,1017 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block head_extra %}
+<style>
+{% include "prefacturas_mod/prefacturas_inline.css" %}
+</style>
+<style>
+{% include "prefacturas_mod/prefacturas_theme_inline.css" %}
+</style>
+<style>
+  .facturacion-manual-page.app {
+    max-width: 1480px;
+  }
+
+  #facturacion_panel .header-grid {
+    grid-template-columns: minmax(0, 1fr) 288px;
+    gap: 5px;
+    align-items: stretch;
+  }
+
+  #facturacion_panel .card {
+    padding: 4px 6px;
+  }
+
+  .facturacion-top-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 168px;
+    gap: 8px;
+    align-items: start;
+  }
+
+  #facturacion_panel .form-grid {
+    margin-top: 0;
+    grid-template-columns: 88px minmax(0, 450px) 86px minmax(0, 225px);
+    gap: 2px 4px;
+    justify-content: start;
+  }
+
+  .facturacion-shortcuts {
+    padding: 4px 6px;
+    display: grid;
+    gap: 3px;
+    align-content: start;
+    min-width: 0;
+  }
+
+  .facturacion-shortcuts h4 {
+    margin: 0 0 1px;
+    font-size: 12px;
+    color: #0f3f78;
+  }
+
+  .facturacion-shortcut-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 24px;
+    min-height: 24px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #1a66ce;
+    background: linear-gradient(180deg, #1f7aed, #125ec3);
+    color: #ffffff;
+    box-shadow: 0 6px 12px rgba(18, 94, 195, 0.18);
+    cursor: pointer;
+    text-align: left;
+    font-size: 11.5px;
+  }
+
+  .facturacion-shortcut-btn strong {
+    font-size: inherit;
+    font-weight: 700;
+  }
+
+  .facturacion-shortcut-btn span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    font-size: 12px;
+  }
+
+  .facturacion-shortcut-btn:hover {
+    filter: brightness(1.03);
+  }
+
+  #facturacion_panel label {
+    font-size: 11.5px;
+  }
+
+  #facturacion_panel input,
+  #facturacion_panel select {
+    height: 24px;
+    padding: 2px 8px;
+  }
+
+  #facturacion_panel .btn-client {
+    height: 24px;
+  }
+
+  #facturacion_panel .grid-shell td input,
+  #facturacion_panel .grid-shell td select {
+    height: 22px;
+    padding: 1px 5px;
+    font-size: 13px;
+  }
+
+  #facturacion_tab_detalle .grid-shell th,
+  #facturacion_tab_detalle .grid-shell td {
+    padding: 0 3px;
+    line-height: 1;
+  }
+
+  #facturacion_tab_detalle .grid-shell td {
+    height: auto;
+    min-height: 0;
+    vertical-align: middle;
+  }
+
+  #facturacion_tab_detalle .grid-shell td.facturacion-edit-cell {
+    padding: 0;
+  }
+
+  #facturacion_tab_detalle .grid-shell td.facturacion-edit-cell input,
+  #facturacion_tab_detalle .grid-shell td.facturacion-edit-cell select {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin: 0;
+    height: 16px;
+    min-height: 0;
+    padding: 0 4px;
+    border: 0;
+    border-radius: 0;
+    background: #f8fbff;
+    font-size: 10.5px;
+    line-height: 1;
+    color: #1a2942;
+  }
+
+  #facturacion_tab_detalle .grid-shell td.facturacion-edit-cell .cell-picker {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    width: 100%;
+  }
+
+  #facturacion_tab_detalle .grid-shell td.facturacion-edit-cell .cell-picker input {
+    flex: 1 1 auto;
+  }
+
+  #facturacion_tab_detalle .grid-shell td.facturacion-edit-cell .cell-pick-btn {
+    width: 18px;
+    min-width: 18px;
+    height: 16px;
+    border: 0;
+    border-left: 1px solid #d5e0f2;
+    border-radius: 0;
+    line-height: 1;
+    padding: 0;
+  }
+
+  #facturacion_detalle_body tr.detalle-row-selected td {
+    background: #dce9ff;
+  }
+
+  #facturacion_tab_detalle .grid-shell table th:nth-child(1),
+  #facturacion_tab_detalle .grid-shell table td:nth-child(1) {
+    min-width: 320px;
+  }
+
+  #facturacion_tab_detalle .grid-shell table th:nth-child(2),
+  #facturacion_tab_detalle .grid-shell table td:nth-child(2) {
+    display: none;
+  }
+
+  #facturacion_tab_detalle .grid-shell table th:nth-child(4),
+  #facturacion_tab_detalle .grid-shell table td:nth-child(4) {
+    width: 52px;
+    min-width: 52px;
+    max-width: 52px;
+  }
+
+  #facturacion_tab_detalle .grid-shell table th:nth-child(6),
+  #facturacion_tab_detalle .grid-shell table td:nth-child(6) {
+    width: 84px;
+    min-width: 84px;
+    max-width: 84px;
+  }
+
+  #facturacion_tab_detalle .grid-shell table th:nth-child(8),
+  #facturacion_tab_detalle .grid-shell table td:nth-child(8),
+  #facturacion_tab_detalle .grid-shell table th:nth-child(9),
+  #facturacion_tab_detalle .grid-shell table td:nth-child(9) {
+    width: 72px;
+    min-width: 72px;
+    max-width: 72px;
+  }
+
+  #facturacion_tab_detalle .grid-shell table th:nth-child(13),
+  #facturacion_tab_detalle .grid-shell table td:nth-child(13) {
+    width: 56px;
+    min-width: 56px;
+    max-width: 56px;
+  }
+
+  .facturacion-picker-card {
+    display: grid;
+    grid-template-rows: auto auto 1fr;
+    gap: 3px;
+    min-width: 0;
+    align-self: start;
+  }
+
+  .facturacion-picker-selected {
+    margin-top: 0;
+    font-size: 11px;
+    color: #203a76;
+    text-align: right;
+    line-height: 1.1;
+    min-height: 12px;
+  }
+
+  .facturacion-picker-selected strong {
+    color: #0f2d69;
+  }
+
+  .facturacion-pref-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 98px auto;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .facturacion-pref-search input,
+  .facturacion-pref-search select {
+    height: 24px;
+    min-height: 24px;
+  }
+
+  .facturacion-pref-search .btn-small {
+    min-width: 88px;
+    width: auto;
+    height: 24px;
+    padding: 0 8px;
+  }
+
+  .facturacion-pref-grid-shell {
+    margin-top: 0;
+    min-height: 104px;
+    max-height: 104px;
+    border: 1px solid #cfd8e8;
+    background: #f7fbff;
+    overflow: auto;
+  }
+
+  .facturacion-pref-grid-shell table {
+    min-width: 0;
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 10.5px;
+    color: #20324d;
+  }
+
+  .facturacion-pref-grid-shell th,
+  .facturacion-pref-grid-shell td {
+    padding: 1px 4px;
+    border-bottom: 1px solid #d7e3f4;
+    border-right: 1px solid #d7e3f4;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  .facturacion-pref-grid-shell th:first-child,
+  .facturacion-pref-grid-shell td:first-child {
+    border-left: 1px solid #d7e3f4;
+  }
+
+  .facturacion-pref-grid-shell thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: linear-gradient(180deg, #fefeff, #edf3ff);
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #56709a;
+  }
+
+  .facturacion-pref-grid-shell th:nth-child(1),
+  .facturacion-pref-grid-shell td:nth-child(1) {
+    width: 19%;
+  }
+
+  .facturacion-pref-grid-shell th:nth-child(2),
+  .facturacion-pref-grid-shell td:nth-child(2) {
+    width: 43%;
+  }
+
+  .facturacion-pref-grid-shell th:nth-child(3),
+  .facturacion-pref-grid-shell td:nth-child(3) {
+    width: 18%;
+  }
+
+  .facturacion-pref-grid-shell th:nth-child(4),
+  .facturacion-pref-grid-shell td:nth-child(4) {
+    width: 20%;
+    text-align: right;
+  }
+
+  .facturacion-pref-row {
+    cursor: pointer;
+  }
+
+  .facturacion-pref-row:hover td {
+    background: #edf4ff;
+  }
+
+  .facturacion-pref-row.active td {
+    background: #dce9ff;
+  }
+
+  .facturacion-pref-empty td {
+    height: 40px;
+    text-align: center;
+    color: #6c7fa0;
+    white-space: normal;
+  }
+
+  #facturacion_detalle_body tr.detalle-row-selected td {
+    background: #dfe9ff;
+  }
+
+  .facturacion-imprimir-btn[disabled] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .facturacion-history-modal {
+    width: min(1080px, 97vw);
+  }
+
+  #facturacion_history_backdrop table {
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  #facturacion_history_backdrop th,
+  #facturacion_history_backdrop td {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #facturacion_history_backdrop th:nth-child(1),
+  #facturacion_history_backdrop td:nth-child(1) {
+    width: 14%;
+  }
+
+  #facturacion_history_backdrop th:nth-child(2),
+  #facturacion_history_backdrop td:nth-child(2) {
+    width: 12%;
+  }
+
+  #facturacion_history_backdrop th:nth-child(3),
+  #facturacion_history_backdrop td:nth-child(3) {
+    width: 36%;
+  }
+
+  #facturacion_history_backdrop th:nth-child(4),
+  #facturacion_history_backdrop td:nth-child(4) {
+    width: 14%;
+  }
+
+  #facturacion_history_backdrop th:nth-child(5),
+  #facturacion_history_backdrop td:nth-child(5) {
+    width: 12%;
+  }
+
+  #facturacion_history_backdrop th:nth-child(6),
+  #facturacion_history_backdrop td:nth-child(6) {
+    width: 12%;
+  }
+
+  .facturacion-hist-print {
+    min-width: 92px;
+    width: auto;
+    height: 24px;
+    font-size: 12px;
+    padding: 0 8px;
+  }
+
+  #facturacion_panel .detail-head {
+    margin-top: 3px;
+  }
+
+  #facturacion_panel .bottom-grid {
+    margin-top: 5px;
+    gap: 6px;
+  }
+
+  #facturacion_panel .actions-bar {
+    margin-top: 8px;
+    padding-top: 0;
+    border-top: none;
+    align-items: flex-end;
+  }
+
+  #facturacion_tab_detalle.active ~ .actions-bar {
+    margin-top: -40px;
+  }
+
+  #facturacion_panel textarea {
+    height: 58px;
+  }
+
+  #facturacion_panel .totals-grid {
+    gap: 2px 6px;
+  }
+
+  .facturacion-context-menu {
+    position: fixed;
+    z-index: 1200;
+    min-width: 132px;
+    border: 1px solid #cfd8e8;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 14px 30px rgba(17, 44, 94, 0.18);
+    padding: 5px;
+    display: none;
+  }
+
+  .facturacion-context-menu.open {
+    display: block;
+  }
+
+  .facturacion-context-menu button {
+    width: 100%;
+    height: 34px;
+    border: 0;
+    border-radius: 8px;
+    background: #fff4f1;
+    color: #a73f1f;
+    font-size: 13px;
+    font-weight: 700;
+    text-align: left;
+    padding: 0 12px;
+    cursor: pointer;
+  }
+
+  .facturacion-context-menu button:hover {
+    background: #ffe7df;
+  }
+
+  .app-alert-secondary {
+    min-width: 96px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid #c7d6ec;
+    background: #f3f7fd;
+    color: #1f3d68;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .facturacion-print-modal {
+    width: min(560px, 94vw);
+  }
+
+  .facturacion-print-body {
+    display: grid;
+    gap: 12px;
+  }
+
+  .facturacion-print-copy {
+    margin: 0;
+    color: #4d6385;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .facturacion-print-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(220px, 0.95fr);
+    gap: 12px;
+    align-items: start;
+  }
+
+  .facturacion-print-editor,
+  .facturacion-print-meta {
+    border: 1px solid #d4e0f3;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.88);
+    padding: 12px;
+  }
+
+  .facturacion-print-editor label,
+  .facturacion-print-meta h4 {
+    font-size: 11px;
+    font-weight: 700;
+    color: #526987;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .facturacion-print-editor input {
+    width: 100%;
+    height: 38px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    border: 1px solid #c7d7ee;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #16304d;
+    text-align: center;
+    font-size: 19px;
+    font-weight: 800;
+  }
+
+  .facturacion-print-editor small {
+    display: block;
+    margin-top: 8px;
+    color: #6a7f9d;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .facturacion-print-meta h4 {
+    margin: 0 0 10px;
+  }
+
+  .facturacion-print-meta ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+
+  .facturacion-print-meta li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+    color: #45607f;
+    font-size: 12.5px;
+  }
+
+  .facturacion-print-meta strong {
+    color: #11335f;
+    font-size: 13px;
+  }
+
+  .facturacion-print-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  @media (max-width: 1240px) {
+    .facturacion-manual-page .header-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .facturacion-top-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .facturacion-shortcuts {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .facturacion-shortcuts h4 {
+      grid-column: 1 / -1;
+    }
+
+    .facturacion-pref-grid-shell {
+      max-height: 180px;
+      min-height: 180px;
+    }
+
+    .facturacion-print-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="prefactura-page app facturacion-manual-page">
+  <section id="facturacion_panel" class="panel">
+    <div class="header-grid">
+      <div class="card">
+        <div class="facturacion-top-layout">
+          <div class="form-grid">
+            <label>Cliente</label>
+            <div class="inline-input-btn">
+              <input id="fac_id_sn" type="text" readonly />
+              <button id="btn_facturacion_cargar_cliente" type="button" class="btn-client">Cargar cliente</button>
+            </div>
+            <label>No.</label><input id="fac_no_doc" type="text" readonly />
+
+            <label>Nombre</label><input id="fac_nom_socio" type="text" readonly />
+            <label>Estado doc.</label><input id="fac_est_doc" type="text" readonly />
+
+            <label>Apodo</label><input id="fac_contacto" type="text" readonly />
+            <label>Fecha cont.</label><input id="fac_fecha_cont" type="date" />
+
+            <label>Direccion</label><input id="fac_direccion" type="text" readonly />
+            <label>Fecha venc.</label><input id="fac_fecha_venc" type="date" />
+
+            <label>Rnc./Ced.</label><input id="fac_rnc_ced" type="text" readonly />
+            <label>Fecha doc.</label><input id="fac_fecha_doc" type="date" />
+
+            <label>Telefono</label><input id="fac_telefono" type="text" readonly />
+            <label>Vendedor</label><input id="fac_vendedor" type="text" value="{{ auth_payload.usuario_nombre }}" readonly />
+          </div>
+
+          <aside class="facturacion-shortcuts">
+            <h4>Acceso directo</h4>
+            <button id="btn_facturacion_shortcut_cxc" type="button" class="facturacion-shortcut-btn">
+              <strong>Cuentas por cobrar</strong>
+              <span>CC</span>
+            </button>
+            <button id="btn_facturacion_shortcut_financ" type="button" class="facturacion-shortcut-btn">
+              <strong>Financiamiento</strong>
+              <span>FI</span>
+            </button>
+            <button id="btn_facturacion_shortcut_pref" type="button" class="facturacion-shortcut-btn">
+              <strong>Prefactura</strong>
+              <span>PF</span>
+            </button>
+          </aside>
+        </div>
+      </div>
+
+      <div class="card facturacion-picker-card">
+        <div class="facturacion-picker-selected">Prefactura: <strong id="fac_pref_selected_label">-</strong></div>
+        <div class="facturacion-pref-search">
+          <input id="fac_pref_q" type="text" placeholder="Documento, cliente o nombre" />
+          <select id="fac_pref_filtro">
+            <option value="documento">Documento</option>
+            <option value="cliente">Cliente</option>
+            <option value="nombre">Nombre</option>
+          </select>
+          <button id="btn_fac_pref_buscar" type="button" class="btn-small">Buscar</button>
+        </div>
+        <div class="grid-shell facturacion-pref-grid-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Cliente</th>
+                <th>Fecha</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="fac_pref_results_body">
+              <tr class="facturacion-pref-empty"><td colspan="4">Cargando prefacturas activas...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="detail-head">
+      <div class="tab prefactura-tab active" data-target="facturacion_tab_detalle">Detalle</div>
+      <div class="tab prefactura-tab" data-target="facturacion_tab_direcciones">Direcciones</div>
+      <div class="tab prefactura-tab" data-target="facturacion_tab_condicion">Cond. pago</div>
+      <div class="toolbar">
+        <button id="btn_facturacion_borrar_linea" class="btn-small" type="button" disabled>Borrar linea</button>
+      </div>
+    </div>
+
+    <div id="facturacion_tab_detalle" class="prefactura-tab-panel active">
+      <div class="grid-shell">
+        <table>
+          <thead>
+            <tr>
+              <th>Descripcion art./serv.</th>
+              <th>Articulo</th>
+              <th>Cant. Emp</th>
+              <th>Cant.</th>
+              <th>Entregado</th>
+              <th>UoM</th>
+              <th>Alm.</th>
+              <th>Proyecto</th>
+              <th>CeBe</th>
+              <th>Precio unit.</th>
+              <th>Precio bruto</th>
+              <th>Valor</th>
+              <th>% Desc.</th>
+              <th>Id. Itbis</th>
+            </tr>
+          </thead>
+          <tbody id="facturacion_detalle_body">
+            <tr><td colspan="14" style="height: 90px;" class="result-empty">Pulsa Nuevo para crear una factura o selecciona una prefactura activa.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bottom-grid">
+        <div>
+          <label>Comentario:</label>
+          <textarea id="fac_comentario" readonly></textarea>
+        </div>
+        <div>
+          <label>Comentario de linea:</label>
+          <textarea id="fac_comentario_linea"></textarea>
+        </div>
+        <div>
+          <div class="totals-grid">
+            <label>Subtotal</label><input id="fac_subtotal" type="text" readonly />
+            <label>Desc.</label><input id="fac_total_desc" type="text" readonly />
+            <label>Impuesto</label><input id="fac_impuesto" type="text" readonly />
+            <label><strong>Total Doc.$</strong></label><input id="fac_total_doc" type="text" readonly />
+            <label><strong>Pagado$</strong></label><input id="fac_pagado" type="text" readonly />
+            <label><strong>Balance$</strong></label><input id="fac_balance" type="text" readonly />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="facturacion_tab_direcciones" class="prefactura-tab-panel">
+      <div class="dir-grid-top">
+        <div class="dir-block">
+          <h5>Direccion de cliente</h5>
+          <input id="fac_sector_cliente" type="text" readonly />
+          <input id="fac_dir_factura" type="text" />
+        </div>
+        <div class="dir-block">
+          <h5>Direccion de entrega</h5>
+          <input id="fac_dir_mercancia" type="text" />
+        </div>
+      </div>
+    </div>
+
+    <div id="facturacion_tab_condicion" class="prefactura-tab-panel">
+      <div class="cond-box">
+        <div class="cond-form">
+          <label>Condicion</label>
+          <div class="group-picker condicion-picker">
+            <input id="fac_id_condicion" type="text" readonly />
+            <input id="fac_condicion_desc" type="text" readonly />
+          </div>
+          <button class="pick-btn" type="button" disabled>...</button>
+          <label>Dias</label><input id="fac_dias" type="text" readonly />
+
+          <label>% Mora x dia</label><input id="fac_mora_dia" type="text" readonly />
+          <span></span><span></span><span></span>
+
+          <label>Limite cred.</label><input id="fac_lim_credito" type="text" readonly />
+          <span></span><span></span><span></span>
+
+          <label>L. de precios</label><input id="fac_id_precio" type="text" readonly />
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions-bar">
+      <button id="btn_facturacion_nuevo" type="button">Nuevo</button>
+      <button id="btn_facturacion_buscar" type="button">Buscar</button>
+      <button id="btn_facturacion_cancel" type="button">Cancel</button>
+      <button id="btn_facturacion_grabar" type="button">Grabar</button>
+      <button id="btn_facturacion_imprimir" type="button">Printer</button>
+      <div class="spacer"></div>
+    </div>
+  </section>
+</div>
+
+<div id="facturacion_alert_backdrop" class="app-alert-backdrop" aria-hidden="true">
+  <div class="app-alert-modal" role="alertdialog" aria-modal="true" aria-labelledby="facturacion_alert_title" aria-describedby="facturacion_alert_message">
+    <div class="app-alert-head">
+      <span id="facturacion_alert_title">Mensaje del sistema</span>
+      <button id="btn_facturacion_alert_close" type="button" class="app-alert-close">X</button>
+    </div>
+    <div id="facturacion_alert_message" class="app-alert-body"></div>
+    <div class="app-alert-actions">
+      <button id="btn_facturacion_alert_ok" type="button" class="app-alert-ok">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<div id="facturacion_estado_context_menu" class="facturacion-context-menu" aria-hidden="true">
+  <button id="btn_facturacion_estado_context_cancel" type="button">Cancelar</button>
+</div>
+
+<div id="facturacion_confirm_backdrop" class="app-alert-backdrop" aria-hidden="true">
+  <div class="app-alert-modal" role="dialog" aria-modal="true" aria-labelledby="facturacion_confirm_title" aria-describedby="facturacion_confirm_message">
+    <div class="app-alert-head">
+      <span id="facturacion_confirm_title">Confirmar accion</span>
+      <button id="btn_facturacion_confirm_close" type="button" class="app-alert-close">X</button>
+    </div>
+    <div id="facturacion_confirm_message" class="app-alert-body"></div>
+    <div class="app-alert-actions">
+      <button id="btn_facturacion_confirm_cancel" type="button" class="app-alert-secondary">Cancelar</button>
+      <button id="btn_facturacion_confirm_ok" type="button" class="app-alert-ok">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<div id="facturacion_print_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal facturacion-print-modal" role="dialog" aria-modal="true" aria-labelledby="facturacion_print_title">
+    <div class="win-titlebar">
+      <span id="facturacion_print_title">Configuracion de impresion</span>
+      <button id="btn_close_facturacion_print" type="button">X</button>
+    </div>
+    <div class="win-body facturacion-print-body">
+      <p class="facturacion-print-copy">
+        Revisa la cantidad de hojas antes de continuar. La factura se abrira lista para imprimir en hojas A4 separadas.
+      </p>
+      <div class="facturacion-print-layout">
+        <div class="facturacion-print-editor">
+          <label for="facturacion_print_copies">Cantidad de hojas A4</label>
+          <input id="facturacion_print_copies" type="number" min="1" max="20" step="1" value="2" inputmode="numeric" />
+          <small>La configuracion inicial viene en 2 hojas para mantener el mismo flujo de cuentas por cobrar.</small>
+        </div>
+        <div class="facturacion-print-meta">
+          <h4>Resumen</h4>
+          <ul>
+            <li><span>Factura</span><strong id="facturacion_print_documento">-</strong></li>
+            <li><span>Total hojas</span><strong id="facturacion_print_total_hojas">2</strong></li>
+            <li><span>Total copias</span><strong id="facturacion_print_total_copias">2</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="facturacion-print-actions">
+        <button id="btn_facturacion_print_cancel" type="button" class="app-alert-secondary">Cancelar</button>
+        <button id="btn_facturacion_print_confirm" type="button" class="app-alert-ok">Continuar e imprimir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="facturacion_history_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal facturacion-history-modal" role="dialog" aria-modal="true" aria-labelledby="facturacion_history_title">
+    <div class="win-titlebar">
+      <span id="facturacion_history_title">Facturas emitidas</span>
+      <button id="btn_close_facturacion_history" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="facturacion_hist_q">Buscar</label>
+        <input id="facturacion_hist_q" type="text" placeholder="No. factura, cliente o nombre" />
+        <select id="facturacion_hist_filtro">
+          <option value="documento">Factura</option>
+          <option value="cliente">Cliente</option>
+          <option value="nombre">Nombre</option>
+        </select>
+        <button id="btn_facturacion_hist_buscar" type="button" class="btn-small">Buscar</button>
+      </div>
+      <div class="search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>No. Factura</th>
+              <th>Codigo</th>
+              <th>Cliente</th>
+              <th>Fecha</th>
+              <th>Total</th>
+              <th>Prefactura</th>
+            </tr>
+          </thead>
+          <tbody id="facturacion_hist_results_body">
+            <tr><td colspan="6" class="result-empty">Pulsa Buscar para consultar las facturas emitidas.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="facturacion_cliente_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="facturacion_cliente_title">
+    <div class="win-titlebar">
+      <span id="facturacion_cliente_title">Seleccionar cliente</span>
+      <button id="btn_close_facturacion_cliente" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="facturacion_cliente_q">Buscar</label>
+        <input id="facturacion_cliente_q" type="text" placeholder="Codigo, Nombre, Apodo, Cedula/RNC o Telefono" />
+        <select id="facturacion_cliente_filtro">
+          <option value="nombre" selected>Nombre</option>
+          <option value="codigo">Codigo (ID_SN)</option>
+          <option value="apodo">Apodo (CONTACTO)</option>
+          <option value="rnc">Cedula/RNC</option>
+          <option value="telefono">Telefono</option>
+        </select>
+      </div>
+      <div class="search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>Codigo (ID_SN)</th>
+              <th>Nombre (NOM_SOCIO)</th>
+              <th>Cedula/RNC (RNC_CED)</th>
+              <th>Apodo (CONTACTO)</th>
+              <th>Direccion</th>
+              <th>Telefono</th>
+            </tr>
+          </thead>
+          <tbody id="facturacion_cliente_results_body">
+            <tr><td colspan="6" class="result-empty">Ingrese un texto y pulse Buscar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="facturacion_detalle_codigo_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="facturacion_detalle_codigo_title">
+    <div class="win-titlebar">
+      <span id="facturacion_detalle_codigo_title">Seleccionar valor</span>
+      <button id="btn_close_facturacion_detalle_codigo" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="facturacion_detalle_codigo_q">Buscar</label>
+        <input id="facturacion_detalle_codigo_q" type="text" placeholder="Ingrese valor..." />
+      </div>
+      <div class="search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>Codigo</th>
+              <th>Descripcion</th>
+            </tr>
+          </thead>
+          <tbody id="facturacion_detalle_codigo_results_body">
+            <tr><td colspan="2" class="result-empty">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="facturacion_articulo_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="facturacion_articulo_title">
+    <div class="win-titlebar">
+      <span id="facturacion_articulo_title">Seleccionar articulo</span>
+      <button id="btn_close_facturacion_articulo" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="facturacion_articulo_q">Buscar</label>
+        <input id="facturacion_articulo_q" type="text" placeholder="Descripcion o Codigo" />
+        <select id="facturacion_articulo_filtro">
+          <option value="descripcion" selected>Descripcion</option>
+          <option value="codigo">Codigo</option>
+        </select>
+      </div>
+      <div class="search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>Codigo</th>
+              <th>Descripcion</th>
+              <th>Precio</th>
+              <th>Stock</th>
+            </tr>
+          </thead>
+          <tbody id="facturacion_articulo_results_body">
+            <tr><td colspan="4" class="result-empty">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.facturacionManualConfig = {
+    prefListUrl: "{% url 'factura:emision_prefacturas' %}",
+    prefDetailUrl: "{% url 'factura:emision_prefactura_detalle' %}",
+    emitirFacturaManualUrl: "{% url 'factura:emitir_factura_manual' %}",
+    cancelarFacturaManualUrl: "{% url 'factura:facturacion_cancelar_factura' %}",
+    facturasBuscarUrl: "{% url 'factura:buscar_facturas' %}",
+    facturaDetalleUrl: "{% url 'factura:facturacion_factura_detalle' %}",
+    clienteBuscarUrl: "{% url 'factura:facturacion_clientes_buscar' %}",
+    clienteDetalleUrl: "{% url 'factura:facturacion_cliente_detalle' %}",
+    articuloBuscarUrl: "{% url 'factura:facturacion_articulos_buscar' %}",
+    unidadMedidaBuscarUrl: "{% url 'factura:facturacion_unidad_medida_buscar' %}",
+    proyectosBuscarUrl: "{% url 'factura:facturacion_proyectos_buscar' %}",
+    cebesBuscarUrl: "{% url 'factura:facturacion_cebes_buscar' %}",
+    shortcutUrls: {
+      cuentas_por_cobrar: "{% url 'caja:cuentas_por_cobrar' %}",
+      financiamiento: "{% url 'caja:financiamiento' %}?nuevo=1",
+      prefactura: "{% url 'prefacturas_mod:index' %}",
+    },
+    shortcutPermissions: {
+      cuentas_por_cobrar: {{ facturacion_shortcuts.cuentas_por_cobrar|yesno:"true,false" }},
+      financiamiento: {{ facturacion_shortcuts.financiamiento|yesno:"true,false" }},
+      prefactura: {{ facturacion_shortcuts.prefactura|yesno:"true,false" }},
+    },
+    serverToday: "{{ server_today_iso|default:''|escapejs }}",
+    csrfToken: "{{ csrf_token }}",
+    usuarioNombre: "{{ auth_payload.usuario_nombre|escapejs }}",
+  };
+</script>
+<script src="{% static 'factura/facturacion_manual.js' %}?v=20260328e"></script>
+{% endblock %}

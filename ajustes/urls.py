@@ -14,6 +14,7 @@ from .views import (
     asignar_permiso_usuario_view,
     guardar_permisos_usuario_view,
     guardar_firma_usuario_view,
+    guardar_preferencia_caja_usuario_view,
 )
 
 app_name = "ajustes"
@@ -29,6 +30,7 @@ urlpatterns = [
     path("usuarios/permisos/asignar/", asignar_permiso_usuario_view, name="asignar_permiso_usuario"),
     path("usuarios/permisos/guardar/", guardar_permisos_usuario_view, name="guardar_permisos_usuario"),
     path("usuarios/firma/guardar/", guardar_firma_usuario_view, name="guardar_firma_usuario"),
+    path("usuarios/caja-preferencia/guardar/", guardar_preferencia_caja_usuario_view, name="guardar_preferencia_caja_usuario"),
     path("parametros/", parametros_view, name="parametros"),
     path("parametros/guardar/", guardar_parametros_view, name="guardar_parametros"),
     path("integraciones/facturacion-electronica/", facturacion_electronica_view, name="facturacion_electronica"),

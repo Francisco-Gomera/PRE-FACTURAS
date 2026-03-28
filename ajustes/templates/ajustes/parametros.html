@@ -48,6 +48,18 @@
         <input id="empresa_sello" name="sello_png" type="file" accept="image/png" />
         <small class="helper-text">Solo PNG. Se usa en cartas de saldo.</small>
       </div>
+      <div class="form-row checkbox-row">
+        <label class="checkbox-field" for="empresa_habilitar_fact_stock">
+          <input
+            id="empresa_habilitar_fact_stock"
+            name="habilitar_fact_stock"
+            type="checkbox"
+            {% if empresa_data.habilitar_fact_stock %}checked{% endif %}
+          />
+          <span>Habilitar fact. stock</span>
+        </label>
+        <small class="helper-text">Si esta activo, Facturacion valida inventario disponible antes de grabar.</small>
+      </div>
       <div class="actions-bar">
         <button type="submit">Guardar parametros</button>
       </div>
@@ -75,6 +87,7 @@
       <div>{{ empresa_data.tel1|default:"" }} {{ empresa_data.tel2|default:"" }}</div>
       <div>{{ empresa_data.email|default:"" }}</div>
       <div>{{ empresa_data.rnc|default:"" }}</div>
+      <div>Fact. stock: {% if empresa_data.habilitar_fact_stock %}Activa{% else %}Inactiva{% endif %}</div>
     </div>
   </div>
 </div>
@@ -121,6 +134,26 @@
   .actions-bar {
     display: flex;
     justify-content: flex-start;
+  }
+  .checkbox-row {
+    gap: 6px;
+  }
+  .checkbox-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    cursor: pointer;
+  }
+  .checkbox-field input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+  }
+  .checkbox-field span {
+    font-size: 13px;
+    color: #173761;
+    font-weight: 700;
   }
   .actions-bar button {
     height: 34px;

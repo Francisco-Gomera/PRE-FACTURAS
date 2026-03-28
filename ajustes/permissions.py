@@ -43,6 +43,8 @@ def ensure_base_perms():
     sub_perms = {
         "inventario": [
             ("ver_articulos", "Ver Articulos"),
+            ("ver_entrada_articulos", "Ver Entrada de Articulos"),
+            ("ver_salida_articulos", "Ver Salida de Articulos"),
             ("ver_grupos", "Ver Grupos de Articulos"),
             ("ver_stock", "Ver Stock"),
         ],
@@ -67,9 +69,9 @@ def ensure_base_perms():
             ("ver_plantillas", "Ver Plantillas"),
         ],
         "factura": [
-            ("ver_emision", "Ver Emision de Facturas"),
+            ("ver_emision", "Ver Emision Factura Electronica"),
             ("ver_electronica", "Ver Facturacion Electronica"),
-            ("ver_documentos", "Ver Documentos de Factura"),
+            ("ver_documentos", "Ver Facturacion"),
         ],
         "caja": [
             ("ver_cuentas_por_cobrar", "Ver Cuentas por Cobrar"),

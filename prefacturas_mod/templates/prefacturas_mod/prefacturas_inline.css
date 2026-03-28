@@ -1045,7 +1045,6 @@
         }
 
         /* Modern UX/UI Theme Overrides */
-        @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap");
 
         :root {
             --bg: #f4f8ff;
@@ -1624,14 +1623,60 @@
 
         #prefactura_panel .grid-shell th,
         #prefactura_panel .grid-shell td {
-            padding: 2px 5px;
+            padding: 0 3px;
+            line-height: 1;
         }
 
-        #prefactura_panel .grid-shell td input,
-        #prefactura_panel .grid-shell td select {
-            height: 22px;
-            padding: 1px 5px;
-            font-size: 13px;
+        #prefactura_panel .grid-shell td {
+            height: auto;
+            min-height: 0;
+            vertical-align: middle;
+        }
+
+        #prefactura_panel .grid-shell td.prefactura-edit-cell {
+            padding: 0;
+        }
+
+        #prefactura_panel .grid-shell td.prefactura-edit-cell input,
+        #prefactura_panel .grid-shell td.prefactura-edit-cell select {
+            display: block;
+            width: 100%;
+            min-width: 0;
+            height: 16px;
+            min-height: 0;
+            padding: 0 4px;
+            margin: 0;
+            border: 0;
+            border-radius: 0;
+            box-sizing: border-box;
+            background: #f8fbff;
+            font-size: 10.5px;
+            line-height: 1;
+            color: #1a2942;
+        }
+
+        #prefactura_panel .grid-shell td.prefactura-edit-cell .cell-picker {
+            display: flex;
+            align-items: stretch;
+            gap: 0;
+            width: 100%;
+        }
+
+        #prefactura_panel .grid-shell td.prefactura-edit-cell .cell-picker input {
+            flex: 1 1 auto;
+        }
+
+        #prefactura_panel .grid-shell td.prefactura-edit-cell .cell-pick-btn {
+            width: 18px;
+            min-width: 18px;
+            height: 16px;
+            padding: 0;
+            margin: 0;
+            border: 0;
+            border-left: 1px solid #d5e0f2;
+            border-radius: 0;
+            line-height: 1;
+            font-weight: 700;
         }
 
         #prefactura_total_doc {

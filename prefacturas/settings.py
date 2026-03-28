@@ -21,6 +21,28 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
 
+def _normalize_sqlserver_extra_params(raw_value):
+    parts = []
+    for chunk in str(raw_value or "").split(";"):
+        item = chunk.strip()
+        if not item:
+            continue
+        key = item.split("=", 1)[0].strip().lower()
+        # django-mssql-backend ya agrega MARS_Connection=yes en Windows.
+        if key == "mars_connection":
+          continue
+        parts.append(item)
+    return ";".join(parts)
+
+
+def _env_value(name, default=""):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text if text else default
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
@@ -94,14 +116,16 @@ WSGI_APPLICATION = 'prefacturas.wsgi.application'
 DATABASES = {
     "default": {
         "ENGINE": "mssql",
-        "NAME": os.getenv("SQLSERVER_DB", ""),
-        "USER": os.getenv("SQLSERVER_USER", ""),
-        "PASSWORD": os.getenv("SQLSERVER_PASSWORD", ""),
-        "HOST": os.getenv("SQLSERVER_HOST", "localhost"),
-        "PORT": os.getenv("SQLSERVER_PORT", "1433"),
+        "NAME": _env_value("SQLSERVER_DB", ""),
+        "USER": _env_value("SQLSERVER_USER", ""),
+        "PASSWORD": _env_value("SQLSERVER_PASSWORD", ""),
+        "HOST": _env_value("SQLSERVER_HOST", "localhost"),
+        "PORT": _env_value("SQLSERVER_PORT", ""),
         "OPTIONS": {
-            "driver": os.getenv("SQLSERVER_DRIVER", "ODBC Driver 18 for SQL Server"),
-            "extra_params": os.getenv("SQLSERVER_EXTRA_PARAMS", "TrustServerCertificate=yes;"),
+            "driver": _env_value("SQLSERVER_DRIVER", "ODBC Driver 18 for SQL Server"),
+            "extra_params": _normalize_sqlserver_extra_params(
+                _env_value("SQLSERVER_EXTRA_PARAMS", "TrustServerCertificate=yes;")
+            ),
         },
     }
 }
@@ -141,10 +165,18 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+WHITENOISE_AUTOREFRESH = DEBUG
+WHITENOISE_USE_FINDERS = DEBUG
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+WHATSAPP_API_VERSION = _env_value("WHATSAPP_API_VERSION", "v23.0")
+WHATSAPP_ACCESS_TOKEN = _env_value("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = _env_value("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_WABA_ID = _env_value("WHATSAPP_WABA_ID", "")
+WHATSAPP_VERIFY_TOKEN = _env_value("WHATSAPP_VERIFY_TOKEN", "")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

@@ -9,7 +9,8 @@ from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from ajustes.permissions import has_perm
-from core.views import _base_context, render_denied
+from cartas.whatsapp_cloud import get_runtime_settings as get_whatsapp_runtime_settings
+from core.views import _base_context, _load_table_columns, render_denied
 from factura.ecf_runtime import build_ecf_runtime_report
 from .models import (
     FacturacionElectronicaConfig,
@@ -22,6 +23,8 @@ from .models import (
     SegRolPermiso,
     SegUsuarioPermiso,
     SegUsuarioRol,
+    UsuarioCajaPreferencia,
+    WhatsAppCloudConfig,
 )
 from .user_signatures import get_users_with_signatures, save_user_signature
 
@@ -82,6 +85,17 @@ def _fetch_usuarios():
     except Exception:
         rows = []
     return rows
+
+
+def _load_user_caja_pref_map():
+    preferencias = {}
+    try:
+        for item in UsuarioCajaPreferencia.objects.only("id_usuario", "metodo_pago_default"):
+            metodo = str(item.metodo_pago_default or "").strip()
+            preferencias[int(item.id_usuario)] = metodo if metodo in {"Efectivo", "Transferencia"} else ""
+    except Exception:
+        return {}
+    return preferencias
 
 
 def usuarios_view(request):
@@ -161,6 +175,7 @@ def usuarios_view(request):
     for up in ctx["usuarios_permisos"]:
         user_perm_map.setdefault(up.id_usuario, {})[up.permiso_id] = bool(up.permitido)
     ctx["user_perm_map"] = user_perm_map
+    ctx["user_caja_pref_map"] = _load_user_caja_pref_map()
     ctx["permisos_ui"] = permisos_ui
     return render(request, "ajustes/usuarios.html", ctx)
 
@@ -204,6 +219,10 @@ def _build_public_ecf_urls(request):
         "recepcion": request.build_absolute_uri(reverse("factura:ecf_recepcion")),
         "aprobacion": request.build_absolute_uri(reverse("factura:ecf_aprobacion")),
     }
+
+
+def _build_public_whatsapp_webhook_url(request):
+    return request.build_absolute_uri(reverse("cartas:whatsapp_webhook"))
 
 
 def _apply_demo_qr(documento, empresa_rnc):
@@ -502,6 +521,37 @@ def guardar_firma_usuario_view(request):
     return redirect("ajustes:usuarios")
 
 
+@require_http_methods(["POST"])
+def guardar_preferencia_caja_usuario_view(request):
+    ctx = _base_context(request, page_title="Usuarios y permisos", active_nav="ajustes")
+    if not ctx:
+        return redirect("login")
+    if not has_perm(ctx["auth_payload"]["usuario_id"], "ajustes", "ver_usuarios"):
+        return redirect("ajustes:usuarios")
+
+    id_usuario = request.POST.get("id_usuario")
+    metodo_pago_default = str(request.POST.get("metodo_pago_default") or "").strip()
+    if not id_usuario:
+        return redirect("ajustes:usuarios")
+
+    try:
+        id_usuario = int(id_usuario)
+    except Exception:
+        return redirect("ajustes:usuarios")
+
+    if metodo_pago_default not in {"", "Efectivo", "Transferencia"}:
+        return redirect("ajustes:usuarios")
+
+    if not metodo_pago_default:
+        UsuarioCajaPreferencia.objects.filter(id_usuario=id_usuario).delete()
+    else:
+        UsuarioCajaPreferencia.objects.update_or_create(
+            id_usuario=id_usuario,
+            defaults={"metodo_pago_default": metodo_pago_default},
+        )
+    return redirect("ajustes:usuarios")
+
+
 def parametros_view(request):
     ctx = _base_context(request, page_title="Parametros", active_nav="ajustes")
     if not ctx:
@@ -519,46 +569,35 @@ def parametros_view(request):
         "logo_b64": "",
         "logo_tipo": "",
         "sello_b64": "",
+        "habilitar_fact_stock": False,
     }
     try:
+        empresa_columns = set(_load_table_columns("EMPRESA"))
+        if not empresa_columns:
+            ctx["empresa_data"] = empresa
+            return render(request, "ajustes/parametros.html", ctx)
+        select_columns = ["ID_EMPRESA", "NOMBRE", "DIR_EMP", "TEL1", "TEL2", "EMAIL", "RNC_CED"]
+        for optional_column in ("LOGO", "LOGO_TIPO", "SELLO", "HABILITAR_FACT_STOCK"):
+            if optional_column in empresa_columns:
+                select_columns.append(optional_column)
         with connection.cursor() as cursor:
-            try:
-                cursor.execute(
-                    """
-                    SELECT TOP 1 ID_EMPRESA, NOMBRE, DIR_EMP, TEL1, TEL2, EMAIL, RNC_CED, LOGO, LOGO_TIPO, SELLO
-                    FROM EMPRESA
-                    """
-                )
-                row = cursor.fetchone()
-                if row:
-                    empresa["id_empresa"] = row[0]
-                    empresa["nombre"] = row[1] or ""
-                    empresa["direccion"] = row[2] or ""
-                    empresa["tel1"] = row[3] or ""
-                    empresa["tel2"] = row[4] or ""
-                    empresa["email"] = row[5] or ""
-                    empresa["rnc"] = row[6] or ""
-                    if row[7]:
-                        empresa["logo_b64"] = base64.b64encode(row[7]).decode("ascii")
-                    empresa["logo_tipo"] = row[8] or ""
-                    if row[9]:
-                        empresa["sello_b64"] = base64.b64encode(row[9]).decode("ascii")
-            except Exception:
-                cursor.execute(
-                    """
-                    SELECT TOP 1 ID_EMPRESA, NOMBRE, DIR_EMP, TEL1, TEL2, EMAIL, RNC_CED
-                    FROM EMPRESA
-                    """
-                )
-                row = cursor.fetchone()
-                if row:
-                    empresa["id_empresa"] = row[0]
-                    empresa["nombre"] = row[1] or ""
-                    empresa["direccion"] = row[2] or ""
-                    empresa["tel1"] = row[3] or ""
-                    empresa["tel2"] = row[4] or ""
-                    empresa["email"] = row[5] or ""
-                    empresa["rnc"] = row[6] or ""
+            cursor.execute(f"SELECT TOP 1 {', '.join(select_columns)} FROM EMPRESA")
+            row = cursor.fetchone()
+            if row:
+                data = {select_columns[index]: row[index] for index in range(min(len(select_columns), len(row)))}
+                empresa["id_empresa"] = data.get("ID_EMPRESA") or ""
+                empresa["nombre"] = data.get("NOMBRE") or ""
+                empresa["direccion"] = data.get("DIR_EMP") or ""
+                empresa["tel1"] = data.get("TEL1") or ""
+                empresa["tel2"] = data.get("TEL2") or ""
+                empresa["email"] = data.get("EMAIL") or ""
+                empresa["rnc"] = data.get("RNC_CED") or ""
+                if data.get("LOGO"):
+                    empresa["logo_b64"] = base64.b64encode(data.get("LOGO")).decode("ascii")
+                empresa["logo_tipo"] = data.get("LOGO_TIPO") or ""
+                if data.get("SELLO"):
+                    empresa["sello_b64"] = base64.b64encode(data.get("SELLO")).decode("ascii")
+                empresa["habilitar_fact_stock"] = _bool_post(data.get("HABILITAR_FACT_STOCK"))
     except Exception:
         pass
     ctx["empresa_data"] = empresa
@@ -580,6 +619,7 @@ def guardar_parametros_view(request):
     tel2 = (request.POST.get("tel2") or "").strip()
     email = (request.POST.get("email") or "").strip()
     rnc = (request.POST.get("rnc") or "").strip()
+    habilitar_fact_stock = _bool_post(request.POST.get("habilitar_fact_stock"))
     logo_file = request.FILES.get("logo_img")
     sello_file = request.FILES.get("sello_png")
 
@@ -615,20 +655,37 @@ def guardar_parametros_view(request):
         sello_bytes = sello_file.read() or None
 
     try:
+        empresa_columns = set(_load_table_columns("EMPRESA"))
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                UPDATE EMPRESA
-                SET NOMBRE = %s,
-                    DIR_EMP = %s,
-                    TEL1 = %s,
-                    TEL2 = %s,
-                    EMAIL = %s,
-                    RNC_CED = %s
-                WHERE ID_EMPRESA = %s
-                """,
-                [nombre, direccion, tel1, tel2, email, rnc, id_empresa],
-            )
+            if "HABILITAR_FACT_STOCK" in empresa_columns:
+                cursor.execute(
+                    """
+                    UPDATE EMPRESA
+                    SET NOMBRE = %s,
+                        DIR_EMP = %s,
+                        TEL1 = %s,
+                        TEL2 = %s,
+                        EMAIL = %s,
+                        RNC_CED = %s,
+                        HABILITAR_FACT_STOCK = %s
+                    WHERE ID_EMPRESA = %s
+                    """,
+                    [nombre, direccion, tel1, tel2, email, rnc, habilitar_fact_stock, id_empresa],
+                )
+            else:
+                cursor.execute(
+                    """
+                    UPDATE EMPRESA
+                    SET NOMBRE = %s,
+                        DIR_EMP = %s,
+                        TEL1 = %s,
+                        TEL2 = %s,
+                        EMAIL = %s,
+                        RNC_CED = %s
+                    WHERE ID_EMPRESA = %s
+                    """,
+                    [nombre, direccion, tel1, tel2, email, rnc, id_empresa],
+                )
             if logo_bytes is not None:
                 try:
                     cursor.execute(
@@ -666,6 +723,10 @@ def facturacion_electronica_view(request):
     config, _ = FacturacionElectronicaConfig.objects.get_or_create(
         id_config=1,
         defaults={"habilitado": False, "ambiente": "precertificacion", "modo_envio": "manual"},
+    )
+    whatsapp_config, _ = WhatsAppCloudConfig.objects.get_or_create(
+        id_config=1,
+        defaults={"habilitado": False, "api_version": "v23.0"},
     )
     status_message = ""
 
@@ -712,6 +773,23 @@ def facturacion_electronica_view(request):
                 status_message = f"El documento {documento_id} aun no tiene e-NCF; no se pudo generar QR demo."
             else:
                 status_message = "Documento no encontrado para la prueba QR."
+        elif action == "save_whatsapp_config":
+            whatsapp_config.habilitado = _bool_post(request.POST.get("whatsapp_habilitado"))
+            whatsapp_config.api_version = (request.POST.get("whatsapp_api_version") or "v23.0").strip() or "v23.0"
+            whatsapp_config.phone_number_id = (request.POST.get("whatsapp_phone_number_id") or "").strip() or None
+            whatsapp_config.waba_id = (request.POST.get("whatsapp_waba_id") or "").strip() or None
+            whatsapp_config.verify_token = (request.POST.get("whatsapp_verify_token") or "").strip() or None
+            whatsapp_config.observaciones = (request.POST.get("whatsapp_observaciones") or "").strip() or None
+
+            new_token = (request.POST.get("whatsapp_access_token") or "").strip()
+            clear_token = _bool_post(request.POST.get("whatsapp_clear_access_token"))
+            if clear_token:
+                whatsapp_config.access_token = None
+            elif new_token:
+                whatsapp_config.access_token = new_token
+
+            whatsapp_config.save()
+            status_message = "Configuracion de WhatsApp Cloud API guardada."
 
     if not FacturacionElectronicaDocumento.objects.exists():
         _sync_ecf_documentos(limit=80)
@@ -755,6 +833,29 @@ def facturacion_electronica_view(request):
     }
     ecf_public_urls = _build_public_ecf_urls(request)
     runtime_report = build_ecf_runtime_report()
+    whatsapp_webhook_url = _build_public_whatsapp_webhook_url(request)
+    whatsapp_runtime = get_whatsapp_runtime_settings()
+    whatsapp_missing = []
+    if not whatsapp_runtime.get("enabled"):
+        whatsapp_missing.append("Integracion deshabilitada")
+    if not whatsapp_runtime.get("access_token"):
+        whatsapp_missing.append("Access Token")
+    if not whatsapp_runtime.get("phone_number_id"):
+        whatsapp_missing.append("Phone Number ID")
+    if not whatsapp_runtime.get("verify_token"):
+        whatsapp_missing.append("Verify Token")
+    if not whatsapp_runtime.get("waba_id"):
+        whatsapp_missing.append("WABA ID")
+    whatsapp_readiness = {
+        "habilitado": bool(whatsapp_runtime.get("enabled")),
+        "api_version": bool(str(whatsapp_runtime.get("api_version") or "").strip()),
+        "access_token": bool(str(whatsapp_runtime.get("access_token") or "").strip()),
+        "phone_number_id": bool(str(whatsapp_runtime.get("phone_number_id") or "").strip()),
+        "waba_id": bool(str(whatsapp_runtime.get("waba_id") or "").strip()),
+        "verify_token": bool(str(whatsapp_runtime.get("verify_token") or "").strip()),
+        "webhook_url": bool(str(whatsapp_webhook_url or "").strip()),
+    }
+    whatsapp_readiness["completo"] = all(whatsapp_readiness.values())
 
     ctx.update(
         {
@@ -766,6 +867,11 @@ def facturacion_electronica_view(request):
             "ecf_readiness": readiness,
             "ecf_public_urls": ecf_public_urls,
             "ecf_runtime": runtime_report,
+            "whatsapp_config": whatsapp_config,
+            "whatsapp_runtime": whatsapp_runtime,
+            "whatsapp_missing": whatsapp_missing,
+            "whatsapp_readiness": whatsapp_readiness,
+            "whatsapp_webhook_url": whatsapp_webhook_url,
             "dgii_fuentes": [
                 {
                     "title": "Documentacion sobre e-CF",

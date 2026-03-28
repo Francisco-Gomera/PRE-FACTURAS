@@ -45,6 +45,7 @@
         </div>
         <div class="actions-row">
           <button id="btn_aviso_imprimir" type="button">Imprimir Aviso</button>
+          <button id="btn_aviso_whatsapp" type="button" class="btn-whatsapp">Compartir por WhatsApp</button>
         </div>
       </div>
 
@@ -87,12 +88,13 @@
     <div class="win-body">
       <div class="search-row">
         <label for="aviso_search_input">Buscar</label>
-        <input id="aviso_search_input" type="text" placeholder="Código, Nombre, Apodo o Cédula/RNC" />
+        <input id="aviso_search_input" type="text" placeholder="Código, Nombre, Apodo, Cédula/RNC o Teléfono" />
         <select id="aviso_search_filter">
           <option value="nombre" selected>Nombre</option>
           <option value="codigo">Código (ID_SN)</option>
           <option value="apodo">Apodo</option>
           <option value="rnc">Cédula/RNC</option>
+          <option value="telefono">Teléfono</option>
         </select>
         <button id="btn_aviso_search" type="button" class="btn-small">Buscar</button>
       </div>
@@ -110,6 +112,54 @@
             <tr><td colspan="4" class="result-empty">Ingrese un texto y pulse Buscar.</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="aviso_whatsapp_modal" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal win-modal-compact" role="dialog" aria-modal="true" aria-labelledby="aviso_whatsapp_title">
+    <div class="win-titlebar">
+      <span id="aviso_whatsapp_title">Compartir carta por WhatsApp</span>
+      <button id="btn_close_aviso_whatsapp_modal" type="button" aria-label="Cerrar">X</button>
+    </div>
+    <div class="win-body">
+      <div class="share-client-grid">
+        <div class="form-row">
+          <label for="aviso_whatsapp_cliente">Cliente</label>
+          <input id="aviso_whatsapp_cliente" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="aviso_whatsapp_codigo">Codigo</label>
+          <input id="aviso_whatsapp_codigo" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="aviso_whatsapp_rnc">Cedula/RNC</label>
+          <input id="aviso_whatsapp_rnc" type="text" readonly />
+        </div>
+        <div class="form-row">
+          <label for="aviso_whatsapp_balance">Balance en atraso</label>
+          <input id="aviso_whatsapp_balance" type="text" readonly />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <label for="aviso_whatsapp_telefono">Telefono WhatsApp</label>
+        <input id="aviso_whatsapp_telefono" type="text" inputmode="tel" placeholder="Ej. 18095551234" />
+        <div class="help-text">Se toma el telefono guardado del cliente, pero puedes cambiarlo antes de abrir el chat.</div>
+      </div>
+
+      <div class="form-row">
+        <label for="aviso_whatsapp_mensaje">Mensaje</label>
+        <textarea id="aviso_whatsapp_mensaje" rows="6"></textarea>
+      </div>
+
+      <div id="aviso_whatsapp_note" class="share-note"></div>
+
+      <div class="share-actions">
+        <button id="btn_aviso_whatsapp_enviar" type="button" class="btn-primary">Enviar por API</button>
+        <button id="btn_aviso_whatsapp_documento" type="button" class="btn-secondary">Descargar documento</button>
+        <button id="btn_aviso_whatsapp_abrir" type="button" class="btn-whatsapp">Abrir WhatsApp</button>
       </div>
     </div>
   </div>
@@ -200,6 +250,17 @@
     background: #fff;
   }
 
+  .form-row textarea {
+    width: 100%;
+    min-height: 118px;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 8px;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+  }
+
   .form-row input[readonly] {
     background-color: #e9ecef;
     opacity: 1;
@@ -232,6 +293,34 @@
 
   .actions-row button:hover {
     background: var(--primary-dark);
+  }
+
+  .actions-row .btn-whatsapp,
+  .share-actions .btn-whatsapp {
+    background: #1f9d55;
+  }
+
+  .actions-row .btn-whatsapp:hover,
+  .share-actions .btn-whatsapp:hover {
+    background: #15803d;
+  }
+
+  .share-actions .btn-primary {
+    background: var(--primary-color);
+    color: var(--white);
+  }
+
+  .share-actions .btn-primary:hover {
+    background: var(--primary-dark);
+  }
+
+  .share-actions .btn-secondary {
+    background: #eef4ff;
+    color: var(--primary-color);
+  }
+
+  .share-actions .btn-secondary:hover {
+    background: #dbeafe;
   }
 
   .facturas-wrap {
@@ -302,9 +391,9 @@
     height: auto;
     background: var(--card-bg);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-    display: flex;
-    flex-direction: column;
-    padding: 14mm;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding: 10mm 12mm 12mm;
     font-family: "Times New Roman", serif;
     color: #111;
     line-height: 1.3;
@@ -318,14 +407,14 @@
 
   .carta-header {
     display: grid;
-    grid-template-columns: 120px 1fr;
+    grid-template-columns: 190px 1fr;
     gap: 14px;
     align-items: start;
-    margin-bottom: 12mm;
+    margin-bottom: 7mm;
   }
 
   .carta-logo {
-    width: 120px;
+    width: 190px;
     text-align: center;
   }
 
@@ -341,13 +430,13 @@
   }
 
   .carta-head-right {
-    margin: 6mm 0 7mm;
+    margin: 2.5mm 0 4mm;
     text-align: right;
     font-size: 11pt;
   }
 
   .carta-title {
-    margin: 8mm 0 10mm;
+    margin: 4mm 0 6mm;
     text-align: center;
     color: #d60000;
     font-size: 26pt;
@@ -356,11 +445,11 @@
   }
 
   .carta-intro {
-    margin-bottom: 8mm;
+    margin-bottom: 5mm;
   }
 
   .carta-intro p {
-    margin: 0 0 5mm;
+    margin: 0 0 3mm;
   }
 
   .carta-table {
@@ -396,7 +485,7 @@
   }
 
   .carta-totals {
-    margin-top: 3mm;
+    margin-top: 2.5mm;
     display: flex;
     justify-content: flex-end;
     gap: 26px;
@@ -405,7 +494,7 @@
   }
 
   .carta-sign {
-    margin-top: 16mm;
+    margin-top: 1cm;
     text-align: center;
   }
 
@@ -426,7 +515,7 @@
   hr.firma-line {
     border: none;
     border-top: 1px solid #111;
-    width: 280px;
+    width: 250px;
     margin: 8px auto 4px;
   }
 
@@ -456,6 +545,10 @@
     background: var(--card-bg);
     border-radius: var(--border-radius);
     box-shadow: 0 18px 40px rgba(10, 45, 110, 0.2);
+  }
+
+  .win-modal-compact {
+    width: min(720px, 94vw);
   }
 
   .win-titlebar {
@@ -529,6 +622,53 @@
     background: #f0f5ff;
   }
 
+  .share-client-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .share-actions {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .share-actions button {
+    flex: 1 1 220px;
+    height: 40px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .share-actions button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .share-note {
+    margin-top: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e3a8a;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .help-text {
+    margin-top: 6px;
+    color: var(--text-light);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
   @media (min-width: 992px) {
     .carta-layout {
       grid-template-columns: 380px 1fr;
@@ -551,10 +691,20 @@
     }
   }
 
+  @media (max-width: 720px) {
+    .share-client-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .share-actions button {
+      flex-basis: 100%;
+    }
+  }
+
   @media print {
     @page {
       size: A4;
-      margin: 10mm;
+      margin: 8mm 10mm 9mm;
     }
 
     .sidebar,
@@ -602,23 +752,37 @@
       box-shadow: none !important;
       border-radius: 0 !important;
       width: 100% !important;
-      min-height: auto !important;
+      min-height: 280mm !important;
       padding: 0 !important;
       margin: 0 !important;
-      display: block !important;
+      display: grid !important;
+      grid-template-rows: minmax(0, 1fr) auto !important;
     }
 
     .carta-body {
-      padding: 8mm 8mm 8mm 8mm !important;
+      flex: 1 1 auto !important;
+      padding: 4.5mm 6mm 5mm 6mm !important;
     }
 
     .carta-sign {
       position: static !important;
-      margin-top: 8mm !important;
-      padding: 0 0 4mm 0 !important;
+      margin-top: 12mm !important;
+      padding: 0 0 6mm 0 !important;
       text-align: center !important;
       page-break-inside: avoid !important;
+      color: #111 !important;
       display: block !important;
+    }
+
+    .firma-img {
+      max-width: 200px !important;
+      max-height: 90px !important;
+    }
+
+    .sello-img {
+      max-width: 220px !important;
+      max-height: 120px !important;
+      margin-bottom: 5px !important;
     }
 
     hr.firma-line {
@@ -627,7 +791,7 @@
       border: none !important;
       border-top: 1px solid #111 !important;
       background: transparent !important;
-      width: 280px !important;
+      width: 250px !important;
       margin: 8px auto 4px !important;
       opacity: 1 !important;
     }
@@ -652,14 +816,30 @@
   const avisoFacturasBody = document.getElementById("aviso_facturas_body");
   const btnAvisoBuscarCliente = document.getElementById("btn_aviso_buscar_cliente");
   const btnAvisoImprimir = document.getElementById("btn_aviso_imprimir");
+  const btnAvisoWhatsapp = document.getElementById("btn_aviso_whatsapp");
   const avisoModal = document.getElementById("aviso_cliente_modal");
   const btnCloseAvisoModal = document.getElementById("btn_close_aviso_modal");
   const avisoSearchInput = document.getElementById("aviso_search_input");
   const avisoSearchFilter = document.getElementById("aviso_search_filter");
   const btnAvisoSearch = document.getElementById("btn_aviso_search");
   const avisoResultsBody = document.getElementById("aviso_results_body");
+  const avisoWhatsappModal = document.getElementById("aviso_whatsapp_modal");
+  const btnCloseAvisoWhatsappModal = document.getElementById("btn_close_aviso_whatsapp_modal");
+  const avisoWhatsappCliente = document.getElementById("aviso_whatsapp_cliente");
+  const avisoWhatsappCodigo = document.getElementById("aviso_whatsapp_codigo");
+  const avisoWhatsappRnc = document.getElementById("aviso_whatsapp_rnc");
+  const avisoWhatsappBalance = document.getElementById("aviso_whatsapp_balance");
+  const avisoWhatsappTelefono = document.getElementById("aviso_whatsapp_telefono");
+  const avisoWhatsappMensaje = document.getElementById("aviso_whatsapp_mensaje");
+  const avisoWhatsappNote = document.getElementById("aviso_whatsapp_note");
+  const btnAvisoWhatsappEnviar = document.getElementById("btn_aviso_whatsapp_enviar");
+  const btnAvisoWhatsappDocumento = document.getElementById("btn_aviso_whatsapp_documento");
+  const btnAvisoWhatsappAbrir = document.getElementById("btn_aviso_whatsapp_abrir");
   const avisoDetalleUrl = "{% url 'cartas:aviso_detalle' %}";
+  const avisoWhatsappSendUrl = "{% url 'cartas:aviso_whatsapp_send' %}";
   const avisoPlantillas = JSON.parse(document.getElementById("aviso_plantillas_data")?.textContent || "[]");
+  const avisoWhatsappApiEnabled = {{ whatsapp_cloud_enabled|yesno:"true,false" }};
+  const avisoWhatsappApiMissing = "{{ whatsapp_cloud_missing|default:''|escapejs }}";
   let avisoData = null;
 
   function escapeHtml(value) {
@@ -676,6 +856,51 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+  }
+
+  function getCookie(name) {
+    const cookieValue = document.cookie
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(`${name}=`));
+    return cookieValue ? decodeURIComponent(cookieValue.split("=").slice(1).join("=")) : "";
+  }
+
+  function canUseNativeFileShare() {
+    return Boolean(navigator.share && typeof File === "function");
+  }
+
+  function getAvisoWhatsappDefaultNote() {
+    if (avisoWhatsappApiEnabled) {
+      return "Enviar por API mandara el mensaje y el documento real por WhatsApp Cloud API. Abrir WhatsApp sigue disponible como respaldo manual.";
+    }
+    if (avisoWhatsappApiMissing) {
+      return `La API aun no esta configurada. Faltan: ${avisoWhatsappApiMissing}. Puedes seguir usando Abrir WhatsApp o Descargar documento.`;
+    }
+    if (canUseNativeFileShare()) {
+      return "Puedes compartir el documento directamente si tu navegador lo soporta. Si prefieres abrir el chat, el archivo se descargara automaticamente para adjuntarlo.";
+    }
+    return "Este navegador no permite adjuntar archivos directo a WhatsApp. Al abrir el chat se descargara el documento para que lo adjuntes manualmente.";
+  }
+
+  function setAvisoWhatsappNote(message) {
+    if (avisoWhatsappNote) {
+      avisoWhatsappNote.textContent = message || getAvisoWhatsappDefaultNote();
+    }
+  }
+
+  function sanitizeFilePart(value) {
+    let text = String(value || "").trim();
+    if (typeof text.normalize === "function") {
+      text = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+    text = text.replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "");
+    return text || "cliente";
+  }
+
+  function normalizeWhatsappPhone(rawValue) {
+    const digits = String(rawValue || "").replace(/\D+/g, "");
+    return digits.startsWith("00") ? digits.slice(2) : digits;
   }
 
   function getSelectedAvisoPlantilla() {
@@ -735,6 +960,20 @@
     `;
   }
 
+  function buildAvisoWhatsappMessage(data) {
+    const cliente = (data && data.cliente) || {};
+    const totales = (data && data.totales) || {};
+    const facturas = Array.isArray(data?.facturas) ? data.facturas : [];
+    return [
+      `Hola ${cliente.nombre || "cliente"},`,
+      `Le compartimos su carta de aviso emitida el ${data?.fecha || ""}.`,
+      facturas.length ? `Documentos en atraso: ${facturas.length}.` : "",
+      `Balance en atraso: ${formatMoney(totales.saldo || 0)}.`,
+      `Total mora: ${formatMoney(totales.mora || 0)}.`,
+      "Quedamos atentos para ayudarle con la regularizacion de su cuenta.",
+    ].filter(Boolean).join("\n");
+  }
+
   function openAvisoModal() {
     avisoModal.classList.add("open");
     avisoModal.setAttribute("aria-hidden", "false");
@@ -744,6 +983,58 @@
   function closeAvisoModal() {
     avisoModal.classList.remove("open");
     avisoModal.setAttribute("aria-hidden", "true");
+  }
+
+  function setAvisoWhatsappBusy(isBusy, noteMessage = "") {
+    if (btnAvisoWhatsappEnviar) btnAvisoWhatsappEnviar.disabled = isBusy || !avisoWhatsappApiEnabled;
+    if (btnAvisoWhatsappDocumento) btnAvisoWhatsappDocumento.disabled = isBusy;
+    if (btnAvisoWhatsappAbrir) btnAvisoWhatsappAbrir.disabled = isBusy;
+    if (btnCloseAvisoWhatsappModal) btnCloseAvisoWhatsappModal.disabled = isBusy;
+    if (avisoWhatsappTelefono) avisoWhatsappTelefono.disabled = isBusy;
+    if (avisoWhatsappMensaje) avisoWhatsappMensaje.disabled = isBusy;
+    if (noteMessage) setAvisoWhatsappNote(noteMessage);
+  }
+
+  function updateAvisoWhatsappUi() {
+    if (btnAvisoWhatsappEnviar) {
+      btnAvisoWhatsappEnviar.disabled = !avisoWhatsappApiEnabled;
+      btnAvisoWhatsappEnviar.title = avisoWhatsappApiEnabled
+        ? ""
+        : (avisoWhatsappApiMissing ? `Faltan: ${avisoWhatsappApiMissing}` : "API no configurada");
+    }
+    if (btnAvisoWhatsappDocumento) {
+      btnAvisoWhatsappDocumento.textContent = canUseNativeFileShare() ? "Compartir documento" : "Descargar documento";
+    }
+    setAvisoWhatsappNote();
+  }
+
+  function openAvisoWhatsappModal() {
+    if (!avisoData || !avisoData.cliente) {
+      window.alert("Selecciona un cliente antes de compartir por WhatsApp.");
+      return;
+    }
+
+    renderAvisoPreview(avisoData);
+
+    const cliente = avisoData.cliente || {};
+    const totales = avisoData.totales || {};
+    if (avisoWhatsappCliente) avisoWhatsappCliente.value = cliente.nombre || "";
+    if (avisoWhatsappCodigo) avisoWhatsappCodigo.value = cliente.id_sn || avisoClienteId.value || "";
+    if (avisoWhatsappRnc) avisoWhatsappRnc.value = cliente.rnc_ced || "";
+    if (avisoWhatsappBalance) avisoWhatsappBalance.value = formatMoney(totales.saldo || 0);
+    if (avisoWhatsappTelefono) avisoWhatsappTelefono.value = cliente.telefono || "";
+    if (avisoWhatsappMensaje) avisoWhatsappMensaje.value = buildAvisoWhatsappMessage(avisoData);
+
+    updateAvisoWhatsappUi();
+    avisoWhatsappModal.classList.add("open");
+    avisoWhatsappModal.setAttribute("aria-hidden", "false");
+    avisoWhatsappTelefono?.focus();
+    avisoWhatsappTelefono?.select();
+  }
+
+  function closeAvisoWhatsappModal() {
+    avisoWhatsappModal.classList.remove("open");
+    avisoWhatsappModal.setAttribute("aria-hidden", "true");
   }
 
   function updateCartaScale() {
@@ -842,10 +1133,10 @@
           <div class="carta-intro">
             <p>Señor(a):</p>
             <p><strong>${escapeHtml(cliente.nombre || "")}</strong><br/>
-            Céd./Rnc./Pasap.: <strong>${escapeHtml(cliente.rnc_ced || "")}</strong><br/>
-            Dirección: ${escapeHtml(cliente.direccion || "")}<br/>
-            Ciudad: ${escapeHtml((avisoCiudad && avisoCiudad.value) || "")}<br/>
-            Teléfono: ${escapeHtml(cliente.telefono || "")}</p>
+            Cédula/Pasaporte: <strong>${escapeHtml(cliente.rnc_ced || "")}</strong><br/>
+            Dirección: <strong>${escapeHtml(cliente.direccion || "")}</strong><br/>
+            Ciudad: <strong>${escapeHtml((avisoCiudad && avisoCiudad.value) || "")}</strong><br/>
+            Teléfono: <strong>${escapeHtml(cliente.telefono || "")}</strong></p>
 
             ${renderAvisoBody(data, facturas)}
           </div>
@@ -882,6 +1173,249 @@
     `;
 
     updateCartaScale();
+  }
+
+  function buildAvisoDocumentFileName() {
+    const cliente = (avisoData && avisoData.cliente) || {};
+    const fecha = String(avisoData?.fecha || "").replaceAll("/", "-") || "sin-fecha";
+    return `carta_aviso_${sanitizeFilePart(cliente.id_sn || "cliente")}_${sanitizeFilePart(cliente.nombre || "cliente")}_${fecha}.doc`;
+  }
+
+  function buildAvisoDocumentHtml() {
+    const cartaDoc = avisoPreview?.querySelector(".carta-doc");
+    if (!cartaDoc) return "";
+
+    const clonedCarta = cartaDoc.cloneNode(true);
+    clonedCarta.style.transform = "none";
+    clonedCarta.style.transformOrigin = "top left";
+    clonedCarta.style.width = "210mm";
+    clonedCarta.style.minHeight = "280mm";
+    clonedCarta.style.boxShadow = "none";
+    clonedCarta.style.borderRadius = "0";
+
+    const inlineStyles = Array.from(document.querySelectorAll("style"))
+      .map((styleEl) => styleEl.textContent || "")
+      .join("\n");
+
+    const documentStyles = `
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+      }
+      body {
+        padding: 0;
+        color: #111111;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .carta-doc {
+        transform: none !important;
+        transform-origin: top left !important;
+        width: 210mm !important;
+        max-width: 100% !important;
+        min-height: 280mm !important;
+        margin: 0 auto !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+      }
+      .carta-body {
+        flex: 1 1 auto !important;
+      }
+      .carta-sign {
+        margin-top: 12mm !important;
+        padding: 0 0 6mm 0 !important;
+      }
+      .firma-img {
+        max-width: 200px !important;
+        max-height: 90px !important;
+      }
+      .sello-img {
+        max-width: 220px !important;
+        max-height: 120px !important;
+        margin-bottom: 5px !important;
+      }
+      .carta-preview-container,
+      .carta-preview-body,
+      .page-container,
+      .content,
+      .main,
+      .app-shell {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+      }
+      @page {
+        size: A4;
+        margin: 8mm 10mm 9mm;
+      }
+    `;
+
+    return `
+      <!DOCTYPE html>
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>${escapeHtml(buildAvisoDocumentFileName().replace(/\.doc$/i, ""))}</title>
+        <style>${inlineStyles}</style>
+        <style>${documentStyles}</style>
+      </head>
+      <body>${clonedCarta.outerHTML}</body>
+      </html>
+    `;
+  }
+
+  function buildAvisoDocumentAsset() {
+    const html = buildAvisoDocumentHtml();
+    if (!html) return null;
+
+    const filename = buildAvisoDocumentFileName();
+    const blob = new Blob(["\ufeff", html], { type: "application/msword" });
+    const file = typeof File === "function"
+      ? new File([blob], filename, { type: "application/msword" })
+      : null;
+
+    return { filename, blob, file };
+  }
+
+  function downloadAvisoDocument(options = {}) {
+    const asset = buildAvisoDocumentAsset();
+    if (!asset) {
+      window.alert("Genera la carta antes de descargar el documento.");
+      return false;
+    }
+
+    const blobUrl = URL.createObjectURL(asset.blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = asset.filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+
+    if (!options.silent) {
+      setAvisoWhatsappNote("El documento se descargo correctamente.");
+    }
+    return true;
+  }
+
+  async function shareAvisoDocument() {
+    const asset = buildAvisoDocumentAsset();
+    if (!asset) {
+      window.alert("Genera la carta antes de compartir el documento.");
+      return;
+    }
+
+    if (!canUseNativeFileShare() || !asset.file) {
+      downloadAvisoDocument();
+      return;
+    }
+
+    try {
+      const payload = {
+        title: "Carta de aviso",
+        text: (avisoWhatsappMensaje?.value || buildAvisoWhatsappMessage(avisoData)).trim(),
+        files: [asset.file],
+      };
+      if (navigator.canShare && !navigator.canShare({ files: payload.files })) {
+        throw new Error("files-not-supported");
+      }
+      await navigator.share(payload);
+      setAvisoWhatsappNote("Documento listo para compartir desde el selector del dispositivo.");
+    } catch (error) {
+      if (error && error.name === "AbortError") {
+        return;
+      }
+      downloadAvisoDocument({ silent: true });
+      setAvisoWhatsappNote("No se pudo compartir el archivo directo. El documento se descargo para enviarlo manualmente.");
+    }
+  }
+
+  async function sendAvisoByApi() {
+    if (!avisoWhatsappApiEnabled) {
+      setAvisoWhatsappNote(getAvisoWhatsappDefaultNote());
+      return;
+    }
+    if (!avisoData || !avisoData.cliente) {
+      window.alert("Selecciona un cliente antes de enviar por WhatsApp.");
+      return;
+    }
+
+    const telefonoRaw = (avisoWhatsappTelefono?.value || "").trim();
+    const telefono = normalizeWhatsappPhone(telefonoRaw);
+    if (telefono.length < 8) {
+      window.alert("Indica un telefono valido para WhatsApp. Si hace falta, agregale el codigo de pais.");
+      avisoWhatsappTelefono?.focus();
+      return;
+    }
+
+    const payload = {
+      id_sn: (avisoClienteId?.value || "").trim(),
+      telefono,
+      ciudad: (avisoCiudad?.value || "").trim(),
+      plantilla_id: (avisoPlantilla?.value || "").trim(),
+      mensaje: (avisoWhatsappMensaje?.value || buildAvisoWhatsappMessage(avisoData)).trim(),
+    };
+
+    setAvisoWhatsappBusy(true, "Enviando carta por WhatsApp...");
+    try {
+      const res = await fetch(avisoWhatsappSendUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken"),
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = data.detail || `No se pudo enviar la carta. (${res.status})`;
+        setAvisoWhatsappNote(detail);
+        return;
+      }
+      const messageId = data.document_message_id || data.text_message_id || "";
+      setAvisoWhatsappNote(
+        messageId
+          ? `Carta enviada por WhatsApp. ID: ${messageId}`
+          : (data.detail || "Carta enviada por WhatsApp correctamente.")
+      );
+    } catch (error) {
+      setAvisoWhatsappNote("Error de conexion al enviar por WhatsApp.");
+    } finally {
+      setAvisoWhatsappBusy(false);
+    }
+  }
+
+  function openAvisoWhatsappChat() {
+    if (!avisoData || !avisoData.cliente) {
+      window.alert("Selecciona un cliente antes de compartir por WhatsApp.");
+      return;
+    }
+
+    const telefonoRaw = (avisoWhatsappTelefono?.value || "").trim();
+    const telefono = normalizeWhatsappPhone(telefonoRaw);
+    if (telefono.length < 8) {
+      window.alert("Indica un telefono valido para WhatsApp. Si hace falta, agregale el codigo de pais.");
+      avisoWhatsappTelefono?.focus();
+      return;
+    }
+
+    const mensaje = (avisoWhatsappMensaje?.value || buildAvisoWhatsappMessage(avisoData)).trim();
+    downloadAvisoDocument({ silent: true });
+    const waUrl = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+    const popup = window.open(waUrl, "_blank", "noopener");
+    if (!popup) {
+      window.location.href = waUrl;
+      return;
+    }
+    setAvisoWhatsappNote("Se abrio WhatsApp y el documento se descargo para adjuntarlo al chat.");
   }
 
   function renderAvisoResults(rows) {
@@ -1002,10 +1536,28 @@
         width: auto !important;
         max-width: 100% !important;
         height: auto !important;
-        min-height: 0 !important;
+        min-height: 280mm !important;
         margin: 0 !important;
         box-shadow: none !important;
         border-radius: 0 !important;
+        display: grid !important;
+        grid-template-rows: minmax(0, 1fr) auto !important;
+      }
+      .carta-body {
+        flex: 1 1 auto !important;
+      }
+      .carta-sign {
+        margin-top: 12mm !important;
+        padding: 0 0 6mm 0 !important;
+      }
+      .firma-img {
+        max-width: 200px !important;
+        max-height: 90px !important;
+      }
+      .sello-img {
+        max-width: 220px !important;
+        max-height: 120px !important;
+        margin-bottom: 5px !important;
       }
       .carta-body,
       .carta-preview-container,
@@ -1021,7 +1573,7 @@
       }
       @page {
         size: auto;
-        margin: 12mm;
+        margin: 8mm 10mm 9mm;
       }
       @media print {
         html, body {
@@ -1089,9 +1641,14 @@
   }
 
   btnAvisoBuscarCliente?.addEventListener("click", openAvisoModal);
+  btnAvisoWhatsapp?.addEventListener("click", openAvisoWhatsappModal);
   btnCloseAvisoModal?.addEventListener("click", closeAvisoModal);
+  btnCloseAvisoWhatsappModal?.addEventListener("click", closeAvisoWhatsappModal);
   avisoModal?.addEventListener("click", (event) => {
     if (event.target === avisoModal) closeAvisoModal();
+  });
+  avisoWhatsappModal?.addEventListener("click", (event) => {
+    if (event.target === avisoWhatsappModal) closeAvisoWhatsappModal();
   });
   btnAvisoSearch?.addEventListener("click", buscarAvisoClientes);
   avisoSearchInput?.addEventListener("keydown", (event) => {
@@ -1103,6 +1660,18 @@
       closeAvisoModal();
     }
   });
+  avisoWhatsappTelefono?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      openAvisoWhatsappChat();
+    }
+    if (event.key === "Escape") {
+      closeAvisoWhatsappModal();
+    }
+  });
+  btnAvisoWhatsappEnviar?.addEventListener("click", sendAvisoByApi);
+  btnAvisoWhatsappDocumento?.addEventListener("click", shareAvisoDocument);
+  btnAvisoWhatsappAbrir?.addEventListener("click", openAvisoWhatsappChat);
   avisoCiudad?.addEventListener("input", () => {
     if (avisoData) renderAvisoPreview(avisoData);
   });
@@ -1120,6 +1689,7 @@
   window.addEventListener("resize", updateCartaScale);
   document.addEventListener("DOMContentLoaded", () => {
     updateCartaScale();
+    updateAvisoWhatsappUi();
     const mainMenu = document.querySelector(".main-menu");
     if (mainMenu) mainMenu.style.display = "none";
   });

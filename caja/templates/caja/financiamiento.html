@@ -1,0 +1,1227 @@
+{% extends "core/base.html" %}
+{% load static %}
+
+{% block head_extra %}
+<style>
+  :root {
+    --fin-active-blue-top: #1f7aed;
+    --fin-active-blue-bottom: #125ec3;
+    --fin-active-blue-border: #1a66ce;
+    --fin-active-blue-shadow: rgba(18, 94, 195, 0.2);
+    --fin-active-blue-shadow-hover: rgba(18, 94, 195, 0.26);
+  }
+
+  .financ-page {
+    max-width: 1480px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .financ-body-card {
+    background: linear-gradient(180deg, #ffffff, #f7fbff);
+    border: 1px solid #cddcf1;
+    border-radius: 18px;
+    box-shadow: 0 18px 34px rgba(20, 55, 110, 0.08);
+  }
+
+  .financ-header-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.82fr) 220px;
+    gap: 12px;
+    align-items: start;
+    padding: 8px 10px;
+    border: 1px solid #d5e0f2;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.8);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  }
+
+  .financ-top-col {
+    display: grid;
+    grid-template-columns: 94px minmax(0, 1fr);
+    gap: 6px 10px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .financ-quick-card {
+    align-self: stretch;
+    padding: 4px 6px;
+    display: grid;
+    gap: 3px;
+    align-content: start;
+    min-width: 0;
+  }
+
+  .financ-quick-card h3 {
+    margin: 0 0 1px;
+    font-size: 12px;
+    color: #0f3f78;
+  }
+
+  .financ-quick-button {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: 24px;
+    min-height: 24px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #1a66ce;
+    background: linear-gradient(180deg, #1f7aed, #125ec3);
+    color: #ffffff;
+    box-shadow: 0 6px 12px rgba(18, 94, 195, 0.18);
+    cursor: pointer;
+    text-align: left;
+    font-size: 11.5px;
+  }
+
+  .financ-quick-button strong {
+    font-size: inherit;
+    font-weight: 700;
+  }
+
+  .financ-quick-button span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    font-size: 12px;
+    color: #ffffff;
+  }
+
+  .financ-quick-button:hover {
+    filter: brightness(1.03);
+  }
+
+  .financ-mini-field,
+  .financ-side-field,
+  .financ-client-field,
+  .financ-summary-field,
+  .financ-footer-field {
+    display: grid;
+    gap: 4px;
+  }
+
+  .financ-mini-field label,
+  .financ-side-field label,
+  .financ-client-field label,
+  .financ-top-col label,
+  .financ-summary-field label,
+  .financ-footer-field label {
+    font-size: 11.5px;
+    line-height: 1;
+    color: #5b6f8c;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .financ-input,
+  .financ-select,
+  .financ-textarea {
+    width: 100%;
+    height: 30px;
+    border-radius: 10px;
+    border: 1px solid #d5e0f2;
+    background: #f8fbff;
+    color: #1a2942;
+    padding: 4px 10px;
+    font-size: 12.5px;
+  }
+
+  .financ-input[readonly],
+  .financ-input:disabled,
+  .financ-select:disabled,
+  .financ-textarea[readonly] {
+    color: #2b405f;
+    background: #eef4ff;
+  }
+
+  .financ-textarea {
+    height: 120px;
+    resize: none;
+  }
+
+  .financ-input.is-number,
+  .financ-summary-field .financ-input,
+  .financ-footer-field .financ-input {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .financ-doc-trigger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24px;
+    gap: 6px;
+  }
+
+  .financ-header-grid .financ-input {
+    height: 24px;
+    padding: 2px 6px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+
+  .financ-doc-trigger button {
+    border: 1px solid #1b6fde;
+    border-radius: 8px;
+    background: linear-gradient(180deg, #eff6ff, #daeafc);
+    color: #17406e;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    height: 24px;
+    padding: 0;
+  }
+
+  .financ-body-card {
+    padding: 10px 12px 12px;
+  }
+
+  .financ-summary-grid .financ-input,
+  .financ-summary-grid .financ-select,
+  .financ-footer-grid .financ-input,
+  .financ-footer-grid .financ-select {
+    height: 24px;
+    padding: 2px 6px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+
+  .financ-tabs-head {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #d3dff1;
+    padding-bottom: 2px;
+  }
+
+  .financ-tab {
+    border: 1px solid #d2deef;
+    border-bottom: 0;
+    border-radius: 14px 14px 0 0;
+    padding: 8px 14px 7px;
+    background: #f3f8fe;
+    color: #305178;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .financ-tab.active {
+    background: #ffffff;
+    color: #0d3f8e;
+  }
+
+  .financ-tab-panel {
+    display: none;
+  }
+
+  .financ-tab-panel.active {
+    display: block;
+  }
+
+  .financ-summary-grid {
+    display: grid;
+    grid-template-columns: 140px 110px 120px 1fr 140px;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .financ-inline-combo {
+    display: grid;
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 8px;
+    align-items: end;
+  }
+
+  .financ-inline-combo .financ-summary-field:first-child {
+    min-width: 84px;
+  }
+
+  .financ-grid-shell {
+    border: 1px solid #cfdbeb;
+    border-radius: 16px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .financ-grid-scroll {
+    max-height: 360px;
+    overflow: auto;
+  }
+
+  .financ-grid-shell table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 980px;
+  }
+
+  .financ-grid-shell th,
+  .financ-grid-shell td {
+    padding: 3px 8px;
+    border-bottom: 1px solid #e4ecf8;
+    font-size: 12.5px;
+    line-height: 1.15;
+  }
+
+  .financ-grid-shell th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef5ff;
+    color: #21446f;
+    text-align: left;
+    font-weight: 800;
+  }
+
+  .financ-grid-shell td.is-num,
+  .financ-grid-shell th.is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .financ-grid-shell tbody tr:hover {
+    background: #f8fbff;
+  }
+
+  .financ-grid-date {
+    width: 100%;
+    height: 24px;
+    min-height: 24px;
+    border: 1px solid #d5e0f2;
+    border-radius: 8px;
+    background: #f8fbff;
+    color: #1a2942;
+    font-size: 12px;
+    padding: 1px 6px;
+  }
+
+  .financ-empty-row td {
+    text-align: center;
+    color: #667a96;
+    padding: 32px 12px;
+  }
+
+  .financ-footer-grid {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 156px 156px 156px;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .financ-history-grid {
+    border: 1px solid #cfdbeb;
+    border-radius: 16px;
+    background: #fff;
+    overflow: auto;
+  }
+
+  .financ-history-grid table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .financ-history-grid th,
+  .financ-history-grid td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5edf7;
+    font-size: 13px;
+  }
+
+  .financ-history-grid th {
+    background: #eef5ff;
+    text-align: left;
+    color: #21446f;
+  }
+
+  .financ-finanzas-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    align-content: start;
+  }
+
+  .financ-kpi {
+    border: 1px solid #d2def0;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #ffffff, #f4f9ff);
+    padding: 12px;
+    display: grid;
+    gap: 6px;
+  }
+
+  .financ-kpi span {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #4c6585;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+  }
+
+  .financ-kpi strong {
+    font-size: 22px;
+    color: #0d3f8e;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .financ-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-start;
+    margin-top: 12px;
+    width: 100%;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 21, 46, 0.26);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 18px;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .win-modal {
+    width: min(920px, 96vw);
+    max-height: min(84vh, 760px);
+    border: 1px solid #c4d4ec;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #f8fbff, #eef4ff);
+    box-shadow: 0 24px 48px rgba(10, 45, 110, 0.18);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #fin_search_backdrop .win-modal,
+  #fin_factura_backdrop .win-modal {
+    width: min(860px, 94vw);
+  }
+
+  .win-titlebar {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    background: linear-gradient(90deg, #0f3f78, #1f7aed);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .win-titlebar button {
+    width: 28px;
+    height: 22px;
+    min-width: 28px;
+    padding: 0;
+    border-radius: 8px;
+    line-height: 1;
+    font-size: 13px;
+  }
+
+  .win-body {
+    padding: 10px;
+    min-height: 0;
+  }
+
+  .financ-action {
+    min-width: 0;
+    flex: 1 1 104px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 14px;
+    border: 1px solid var(--fin-active-blue-border);
+    background: linear-gradient(180deg, var(--fin-active-blue-top), var(--fin-active-blue-bottom));
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    box-shadow: 0 8px 16px var(--fin-active-blue-shadow);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .financ-action:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 11px 20px var(--fin-active-blue-shadow-hover);
+    filter: brightness(1.03);
+  }
+
+  .financ-action:disabled {
+    background: linear-gradient(180deg, #d8e2f1, #c8d5e8);
+    border-color: #bfd0e8;
+    color: #6f8199;
+    box-shadow: none;
+    opacity: 1;
+    cursor: not-allowed;
+    transform: none;
+    filter: none;
+  }
+
+  #btn_fin_nuevo,
+  #btn_fin_buscar,
+  #btn_fin_cancel,
+  #btn_fin_grabar {
+    background: linear-gradient(180deg, var(--fin-active-blue-top), var(--fin-active-blue-bottom));
+    color: #ffffff;
+    border-color: var(--fin-active-blue-border);
+  }
+
+  #fin_panel.fin-state-idle #btn_fin_nuevo,
+  #fin_panel.fin-state-idle #btn_fin_buscar,
+  #fin_panel.fin-state-editing #btn_fin_cancel,
+  #fin_panel.fin-state-editing #btn_fin_grabar {
+    background: linear-gradient(180deg, var(--fin-active-blue-top), var(--fin-active-blue-bottom));
+    color: #ffffff;
+    border-color: var(--fin-active-blue-border);
+    box-shadow: 0 8px 16px var(--fin-active-blue-shadow);
+  }
+
+  #fin_panel.fin-state-idle #btn_fin_cancel,
+  #fin_panel.fin-state-idle #btn_fin_grabar,
+  #fin_panel.fin-state-idle #btn_fin_print,
+  #fin_panel.fin-state-editing #btn_fin_nuevo,
+  #fin_panel.fin-state-editing #btn_fin_buscar,
+  #fin_panel.fin-state-editing #btn_fin_print {
+    background: linear-gradient(180deg, #d8e2f1, #c8d5e8);
+    border-color: #bfd0e8;
+    color: #6f8199;
+    box-shadow: none;
+    filter: none;
+  }
+
+  #fin_panel.fin-state-idle #btn_fin_cancel:hover,
+  #fin_panel.fin-state-idle #btn_fin_grabar:hover,
+  #fin_panel.fin-state-idle #btn_fin_print:hover,
+  #fin_panel.fin-state-editing #btn_fin_nuevo:hover,
+  #fin_panel.fin-state-editing #btn_fin_buscar:hover,
+  #fin_panel.fin-state-editing #btn_fin_print:hover {
+    transform: none;
+    box-shadow: none;
+    filter: none;
+  }
+
+  #fin_panel.fin-state-viewing #btn_fin_nuevo,
+  #fin_panel.fin-state-viewing #btn_fin_buscar,
+  #fin_panel.fin-state-viewing #btn_fin_cancel,
+  #fin_panel.fin-state-viewing #btn_fin_print {
+    background: linear-gradient(180deg, var(--fin-active-blue-top), var(--fin-active-blue-bottom));
+    color: #ffffff;
+    border-color: var(--fin-active-blue-border);
+    box-shadow: 0 8px 16px var(--fin-active-blue-shadow);
+  }
+
+  #fin_panel.fin-state-viewing #btn_fin_grabar {
+    background: linear-gradient(180deg, #d8e2f1, #c8d5e8);
+    border-color: #bfd0e8;
+    color: #6f8199;
+    box-shadow: none;
+    filter: none;
+  }
+
+  #btn_fin_cerrar {
+    background: #f4f7fc;
+    color: #8ea0bb;
+    border-color: #d8e3f2;
+  }
+
+  .financ-search-grid table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  #fin_search_backdrop .win-body,
+  #fin_factura_backdrop .win-body {
+    display: grid;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  #fin_search_backdrop .search-row,
+  #fin_factura_backdrop .search-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 148px 96px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  #fin_search_backdrop .search-row label,
+  #fin_factura_backdrop .search-row label {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #5b6f8c;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  #fin_search_backdrop .search-row input,
+  #fin_search_backdrop .search-row select,
+  #fin_search_backdrop .search-row button,
+  #fin_factura_backdrop .search-row input,
+  #fin_factura_backdrop .search-row select,
+  #fin_factura_backdrop .search-row button {
+    height: 28px;
+    min-height: 28px;
+    border-radius: 9px;
+    border: 1px solid #d5e0f2;
+    font-size: 12.5px;
+  }
+
+  #fin_search_backdrop .search-row input,
+  #fin_search_backdrop .search-row select,
+  #fin_factura_backdrop .search-row input,
+  #fin_factura_backdrop .search-row select {
+    width: 100%;
+    padding: 2px 8px;
+    background: #f8fbff;
+    color: #1a2942;
+  }
+
+  #fin_search_backdrop .search-row select,
+  #fin_factura_backdrop .search-row select {
+    appearance: auto;
+  }
+
+  #fin_search_backdrop .search-row button,
+  #fin_factura_backdrop .search-row button {
+    padding: 0 10px;
+    background: linear-gradient(180deg, #1f7aed, #125ec3);
+    border-color: #1a66ce;
+    color: #ffffff;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 16px rgba(18, 94, 195, 0.18);
+  }
+
+  #fin_search_backdrop .search-row button:hover,
+  #fin_factura_backdrop .search-row button:hover {
+    filter: brightness(1.03);
+  }
+
+  .financ-search-grid {
+    border: 1px solid #d2dff2;
+    border-radius: 14px;
+    background: #f8fbff;
+    min-height: 260px;
+    max-height: min(52vh, 420px);
+    overflow: auto;
+  }
+
+  .financ-search-grid th,
+  .financ-search-grid td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5edf7;
+    font-size: 13px;
+  }
+
+  .financ-search-grid th {
+    background: #eef5ff;
+    text-align: left;
+  }
+
+  .financ-search-grid tbody tr {
+    cursor: pointer;
+  }
+
+  .financ-search-grid tbody tr:hover {
+    background: #f7fbff;
+  }
+
+  .app-alert-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 27, 55, 0.38);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1300;
+    padding: 20px;
+  }
+
+  .app-alert-backdrop.open {
+    display: flex;
+  }
+
+  .app-alert-modal {
+    width: min(440px, 100%);
+    border-radius: 18px;
+    border: 1px solid #cfdbeb;
+    background: #fff;
+    box-shadow: 0 24px 44px rgba(17, 38, 74, 0.24);
+    overflow: hidden;
+  }
+
+  .app-alert-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 12px 14px;
+    background: #edf5ff;
+    color: #133d78;
+    font-weight: 800;
+  }
+
+  .app-alert-close,
+  .app-alert-ok {
+    border: 0;
+    cursor: pointer;
+  }
+
+  .app-alert-close {
+    width: 30px;
+    height: 30px;
+    border-radius: 999px;
+    background: #fff;
+    color: #1a4374;
+    font-weight: 800;
+  }
+
+  .app-alert-body {
+    padding: 18px 16px 8px;
+    color: #264162;
+    white-space: pre-wrap;
+    line-height: 1.45;
+  }
+
+  .app-alert-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 16px 16px;
+  }
+
+  .app-alert-ok {
+    min-width: 100px;
+    height: 38px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #1e7cf0, #0f60d1);
+    color: #fff;
+    font-weight: 800;
+  }
+
+  .financ-print-modal {
+    width: min(560px, 94vw);
+  }
+
+  .financ-print-body {
+    display: grid;
+    gap: 12px;
+  }
+
+  .financ-print-copy {
+    margin: 0;
+    color: #4d6385;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+
+  .financ-print-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(220px, 0.95fr);
+    gap: 12px;
+    align-items: start;
+  }
+
+  .financ-print-editor,
+  .financ-print-meta {
+    border: 1px solid #d4e0f3;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.88);
+    padding: 12px;
+  }
+
+  .financ-print-editor label,
+  .financ-print-meta h4 {
+    font-size: 11px;
+    font-weight: 700;
+    color: #526987;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .financ-print-editor input {
+    width: 100%;
+    height: 38px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    border: 1px solid #c7d7ee;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #16304d;
+    text-align: center;
+    font-size: 19px;
+    font-weight: 800;
+  }
+
+  .financ-print-editor small {
+    display: block;
+    margin-top: 8px;
+    color: #6a7f9d;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .financ-print-meta h4 {
+    margin: 0 0 10px;
+  }
+
+  .financ-print-meta ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+
+  .financ-print-meta li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: baseline;
+    color: #45607f;
+    font-size: 12.5px;
+  }
+
+  .financ-print-meta strong {
+    color: #11335f;
+    font-size: 13px;
+  }
+
+  .financ-print-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+
+  #fin_panel.fin-state-editing #btn_fin_print:not(:disabled) {
+    background: linear-gradient(180deg, var(--fin-active-blue-top), var(--fin-active-blue-bottom));
+    color: #ffffff;
+    border-color: var(--fin-active-blue-border);
+    box-shadow: 0 8px 16px var(--fin-active-blue-shadow);
+  }
+
+  #fin_panel.fin-state-editing #btn_fin_print:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 11px 20px var(--fin-active-blue-shadow-hover);
+    filter: brightness(1.03);
+  }
+
+  @media (min-width: 901px) {
+    .financ-page {
+      height: 100%;
+      min-height: 0;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .financ-body-card {
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      overflow: hidden;
+    }
+
+    .financ-body-card .financ-tab-panel.active {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    #fin_tab_detalle .financ-grid-shell,
+    #fin_tab_historial .financ-history-grid {
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    #fin_tab_detalle .financ-grid-scroll {
+      height: 100%;
+      max-height: none;
+    }
+
+    #fin_tab_comentario .financ-textarea {
+      flex: 1 1 auto;
+      min-height: 0;
+      height: auto;
+      overflow: auto;
+    }
+
+    .financ-actions {
+      align-self: end;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    .financ-header-grid,
+    .financ-summary-grid,
+    .financ-footer-grid,
+    .financ-finanzas-grid,
+    .financ-print-layout {
+      grid-template-columns: 1fr;
+    }
+
+    #fin_search_backdrop .search-row,
+    #fin_factura_backdrop .search-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="fin_panel" class="financ-page fin-state-idle">
+  <div class="financ-header-grid">
+    <div class="financ-top-col">
+      <label for="fin_no_factura">No. Fact.</label>
+      <div class="financ-doc-trigger">
+        <input id="fin_no_factura" class="financ-input" type="text" readonly />
+        <button id="btn_fin_open_search_top" type="button" aria-label="Buscar financiamiento">...</button>
+      </div>
+
+      <label for="fin_codigo">Codigo</label>
+      <input id="fin_codigo" class="financ-input" type="text" readonly />
+
+      <label for="fin_nombre">Nombre</label>
+      <input id="fin_nombre" class="financ-input" type="text" readonly />
+
+      <label for="fin_cedula">Cedula</label>
+      <input id="fin_cedula" class="financ-input" type="text" readonly />
+    </div>
+
+    <div class="financ-top-col">
+      <label for="fin_no">No.</label>
+      <input id="fin_no" class="financ-input" type="text" readonly />
+
+      <label for="fin_estado">Estado</label>
+      <input id="fin_estado" class="financ-input" type="text" readonly />
+
+      <label for="fin_fecha">Fecha</label>
+      <input id="fin_fecha" class="financ-input" type="date" readonly />
+
+      <label for="fin_tipo">Tipo</label>
+      <input id="fin_tipo" class="financ-input" type="text" readonly />
+    </div>
+
+    <aside class="card financ-quick-card">
+      <h3>Acceso directo</h3>
+      <button id="btn_fin_shortcut_cxc" type="button" class="financ-quick-button">
+        <strong>Cuentas por cobrar</strong>
+        <span>CC</span>
+      </button>
+      <button id="btn_fin_shortcut_factura" type="button" class="financ-quick-button">
+        <strong>Factura</strong>
+        <span>FA</span>
+      </button>
+      <button id="btn_fin_shortcut_prefactura" type="button" class="financ-quick-button">
+        <strong>Prefactura</strong>
+        <span>PF</span>
+      </button>
+    </aside>
+  </div>
+
+  <div class="financ-body-card">
+    <div class="financ-tabs-head">
+      <button type="button" class="financ-tab active" data-target="fin_tab_detalle">Detalle</button>
+      <button type="button" class="financ-tab" data-target="fin_tab_comentario">Comentario</button>
+      <button type="button" class="financ-tab" data-target="fin_tab_historial">Historial</button>
+      <button type="button" class="financ-tab" data-target="fin_tab_finanzas">Finanzas</button>
+    </div>
+
+    <section id="fin_tab_detalle" class="financ-tab-panel active">
+      <div class="financ-summary-grid">
+        <div class="financ-summary-field">
+          <label>Monto</label>
+          <input id="fin_monto" class="financ-input is-number" type="text" readonly />
+        </div>
+        <div class="financ-summary-field">
+          <label>% Interes</label>
+          <input id="fin_porc_interes" class="financ-input is-number" type="number" min="0" max="100" step="0.01" value="0" disabled />
+        </div>
+        <div class="financ-summary-field">
+          <label>Plazo</label>
+          <input id="fin_plazo" class="financ-input is-number" type="number" min="1" max="36" step="1" value="1" disabled />
+        </div>
+        <div class="financ-inline-combo">
+          <div class="financ-summary-field">
+            <label>Metodo</label>
+            <select id="fin_metodo" class="financ-select" disabled>
+              <option value="Lineal" selected>Lineal</option>
+              <option value="Insoluto">Insoluto</option>
+            </select>
+          </div>
+          <div class="financ-summary-field">
+            <label>Tipo</label>
+            <select id="fin_tipo_cuota" class="financ-select" disabled>
+              <option value="Mensual" selected>Mensual</option>
+              <option value="Quincenal">Quincenal</option>
+              <option value="Semanal">Semanal</option>
+              <option value="Diario">Diario</option>
+              <option value="Acuerdo">Acuerdo</option>
+            </select>
+          </div>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="financ-grid-shell">
+        <div class="financ-grid-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>No. Cuota</th>
+                <th>Fecha Venc.</th>
+                <th class="is-num">Monto Interes</th>
+                <th class="is-num">Capital</th>
+                <th class="is-num">Balance</th>
+                <th class="is-num">Cuota</th>
+                <th class="is-num">Pagado</th>
+                <th class="is-num">Pendiente</th>
+              </tr>
+            </thead>
+            <tbody id="fin_detalle_body">
+              <tr class="financ-empty-row"><td colspan="8">Pulsa Buscar para consultar un financiamiento.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="financ-footer-grid">
+        <div></div>
+        <div class="financ-footer-field">
+          <label>Fecha base</label>
+          <input id="fin_fecha_base" class="financ-input" type="date" disabled />
+        </div>
+        <div class="financ-footer-field">
+          <label>Total pagado</label>
+          <input id="fin_total_pagado" class="financ-input is-number" type="text" readonly />
+        </div>
+        <div class="financ-footer-field">
+          <label>Valor cuota</label>
+          <input id="fin_valor_cuota" class="financ-input is-number" type="text" readonly />
+        </div>
+      </div>
+    </section>
+
+    <section id="fin_tab_comentario" class="financ-tab-panel">
+      <textarea id="fin_comentario" class="financ-textarea" readonly></textarea>
+    </section>
+
+    <section id="fin_tab_historial" class="financ-tab-panel">
+      <div class="financ-history-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>No. Cuota</th>
+              <th>Fecha Venc.</th>
+              <th>No. Recibo</th>
+              <th class="is-num">Pagado</th>
+              <th class="is-num">Pendiente</th>
+            </tr>
+          </thead>
+          <tbody id="fin_historial_body">
+            <tr class="financ-empty-row"><td colspan="5">Sin historial cargado.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="fin_tab_finanzas" class="financ-tab-panel">
+      <div class="financ-finanzas-grid">
+        <div class="financ-kpi"><span>Capital Total</span><strong id="fin_capital_total">0.00</strong></div>
+        <div class="financ-kpi"><span>Interes Total</span><strong id="fin_interes_total">0.00</strong></div>
+        <div class="financ-kpi"><span>Cuota Total</span><strong id="fin_cuota_total">0.00</strong></div>
+        <div class="financ-kpi"><span>Pagado</span><strong id="fin_pagado_total">0.00</strong></div>
+        <div class="financ-kpi"><span>Pendiente</span><strong id="fin_pendiente_total">0.00</strong></div>
+      </div>
+    </section>
+
+    <div class="financ-actions">
+      <button id="btn_fin_nuevo" type="button" class="financ-action">Nuevo</button>
+      <button id="btn_fin_buscar" type="button" class="financ-action">Buscar</button>
+      <button id="btn_fin_cancel" type="button" class="financ-action is-danger">Cancel</button>
+      <button id="btn_fin_grabar" type="button" class="financ-action is-primary">Grabar</button>
+      <button id="btn_fin_print" type="button" class="financ-action">Printer</button>
+      <button id="btn_fin_cerrar" type="button" class="financ-action">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="fin_search_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="fin_search_title">
+    <div class="win-titlebar">
+      <span id="fin_search_title">Buscar financiamiento</span>
+      <button id="btn_close_fin_search" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="fin_search_q">Buscar</label>
+        <input id="fin_search_q" type="text" placeholder="Documento, codigo, nombre o cedula" />
+        <select id="fin_search_filtro">
+          <option value="nombre" selected>Nombre</option>
+          <option value="documento">Documento</option>
+          <option value="codigo">Codigo</option>
+          <option value="cedula">Cedula</option>
+        </select>
+        <button id="btn_fin_search_exec" type="button" class="btn-small">Buscar</button>
+      </div>
+      <div class="search-grid financ-search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>No. Fact.</th>
+              <th>No.</th>
+              <th>Codigo</th>
+              <th>Nombre</th>
+              <th>Fecha</th>
+              <th>Estado</th>
+              <th class="is-num">Monto</th>
+              <th class="is-num">Saldo</th>
+            </tr>
+          </thead>
+          <tbody id="fin_search_body">
+            <tr class="financ-empty-row"><td colspan="8">Pulsa Buscar para consultar financiamientos.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="fin_factura_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="fin_factura_title">
+    <div class="win-titlebar">
+      <span id="fin_factura_title">Seleccionar factura para financiamiento</span>
+      <button id="btn_close_fin_factura" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="fin_factura_q">Buscar</label>
+        <input id="fin_factura_q" type="text" placeholder="Documento, codigo, nombre o cedula" />
+        <select id="fin_factura_filtro">
+          <option value="nombre" selected>Nombre</option>
+          <option value="documento">Documento</option>
+          <option value="codigo">Codigo</option>
+          <option value="cedula">Cedula</option>
+        </select>
+        <button id="btn_fin_factura_exec" type="button">Buscar</button>
+      </div>
+      <div class="search-grid financ-search-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>No. Fact.</th>
+              <th>Codigo</th>
+              <th>Nombre</th>
+              <th>Cedula</th>
+              <th>Fecha</th>
+              <th>Estado</th>
+              <th class="is-num">Total</th>
+              <th class="is-num">Saldo</th>
+            </tr>
+          </thead>
+          <tbody id="fin_factura_body">
+            <tr class="financ-empty-row"><td colspan="8">Pulsa Buscar para consultar facturas disponibles.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="fin_print_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal financ-print-modal" role="dialog" aria-modal="true" aria-labelledby="fin_print_title">
+    <div class="win-titlebar">
+      <span id="fin_print_title">Configuracion de impresion</span>
+      <button id="btn_close_fin_print" type="button">X</button>
+    </div>
+    <div class="win-body financ-print-body">
+      <p class="financ-print-copy">
+        Revisa la cantidad de hojas antes de continuar. El financiamiento se imprimira en hojas A4 separadas.
+      </p>
+      <div class="financ-print-layout">
+        <div class="financ-print-editor">
+          <label for="fin_print_copies">Cantidad de hojas A4</label>
+          <input id="fin_print_copies" type="number" min="1" max="20" step="1" value="2" inputmode="numeric" />
+          <small>Puedes ajustar la cantidad antes de enviar el documento a impresion.</small>
+        </div>
+        <div class="financ-print-meta">
+          <h4>Resumen</h4>
+          <ul>
+            <li><span>Financiamiento</span><strong id="fin_print_documento">-</strong></li>
+            <li><span>Total hojas</span><strong id="fin_print_total_hojas">2</strong></li>
+            <li><span>Total copias</span><strong id="fin_print_total_copias">2</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="financ-print-actions">
+        <button id="btn_fin_print_cancel" type="button" class="financ-action">Cancelar</button>
+        <button id="btn_fin_print_confirm" type="button" class="financ-action">Continuar e imprimir</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="fin_alert_backdrop" class="app-alert-backdrop" aria-hidden="true">
+  <div class="app-alert-modal" role="alertdialog" aria-modal="true" aria-labelledby="fin_alert_title" aria-describedby="fin_alert_message">
+    <div class="app-alert-head">
+      <span id="fin_alert_title">Mensaje del sistema</span>
+      <button id="btn_fin_alert_close" type="button" class="app-alert-close">X</button>
+    </div>
+    <div id="fin_alert_message" class="app-alert-body"></div>
+    <div class="app-alert-actions">
+      <button id="btn_fin_alert_ok" type="button" class="app-alert-ok">Aceptar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.financiamientoConfig = {
+    buscarUrl: "{% url 'caja:financiamiento_buscar' %}",
+    facturasDisponiblesUrl: "{% url 'caja:financiamiento_facturas_disponibles' %}",
+    detalleUrl: "{% url 'caja:financiamiento_detalle' %}",
+    guardarUrl: "{% url 'caja:financiamiento_guardar' %}",
+    indexUrl: "{% url 'caja:index' %}",
+    shortcutUrls: {
+      cuentas_por_cobrar: "{% url 'caja:cuentas_por_cobrar' %}",
+      factura: "{% url 'factura:facturacion' %}",
+      prefactura: "{% url 'prefacturas_mod:index' %}",
+    },
+    shortcutPermissions: {
+      cuentas_por_cobrar: {{ fin_shortcuts.cuentas_por_cobrar|yesno:"true,false" }},
+      factura: {{ fin_shortcuts.factura|yesno:"true,false" }},
+      prefactura: {{ fin_shortcuts.prefactura|yesno:"true,false" }},
+    },
+    empresa: {
+      nombre: "{{ empresa.nombre|default:''|escapejs }}",
+      direccion: "{{ empresa.direccion|default:''|escapejs }}",
+      tel1: "{{ empresa.tel1|default:''|escapejs }}",
+      tel2: "{{ empresa.tel2|default:''|escapejs }}",
+      email: "{{ empresa.email|default:''|escapejs }}",
+      rnc: "{{ empresa.rnc|default:''|escapejs }}",
+      logo_b64: "{{ empresa.logo_b64|default:''|escapejs }}",
+      logo_tipo: "{{ empresa.logo_tipo|default:''|escapejs }}",
+    },
+    serverToday: "{{ server_today_iso|default:''|escapejs }}",
+    csrfToken: "{{ csrf_token }}",
+    usuarioNombre: "{{ auth_payload.usuario_nombre|default:''|escapejs }}",
+    usuarioFirmaB64: "{{ usuario_firma_b64|default:''|escapejs }}",
+  };
+</script>
+<script src="{% static 'caja/financiamiento.js' %}?v=20260327g"></script>
+{% endblock %}

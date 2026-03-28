@@ -30,6 +30,8 @@ class Command(BaseCommand):
         permisos_submodulos = {
             "inventario": [
                 ("ver_articulos", "Ver Articulos"),
+                ("ver_entrada_articulos", "Ver Entrada de Articulos"),
+                ("ver_salida_articulos", "Ver Salida de Articulos"),
                 ("ver_grupos", "Ver Grupos de Articulos"),
                 ("ver_stock", "Ver Stock"),
             ],
@@ -54,9 +56,9 @@ class Command(BaseCommand):
                 ("ver_plantillas", "Ver Plantillas"),
             ],
             "factura": [
-                ("ver_emision", "Ver Emision de Facturas"),
+                ("ver_emision", "Ver Emision Factura Electronica"),
                 ("ver_electronica", "Ver Facturacion Electronica"),
-                ("ver_documentos", "Ver Documentos de Factura"),
+                ("ver_documentos", "Ver Facturacion"),
             ],
             "caja": [
                 ("ver_cuentas_por_cobrar", "Ver Cuentas por Cobrar"),
@@ -81,17 +83,24 @@ class Command(BaseCommand):
                 defaults={"nombre": nombre},
             )
             for pcod, pnom in permisos_genericos:
-                SegPermiso.objects.get_or_create(
+                permiso, _ = SegPermiso.objects.get_or_create(
                     modulo=modulo,
                     codigo=pcod,
                     defaults={"nombre": f"{pnom} {nombre}"},
                 )
+                esperado = f"{pnom} {nombre}"
+                if permiso.nombre != esperado:
+                    permiso.nombre = esperado
+                    permiso.save(update_fields=["nombre"])
             for pcod, pnom in permisos_submodulos.get(codigo, []):
-                SegPermiso.objects.get_or_create(
+                permiso, _ = SegPermiso.objects.get_or_create(
                     modulo=modulo,
                     codigo=pcod,
                     defaults={"nombre": pnom},
                 )
+                if permiso.nombre != pnom:
+                    permiso.nombre = pnom
+                    permiso.save(update_fields=["nombre"])
 
         # Permisos específicos solicitados
         especificos = {
@@ -124,10 +133,13 @@ class Command(BaseCommand):
             except SegModulo.DoesNotExist:
                 continue
             for pcod, pnom in permisos:
-                SegPermiso.objects.get_or_create(
+                permiso, _ = SegPermiso.objects.get_or_create(
                     modulo=modulo,
                     codigo=pcod,
                     defaults={"nombre": pnom},
                 )
+                if permiso.nombre != pnom:
+                    permiso.nombre = pnom
+                    permiso.save(update_fields=["nombre"])
 
         self.stdout.write(self.style.SUCCESS("Seed de modulos y permisos base completado."))

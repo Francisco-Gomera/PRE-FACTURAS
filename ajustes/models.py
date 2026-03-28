@@ -112,6 +112,18 @@ class UsuarioFirma(models.Model):
         ordering = ["id_usuario"]
 
 
+class UsuarioCajaPreferencia(models.Model):
+    id_preferencia = models.AutoField(db_column="ID_PREFERENCIA", primary_key=True)
+    id_usuario = models.BigIntegerField(db_column="ID_USUARIO", unique=True)
+    metodo_pago_default = models.CharField(db_column="METODO_PAGO_DEFAULT", max_length=20, blank=True, null=True)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "CAJA_USUARIO_PREFERENCIA"
+        ordering = ["id_usuario"]
+
+
 class FacturacionElectronicaConfig(models.Model):
     id_config = models.AutoField(db_column="ID_CONFIG", primary_key=True)
     habilitado = models.BooleanField(db_column="HABILITADO", default=False)
@@ -129,6 +141,22 @@ class FacturacionElectronicaConfig(models.Model):
 
     class Meta:
         db_table = "DGII_ECF_CONFIG"
+
+
+class WhatsAppCloudConfig(models.Model):
+    id_config = models.AutoField(db_column="ID_CONFIG", primary_key=True)
+    habilitado = models.BooleanField(db_column="HABILITADO", default=False)
+    api_version = models.CharField(db_column="API_VERSION", max_length=20, default="v23.0")
+    access_token = models.TextField(db_column="ACCESS_TOKEN", blank=True, null=True)
+    phone_number_id = models.CharField(db_column="PHONE_NUMBER_ID", max_length=80, blank=True, null=True)
+    waba_id = models.CharField(db_column="WABA_ID", max_length=80, blank=True, null=True)
+    verify_token = models.CharField(db_column="VERIFY_TOKEN", max_length=255, blank=True, null=True)
+    observaciones = models.TextField(db_column="OBSERVACIONES", blank=True, null=True)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "WHATSAPP_CLOUD_CONFIG"
 
 
 class FacturacionElectronicaSecuencia(models.Model):

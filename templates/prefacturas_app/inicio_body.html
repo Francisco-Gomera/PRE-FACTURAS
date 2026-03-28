@@ -159,12 +159,13 @@
             <div class="win-body">
                 <div class="search-row">
                     <label for="cliente_search_input">Buscar</label>
-                    <input id="cliente_search_input" type="text" placeholder="Codigo, Nombre, Apodo o Cedula/RNC" />
+                    <input id="cliente_search_input" type="text" placeholder="Codigo, Nombre, Apodo, Cedula/RNC o Telefono" />
                     <select id="cliente_search_filter">
                         <option value="nombre" selected>Nombre</option>
                         <option value="codigo">Codigo (ID_SN)</option>
                         <option value="apodo">Apodo (CONTACTO)</option>
                         <option value="rnc">Cedula/RNC</option>
+                        <option value="telefono">Telefono</option>
                     </select>
                     <button id="btn_gestion_clientes" type="button" class="btn-small">Crear / Editar clientes</button>
                 </div>
@@ -2556,31 +2557,31 @@
             const valorCalc = precioBrutoCalc * cantEmpCalc;
             return `
                 <tr data-id-detalle="${escapeHtml(data.id_detalle == null ? "" : String(data.id_detalle))}">
-                    <td><input class="detalle-desc" type="text" value="${escapeHtml(data.descrip_art || "")}" /></td>
-                    <td>
+                    <td class="prefactura-edit-cell"><input class="detalle-desc" type="text" value="${escapeHtml(data.descrip_art || "")}" /></td>
+                    <td class="prefactura-edit-cell">
                         <input class="detalle-art" type="text" value="${escapeHtml(data.id_articulo || "")}" readonly />
                     </td>
                     <td data-col="cant_emp">${escapeHtml(fmtNum(cantEmpCalc, 2))}</td>
-                    <td><input class="detalle-cant" type="text" inputmode="numeric" value="${escapeHtml(String(cant))}" /></td>
+                    <td class="prefactura-edit-cell"><input class="detalle-cant" type="text" inputmode="numeric" value="${escapeHtml(String(cant))}" /></td>
                     <td>${escapeHtml(fmtNum(data.entregado == null ? 1 : data.entregado, 2))}</td>
-                    <td><select class="detalle-uom">${renderUnidadMedidaOptions(data.uom)}</select></td>
+                    <td class="prefactura-edit-cell"><select class="detalle-uom">${renderUnidadMedidaOptions(data.uom)}</select></td>
                     <td>${escapeHtml(data.alm == null ? "" : String(data.alm))}</td>
-                    <td>
+                    <td class="prefactura-edit-cell">
                         <div class="cell-picker">
                             <input class="detalle-proyecto" type="text" value="${escapeHtml(data.proyecto || "")}" readonly />
                             <button type="button" class="cell-pick-btn detalle-pick-proyecto">...</button>
                         </div>
                     </td>
-                    <td>
+                    <td class="prefactura-edit-cell">
                         <div class="cell-picker">
                             <input class="detalle-cebe" type="text" value="${escapeHtml(data.cebe || "")}" readonly />
                             <button type="button" class="cell-pick-btn detalle-pick-cebe">...</button>
                         </div>
                     </td>
-                    <td><input class="detalle-precio-unit" type="text" inputmode="decimal" value="${escapeHtml(fmtNum(precioUnit, 2))}" /></td>
+                    <td class="prefactura-edit-cell"><input class="detalle-precio-unit" type="text" inputmode="decimal" value="${escapeHtml(fmtNum(precioUnit, 2))}" /></td>
                     <td data-col="precio_bruto">${escapeHtml(fmtNum(precioBrutoCalc, 2))}</td>
                     <td data-col="valor">${escapeHtml(fmtNum(valorCalc, 2))}</td>
-                    <td><input class="detalle-porc-desc" type="text" inputmode="decimal" value="${escapeHtml(fmtNum(data.porc_desc, 2))}" /></td>
+                    <td class="prefactura-edit-cell"><input class="detalle-porc-desc" type="text" inputmode="decimal" value="${escapeHtml(fmtNum(data.porc_desc, 2))}" /></td>
                     <td>${escapeHtml(data.id_itbis == null ? "" : String(data.id_itbis))}</td>
                 </tr>
             `;

@@ -9,7 +9,21 @@
   <div class="info-card">
     <h3>Articulos</h3>
     <p>Alta, edicion, costos, precios y codigos.</p>
-    <a href="#">Abrir articulos</a>
+    <a href="{% url 'inventario:articulos' %}">Abrir articulos</a>
+  </div>
+  {% endif %}
+  {% if submodules.entrada_articulos %}
+  <div class="info-card">
+    <h3>Entrada articulos</h3>
+    <p>Registrar entradas, recepciones y movimientos de ingreso.</p>
+    <a href="{% url 'inventario:entrada_articulos' %}">Abrir entrada</a>
+  </div>
+  {% endif %}
+  {% if submodules.salida_articulos %}
+  <div class="info-card">
+    <h3>Salida articulos</h3>
+    <p>Registrar salidas, despachos y movimientos de egreso.</p>
+    <a href="{% url 'inventario:salida_articulos' %}">Abrir salida</a>
   </div>
   {% endif %}
   {% if submodules.grupos %}

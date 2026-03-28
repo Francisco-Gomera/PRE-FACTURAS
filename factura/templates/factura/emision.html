@@ -52,14 +52,14 @@
   }
 </style>
 
-<h2 class="page-title">Emision de Factura</h2>
-<p class="page-subtitle">Pantalla independiente para facturar a partir de prefacturas activas, sin entrar al modulo de prefacturas.</p>
+<h2 class="page-title">{{ factura_screen_title|default:"Emision de Factura" }}</h2>
+<p class="page-subtitle">{{ factura_screen_subtitle|default:"Pantalla independiente para facturar a partir de prefacturas activas, sin entrar al modulo de prefacturas." }}</p>
 
 <div class="factura-layout">
   <section class="factura-card">
     <div class="factura-head">
-      <h3>Prefacturas Activas</h3>
-      <p class="factura-sub">Haz doble click sobre una prefactura para cargarla en la factura.</p>
+      <h3>{{ factura_pref_card_title|default:"Prefacturas Activas" }}</h3>
+      <p class="factura-sub">{{ factura_pref_card_subtitle|default:"Haz doble click sobre una prefactura para cargarla en la factura." }}</p>
     </div>
     <div class="factura-body">
       <div class="search-row">
@@ -91,17 +91,19 @@
 
   <section class="factura-card">
     <div class="factura-head">
-      <h3>Factura</h3>
-      <p class="factura-sub">Los datos se autocompletan desde la prefactura seleccionada.</p>
+      <h3>{{ factura_form_title|default:"Factura" }}</h3>
+      <p class="factura-sub">{{ factura_form_subtitle|default:"Los datos se autocompletan desde la prefactura seleccionada." }}</p>
     </div>
     <div class="factura-body">
       <div class="top-actions">
+        {% if factura_allow_type_selector %}
         <select id="fac_tipo_ecf" class="btn-soft" style="border:1px solid #c9d7ef;">
           {% for codigo, nombre in tipos_emision %}
           <option value="{{ codigo }}">{{ codigo }} - {{ nombre }}</option>
           {% endfor %}
         </select>
-        <button type="button" class="btn-main" id="btn_emitir_factura">Emitir factura</button>
+        {% endif %}
+        <button type="button" class="btn-main" id="btn_emitir_factura">{{ factura_emit_button_label|default:"Emitir factura" }}</button>
         <button type="button" class="btn-soft" id="btn_limpiar_factura">Limpiar</button>
       </div>
       <div id="factura_status" class="status-bar"></div>
@@ -178,17 +180,19 @@
 
 <section class="factura-card history-card">
   <div class="factura-head">
-    <h3>Facturas Emitidas</h3>
-    <p class="factura-sub">Buscador para reimprimir facturas ya emitidas desde este modulo.</p>
+    <h3>{{ factura_history_title|default:"Facturas Emitidas" }}</h3>
+    <p class="factura-sub">{{ factura_history_subtitle|default:"Buscador para reimprimir facturas ya emitidas desde este modulo." }}</p>
   </div>
   <div class="factura-body">
     <div class="search-row">
-      <input id="hist_q" type="text" placeholder="No. factura, cliente, nombre o e-NCF" />
+      <input id="hist_q" type="text" placeholder="{{ factura_history_placeholder|default:'No. factura, cliente o nombre' }}" />
       <select id="hist_filtro">
         <option value="documento">Factura</option>
         <option value="cliente">Cliente</option>
         <option value="nombre">Nombre</option>
+        {% if factura_allow_encf_history %}
         <option value="encf">e-NCF</option>
+        {% endif %}
       </select>
       <button id="btn_hist_buscar" type="button">Buscar</button>
     </div>
@@ -198,17 +202,21 @@
           <tr>
             <th>No. Factura</th>
             <th>Cliente</th>
+            {% if factura_allow_encf_history %}
             <th>e-NCF</th>
+            {% endif %}
             <th>Fecha</th>
             <th>Total</th>
             <th>Estado</th>
             <th>Prefactura</th>
             <th>Imprimir</th>
+            {% if factura_allow_cancel %}
             <th>Cancelar</th>
+            {% endif %}
           </tr>
         </thead>
         <tbody id="hist_results_body">
-          <tr><td colspan="9" class="empty-box">Cargando facturas emitidas...</td></tr>
+          <tr><td colspan="{% if factura_allow_encf_history and factura_allow_cancel %}9{% elif factura_allow_encf_history or factura_allow_cancel %}8{% else %}7{% endif %}" class="empty-box">Cargando facturas emitidas...</td></tr>
         </tbody>
       </table>
     </div>
@@ -216,9 +224,17 @@
 </section>
 
 <script>
+  const facturaMode = "{{ factura_mode|default:'electronica' }}";
+  const facturaAllowCancel = {{ factura_allow_cancel|yesno:"true,false" }};
+  const facturaAllowEncfHistory = {{ factura_allow_encf_history|yesno:"true,false" }};
+  const facturaAllowTypeSelector = {{ factura_allow_type_selector|yesno:"true,false" }};
+  const facturaEmitLoadingLabel = "{{ factura_emit_loading_label|default:'Generando factura...'|escapejs }}";
+  const facturaEmitErrorLabel = "{{ factura_emit_error_label|default:'No se pudo emitir la factura.'|escapejs }}";
+  const facturaEmitSuccessLabel = "{{ factura_emit_success_label|default:'Factura'|escapejs }}";
+  const facturaHistoryColspan = {% if factura_allow_encf_history and factura_allow_cancel %}9{% elif factura_allow_encf_history or factura_allow_cancel %}8{% else %}7{% endif %};
   const prefListUrl = "{% url 'factura:emision_prefacturas' %}";
   const prefDetailUrl = "{% url 'factura:emision_prefactura_detalle' %}";
-  const emitirFacturaUrl = "{% url 'factura:emitir_factura' %}";
+  const emitirFacturaUrl = "{% if factura_mode == 'manual' %}{% url 'factura:emitir_factura_manual' %}{% else %}{% url 'factura:emitir_factura' %}{% endif %}";
   const facturasBuscarUrl = "{% url 'factura:buscar_facturas' %}";
   const cancelarFacturaUrl = "{% url 'factura:cancelar_factura' %}";
   const electronicaUrl = "{% url 'factura:electronica' %}";
@@ -347,7 +363,7 @@
 
   function renderFacturaResults(rows) {
     if (!rows.length) {
-      histResultsBody.innerHTML = '<tr><td colspan="9" class="empty-box">No se encontraron facturas emitidas.</td></tr>';
+      histResultsBody.innerHTML = `<tr><td colspan="${facturaHistoryColspan}" class="empty-box">No se encontraron facturas emitidas.</td></tr>`;
       return;
     }
     histResultsBody.innerHTML = rows.map((row) => `
@@ -357,13 +373,13 @@
           <strong>${escapeHtml(row.nom_socio || "")}</strong><br>
           <span style="color:#64768f;">${escapeHtml(row.id_sn || "")}</span>
         </td>
-        <td><code>${escapeHtml(row.encf || "Pendiente")}</code></td>
+        ${facturaAllowEncfHistory ? `<td><code>${escapeHtml(row.encf || "Pendiente")}</code></td>` : ""}
         <td>${escapeHtml(row.fecha_doc || "")}</td>
         <td>${escapeHtml(fmtNum(row.total_doc || 0))}</td>
         <td>${row.ncf_nc ? `<span style="color:#9a2525;font-weight:700;">Cancelada con ${escapeHtml(row.ncf_nc)}</span>` : '<span style="color:#1d6e2b;font-weight:700;">Activa</span>'}</td>
         <td>${escapeHtml(row.id_doc_pv || "-")}</td>
         <td><button type="button" class="btn-soft hist-print-btn" data-print-url="${escapeHtml(row.print_url)}">Abrir impresion</button></td>
-        <td>
+        ${facturaAllowCancel ? `<td>
           <button
             type="button"
             class="btn-soft hist-cancel-btn"
@@ -372,7 +388,7 @@
           >
             ${row.ncf_nc ? "Cancelada" : "Cancelar"}
           </button>
-        </td>
+        </td>` : ""}
       </tr>
     `).join("");
     histResultsBody.querySelectorAll(".hist-print-btn").forEach((button) => {
@@ -381,6 +397,9 @@
         if (printUrl) window.open(printUrl, "_blank");
       });
     });
+    if (!facturaAllowCancel) {
+      return;
+    }
     histResultsBody.querySelectorAll(".hist-cancel-btn").forEach((button) => {
       button.addEventListener("click", async () => {
         const facturaId = button.dataset.facturaId || "";
@@ -446,19 +465,19 @@
   async function fetchFacturas() {
     const q = (histQ.value || "").trim();
     const filtro = (histFiltro.value || "documento").trim();
-    histResultsBody.innerHTML = '<tr><td colspan="7" class="empty-box">Buscando facturas...</td></tr>';
+    histResultsBody.innerHTML = `<tr><td colspan="${facturaHistoryColspan}" class="empty-box">Buscando facturas...</td></tr>`;
     try {
-      const res = await fetch(`${facturasBuscarUrl}?q=${encodeURIComponent(q)}&filtro=${encodeURIComponent(filtro)}`, {
+      const res = await fetch(`${facturasBuscarUrl}?modo=${encodeURIComponent(facturaMode)}&q=${encodeURIComponent(q)}&filtro=${encodeURIComponent(filtro)}`, {
         headers: { "X-Requested-With": "XMLHttpRequest" }
       });
       if (!res.ok) {
-        histResultsBody.innerHTML = '<tr><td colspan="9" class="empty-box">No se pudo cargar la lista.</td></tr>';
+        histResultsBody.innerHTML = `<tr><td colspan="${facturaHistoryColspan}" class="empty-box">No se pudo cargar la lista.</td></tr>`;
         return;
       }
       const data = await res.json();
       renderFacturaResults(Array.isArray(data.results) ? data.results : []);
     } catch (error) {
-      histResultsBody.innerHTML = '<tr><td colspan="9" class="empty-box">Error de conexion.</td></tr>';
+      histResultsBody.innerHTML = `<tr><td colspan="${facturaHistoryColspan}" class="empty-box">Error de conexion.</td></tr>`;
     }
   }
 
@@ -539,8 +558,14 @@
       return;
     }
     btnEmitirFactura.disabled = true;
-    showStatus("Generando factura...", true);
+    showStatus(facturaEmitLoadingLabel, true);
     try {
+      const payload = {
+        prefactura_id: prefacturaId,
+      };
+      if (facturaAllowTypeSelector) {
+        payload.tipo_ecf = tipoEcf;
+      }
       const res = await fetch(emitirFacturaUrl, {
         method: "POST",
         headers: {
@@ -548,19 +573,16 @@
           "X-Requested-With": "XMLHttpRequest",
           "X-CSRFToken": "{{ csrf_token }}",
         },
-        body: JSON.stringify({
-          prefactura_id: prefacturaId,
-          tipo_ecf: tipoEcf,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showStatus(data.detail || "No se pudo emitir la factura.", false, buildStatusHelp(data));
+        showStatus(data.detail || facturaEmitErrorLabel, false, buildStatusHelp(data));
         return;
       }
       const encfLabel = data.encf ? ` | e-NCF: ${data.encf}` : "";
       const dispatchLabel = data.dispatch_message ? ` | Integracion: ${data.dispatch_message}` : "";
-      showStatus(`Factura ${data.factura_id} generada correctamente${encfLabel}${dispatchLabel}.`, true);
+      showStatus(`${facturaEmitSuccessLabel} ${data.factura_id} generada correctamente${encfLabel}${dispatchLabel}.`, true);
       lastPrintUrl = data.print_url || "";
       printActions.style.display = lastPrintUrl ? "flex" : "none";
       clearFactura(true);

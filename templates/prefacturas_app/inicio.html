@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>YEO SYSTEM 2.0 - Comercial Anita</title>
+    <title>CA ERP 3.0 - Comercial Anita</title>
     <style>
         :root {
             --bg: #d8d8d8;
@@ -2009,7 +2009,7 @@
         <div class="session-strip">
             <div class="session-left">
                 <div class="session-brand">
-                    <span class="brand-tag">YEO SYSTEM 2.0</span>
+                    <span class="brand-tag">CA ERP 3.0</span>
                     <span class="brand-company">{{ empresa_nombre|default:"COMERCIAL ANITA SRL" }}</span>
                 </div>
                 <div class="session-user">
@@ -2181,12 +2181,13 @@
             <div class="win-body">
                 <div class="search-row">
                     <label for="cliente_search_input">Buscar</label>
-                    <input id="cliente_search_input" type="text" placeholder="Codigo, Nombre, Apodo o Cedula/RNC" />
+                    <input id="cliente_search_input" type="text" placeholder="Codigo, Nombre, Apodo, Cedula/RNC o Telefono" />
                     <select id="cliente_search_filter">
                         <option value="nombre" selected>Nombre</option>
                         <option value="codigo">Codigo (ID_SN)</option>
                         <option value="apodo">Apodo (CONTACTO)</option>
                         <option value="rnc">Cedula/RNC</option>
+                        <option value="telefono">Telefono</option>
                     </select>
                     <button id="btn_gestion_clientes" type="button" class="btn-small">Crear / Editar clientes</button>
                 </div>

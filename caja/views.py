@@ -1,9 +1,11 @@
+import base64
 import json
 import socket
 import subprocess
 import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from functools import lru_cache
 from pathlib import Path
 
 from django.db import connection, transaction
@@ -15,6 +17,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods
 
 from ajustes.permissions import has_perm
+from ajustes.user_signatures import get_user_signature_bytes
 from core.views import _base_context, _get_empresa_data, render_denied
 from prefacturas_app.views import _get_auth_payload, _get_open_ed_balance, _require_perm_json
 
@@ -25,6 +28,16 @@ def _fmt_date(value):
     if hasattr(value, "strftime"):
         return value.strftime("%d/%m/%Y")
     return str(value)
+
+
+def _load_firma_b64(usuario_id):
+    try:
+        firma_bytes = get_user_signature_bytes(usuario_id)
+        if firma_bytes:
+            return base64.b64encode(firma_bytes).decode("ascii")
+    except Exception:
+        return ""
+    return ""
 
 
 def _fmt_date_input(value):
@@ -193,6 +206,35 @@ def _load_table_columns(table_name):
         return [str(row[0]).strip().upper() for row in cursor.fetchall() if row and row[0]]
 
 
+@lru_cache(maxsize=128)
+def _load_table_string_limits(table_name):
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_NAME = %s
+            """,
+            [table_name],
+        )
+        limits = {}
+        for column_name, data_type, max_length in cursor.fetchall():
+            normalized_name = str(column_name or "").strip().upper()
+            normalized_type = str(data_type or "").strip().lower()
+            if normalized_type not in {"char", "varchar", "nchar", "nvarchar"}:
+                continue
+            if max_length is None:
+                continue
+            try:
+                max_length_value = int(max_length)
+            except (TypeError, ValueError):
+                continue
+            if max_length_value <= 0:
+                continue
+            limits[normalized_name] = max_length_value
+        return limits
+
+
 def _load_identity_columns(table_name):
     with connection.cursor() as cursor:
         cursor.execute(
@@ -218,6 +260,34 @@ def _pick_existing_column(columns, *candidates):
     return None
 
 
+def _build_doc_lookup_where(columns, lookup_value):
+    lookup_text = str(lookup_value or "").strip()
+    normalized_columns = []
+    seen = set()
+    for column in columns or []:
+        if not column:
+            continue
+        column_name = str(column).upper()
+        if column_name in seen:
+            continue
+        seen.add(column_name)
+        normalized_columns.append(column_name)
+
+    if not lookup_text or not normalized_columns:
+        return "1 = 0", []
+
+    lookup_numeric = _to_decimal(lookup_text, default=None)
+    where_parts = []
+    params = []
+    for column_name in normalized_columns:
+        where_parts.append(f"CAST([{column_name}] AS NVARCHAR(255)) = %s")
+        params.append(lookup_text)
+        if lookup_numeric is not None:
+            where_parts.append(f"TRY_CAST([{column_name}] AS DECIMAL(38, 10)) = TRY_CAST(%s AS DECIMAL(38, 10))")
+            params.append(lookup_text)
+    return "(" + " OR ".join(where_parts) + ")", params
+
+
 def _assign_existing_values(target, columns, value, *candidates):
     if value is None:
         return
@@ -230,7 +300,23 @@ def _assign_existing_values(target, columns, value, *candidates):
             target[found] = value
 
 
+def _sanitize_table_values(table_name, values_by_column):
+    if not values_by_column:
+        return {}
+    string_limits = _load_table_string_limits(table_name)
+    sanitized = {}
+    for column_name, raw_value in (values_by_column or {}).items():
+        normalized_name = str(column_name).upper()
+        value = raw_value
+        max_length = string_limits.get(normalized_name)
+        if max_length and isinstance(value, str) and len(value) > max_length:
+            value = value[:max_length]
+        sanitized[normalized_name] = value
+    return sanitized
+
+
 def _insert_dynamic_row(cursor, table_name, table_columns, values_by_column, *, output_column=None, skip_columns=None):
+    values_by_column = _sanitize_table_values(table_name, values_by_column)
     skip_columns = {str(column).upper() for column in (skip_columns or set())}
     insert_columns = [column for column in table_columns if column in values_by_column and column not in skip_columns]
     if not insert_columns:
@@ -250,6 +336,7 @@ def _insert_dynamic_row(cursor, table_name, table_columns, values_by_column, *, 
 
 
 def _update_dynamic_row(cursor, table_name, set_values, where_sql, where_params):
+    set_values = _sanitize_table_values(table_name, set_values)
     if not set_values:
         return 0
     columns = list(set_values.keys())
@@ -743,6 +830,38 @@ def _append_cancelled_comment(comment):
     if marker.lower() in base.lower():
         return base
     return f"{base} {marker}".strip() if base else marker
+
+
+def _normalize_terminal_name(value):
+    text = " ".join(str(value or "").split()).strip()
+    if not text:
+        return ""
+    return text[:50]
+
+
+def _resolve_request_terminal(request, payload=None):
+    payload = payload if isinstance(payload, dict) else {}
+    for candidate in (
+        payload.get("terminal_cliente"),
+        payload.get("terminal"),
+        request.headers.get("X-Client-Terminal"),
+        request.META.get("HTTP_X_CLIENT_TERMINAL"),
+    ):
+        terminal_name = _normalize_terminal_name(candidate)
+        if terminal_name:
+            return terminal_name
+    return _normalize_terminal_name(socket.gethostname()) or "SERVIDOR"
+
+
+def _load_cxc_default_payment_method(id_usuario):
+    try:
+        from ajustes.models import UsuarioCajaPreferencia
+
+        record = UsuarioCajaPreferencia.objects.filter(id_usuario=id_usuario).only("metodo_pago_default").first()
+        metodo = str(getattr(record, "metodo_pago_default", "") or "").strip()
+        return metodo if metodo in {"Efectivo", "Transferencia"} else "Efectivo"
+    except Exception:
+        return "Efectivo"
 
 
 def _require_any_caja_perm_json(request, *perm_codes):
@@ -1478,6 +1597,7 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
         "PAGO_TRANSFERENCIA",
     )
     total_cobro_col = _pick_existing_column(columns, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO")
+    descuento_col = _pick_existing_column(columns, "TOTAL_DESCTO", "DESC_AVANCE", "DESCUENTO", "AVANCE")
     estatus_col = _pick_existing_column(columns, "ESTATUS", "EST_DOC", "ESTADO")
     selected_columns = _unique_columns(
         id_col,
@@ -1489,6 +1609,7 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
         efectivo_col,
         transferencia_col,
         total_cobro_col,
+        descuento_col,
         estatus_col,
     )
 
@@ -1525,6 +1646,12 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
     clientes_lookup = _load_maestro_sn_lookup(
         [_pick_row_text(row, cliente_col) for row in rows]
     )
+    descuentos_lookup = _load_cxc_descuentos_lookup_by_refs(
+        [
+            *[_stringify_doc(_pick_row_value(row, id_col, no_recibo_col)) for row in rows],
+            *[_stringify_doc(_pick_row_value(row, no_recibo_col, id_col)) for row in rows],
+        ]
+    )
 
     results = []
     for row in rows:
@@ -1537,6 +1664,11 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
         efectivo = _pick_amount_value(row, efectivo_col, default=0.0)
         transferencia = _pick_amount_value(row, transferencia_col, default=0.0)
         total_cobro = _to_float(_pick_row_value(row, total_cobro_col, default=efectivo + transferencia))
+        descuento_total = max(
+            _pick_amount_value(row, descuento_col, default=0.0),
+            _to_float(descuentos_lookup.get(recibo_id)),
+            _to_float(descuentos_lookup.get(no_recibo)),
+        )
         results.append(
             {
                 "recibo_id": recibo_id,
@@ -1548,6 +1680,7 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
                 "fecha_cont": _fmt_date(_pick_row_value(row, fecha_col)),
                 "efectivo": efectivo,
                 "transferencia": transferencia,
+                "descuento_total": descuento_total,
                 "total_cobro": total_cobro,
                 "estatus": _pick_row_text(row, estatus_col) or "Abierto",
             }
@@ -1561,6 +1694,50 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
             reverse=True,
         )
     return results
+
+
+def _load_cxc_descuentos_lookup_by_refs(receipt_refs):
+    refs = [str(value or "").strip() for value in (receipt_refs or []) if str(value or "").strip()]
+    refs = list(dict.fromkeys(refs))
+    if not refs:
+        return {}
+
+    det_columns = _load_table_columns("DET_RECIBO_INGRESO")
+    if not det_columns:
+        return {}
+
+    det_key_col = _pick_existing_column(det_columns, "ID_RECIBO", "NO_RECIBO", "ID_DOC", "NO_DOC")
+    det_no_recibo_col = _pick_existing_column(det_columns, "NO_RECIBO", "ID_RECIBO", "ID_DOC", "NO_DOC")
+    det_desc_col = _pick_existing_column(det_columns, "DESC_AVANCE", "DESCUENTO", "AVANCE", "DESC")
+    if not det_key_col or not det_desc_col:
+        return {}
+
+    lookup = {}
+    ref_columns = _unique_columns(det_key_col, det_no_recibo_col)
+    try:
+        with connection.cursor() as cursor:
+            for ref_col in ref_columns:
+                for refs_chunk in _chunked(refs, 300):
+                    placeholders = ", ".join(["%s"] * len(refs_chunk))
+                    cursor.execute(
+                        f"""
+                        SELECT
+                            CAST([{ref_col}] AS NVARCHAR(255)) AS RECIBO_REF,
+                            SUM(ISNULL(TRY_CONVERT(DECIMAL(18, 2), [{det_desc_col}]), 0)) AS TOTAL_DESCUENTO
+                        FROM DET_RECIBO_INGRESO
+                        WHERE CAST([{ref_col}] AS NVARCHAR(255)) IN ({placeholders})
+                        GROUP BY CAST([{ref_col}] AS NVARCHAR(255))
+                        """,
+                        refs_chunk,
+                    )
+                    for recibo_ref, total_descuento in cursor.fetchall():
+                        key = _stringify_doc(recibo_ref)
+                        if not key:
+                            continue
+                        lookup[key] = max(_to_float(lookup.get(key)), _to_float(total_descuento))
+    except Exception:
+        return {}
+    return lookup
 
 
 def _load_cxc_cobros_anteriores(id_sn, exclude_recibo_id=""):
@@ -1721,12 +1898,12 @@ def _build_cxc_recibo_payload(header_row, detail_rows):
         "PAGO_TRANSFERENCIA",
         default=0.0,
     )
-    total_doc = _to_float(
+    total_recibo_header = _to_float(
         _pick_row_value(header_row, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO", default=efectivo + transferencia)
     )
-    total_mora = _to_float(_pick_row_value(header_row, "TOTAL_MORA", "MORA", "CARGO", default=0))
-    desc_avance = _to_float(_pick_row_value(header_row, "DESC_AVANCE", "DESCUENTO", "AVANCE", default=0))
-    total_ret = _to_float(_pick_row_value(header_row, "TOTAL_RET", "RETENCION", "RET", default=0))
+    total_mora_header = _to_float(_pick_row_value(header_row, "TOTAL_MORA", "MORA", "CARGO", default=0))
+    desc_avance_header = _to_float(_pick_row_value(header_row, "TOTAL_DESCTO", "DESC_AVANCE", "DESCUENTO", "AVANCE", default=0))
+    total_ret_header = _to_float(_pick_row_value(header_row, "TOTAL_RET", "RETENCION", "RET", default=0))
     comentario = _pick_row_text(header_row, "COMENTARIO", "OBSERVACION")
     moneda = _pick_row_text(header_row, "MONEDA", "MON_DOC", default="RD$")
     proyecto = _pick_row_text(header_row, "ID_PROYECTO", "PROYECTO")
@@ -1966,10 +2143,25 @@ def _build_cxc_recibo_payload(header_row, detail_rows):
             }
         )
 
-    if total_doc <= 0 and detalle:
-        total_doc = sum(_to_float(item.get("pago_abono")) for item in detalle)
-        if total_doc <= 0:
-            total_doc = sum(_to_float(item.get("desc_avance")) for item in detalle)
+    total_doc_detail = sum(_to_float(item.get("pago_abono")) for item in detalle)
+    total_mora_detail = sum(_to_float(item.get("cargo")) for item in detalle)
+    desc_avance_detail = sum(_to_float(item.get("desc_avance")) for item in detalle)
+    total_ret_detail = sum(_to_float(item.get("total_ret")) for item in detalle)
+
+    total_doc_summary = total_doc_detail if detalle else total_recibo_header
+    total_mora_summary = max(total_mora_detail, total_mora_header) if detalle else total_mora_header
+    desc_avance_summary = max(desc_avance_detail, desc_avance_header) if detalle else desc_avance_header
+    total_ret_summary = max(total_ret_detail, total_ret_header) if detalle else total_ret_header
+    cash_total_formula = (
+        max(total_doc_summary + total_mora_summary - total_ret_summary, 0)
+        if total_doc_summary > 0.0001
+        else 0
+    )
+    total_pago_summary = efectivo + transferencia
+    total_recibo_summary = total_recibo_header
+    if total_recibo_summary <= 0.0001:
+        total_recibo_summary = total_pago_summary or cash_total_formula or total_doc_summary
+    monto_pagar_summary = total_pago_summary or cash_total_formula or total_recibo_summary
 
     return {
         "header": {
@@ -2002,19 +2194,21 @@ def _build_cxc_recibo_payload(header_row, detail_rows):
             "comentario": comentario,
             "rnc_ced": maestro_sn.get("rnc_ced") or _pick_row_text(header_row, "RNC_CED", "RNC", "CEDULA"),
             "impreso": _pick_row_text(header_row, "IMPRESO", default="N"),
-            "total_letra": _pick_row_text(header_row, "TOTAL_LETRA", default=_amount_to_spanish_words(total_doc)),
+            "terminal": _pick_row_text(header_row, "TERMINAL"),
+            "total_letra": _pick_row_text(header_row, "TOTAL_LETRA", default=_amount_to_spanish_words(total_recibo_summary)),
             "medio_pago": efectivo > 0.0001 and transferencia > 0.0001,
             "efectivo": efectivo,
             "transferencia": transferencia,
             "fecha_pago": _fmt_date_input(_pick_row_value(header_row, "FECHA_PAGO", "FECHA_CONT", "F_CONT")),
         },
         "summary": {
-            "total_mora": total_mora,
-            "desc_avance": desc_avance,
-            "total_doc": total_doc,
-            "total_ret": total_ret,
-            "total_pago": efectivo + transferencia,
-            "monto_pagar": max(total_doc + total_mora - desc_avance - total_ret, 0),
+            "total_mora": total_mora_summary,
+            "desc_avance": desc_avance_summary,
+            "total_doc": total_doc_summary,
+            "total_ret": total_ret_summary,
+            "total_pago": total_pago_summary,
+            "monto_pagar": monto_pagar_summary,
+            "total_recibo": total_recibo_summary,
         },
         "detail": detalle,
     }
@@ -2030,29 +2224,55 @@ def _load_cxc_recibo_detalle(recibo_id):
         return None
 
     cab_key_col = _pick_existing_column(cab_columns, "ID_RECIBO", "NO_RECIBO", "ID_DOC", "NO_DOC")
+    cab_no_recibo_col = _pick_existing_column(cab_columns, "NO_RECIBO", "ID_RECIBO", "ID_DOC", "NO_DOC")
     det_key_col = _pick_existing_column(det_columns, "ID_RECIBO", "NO_RECIBO", "ID_DOC", "NO_DOC")
+    det_no_recibo_col = _pick_existing_column(det_columns, "NO_RECIBO", "ID_RECIBO", "ID_DOC", "NO_DOC")
     if not cab_key_col or not det_key_col:
         return None
 
     with connection.cursor() as cursor:
-        cursor.execute(f"SELECT TOP 1 * FROM CAB_RECIBO_INGRESO WHERE [{cab_key_col}] = %s", [recibo_id])
+        header_where_parts = [f"CAST([{cab_key_col}] AS NVARCHAR(255)) = %s"]
+        header_where_params = [recibo_id]
+        if cab_no_recibo_col and cab_no_recibo_col != cab_key_col:
+            header_where_parts.append(f"CAST([{cab_no_recibo_col}] AS NVARCHAR(255)) = %s")
+            header_where_params.append(recibo_id)
+        cursor.execute(
+            f"""
+            SELECT TOP 1 *
+            FROM CAB_RECIBO_INGRESO
+            WHERE {" OR ".join(f"({part})" for part in header_where_parts)}
+            """,
+            header_where_params,
+        )
         raw_header = cursor.fetchone()
         if not raw_header:
             return None
         header_columns = [col[0] for col in cursor.description]
         header_row = _normalize_result_row(header_columns, raw_header)
 
+    recibo_id_real = _stringify_doc(_pick_row_value(header_row, cab_key_col, cab_no_recibo_col))
+    no_recibo = _stringify_doc(_pick_row_value(header_row, cab_no_recibo_col, cab_key_col))
+
     order_columns = _unique_columns(
         _pick_existing_column(det_columns, "NO_DOC", "ID_DOC"),
         _pick_existing_column(det_columns, "NO_CUOTA", "CUOTA_NUM", "NUM_CUOTA"),
         _pick_existing_column(det_columns, "FECHA_CONT", "F_CONT", "FECHA"),
     )
-    detail_sql = f"SELECT * FROM DET_RECIBO_INGRESO WHERE [{det_key_col}] = %s"
+    detail_where_parts = [f"CAST([{det_key_col}] AS NVARCHAR(255)) = %s"]
+    detail_where_params = [recibo_id_real or recibo_id]
+    if det_no_recibo_col and det_no_recibo_col != det_key_col and no_recibo:
+        detail_where_parts.append(f"CAST([{det_no_recibo_col}] AS NVARCHAR(255)) = %s")
+        detail_where_params.append(no_recibo)
+    elif det_no_recibo_col and no_recibo and no_recibo != (recibo_id_real or recibo_id):
+        detail_where_parts.append(f"CAST([{det_no_recibo_col}] AS NVARCHAR(255)) = %s")
+        detail_where_params.append(no_recibo)
+
+    detail_sql = f"SELECT * FROM DET_RECIBO_INGRESO WHERE {' OR '.join(f'({part})' for part in detail_where_parts)}"
     if order_columns:
         detail_sql += " ORDER BY " + ", ".join(f"[{column}]" for column in order_columns)
 
     with connection.cursor() as cursor:
-        cursor.execute(detail_sql, [recibo_id])
+        cursor.execute(detail_sql, detail_where_params)
         detail_columns = [col[0] for col in cursor.description]
         detail_rows = [_normalize_result_row(detail_columns, raw_row) for raw_row in cursor.fetchall()]
 
@@ -2065,7 +2285,12 @@ def _build_cxc_recibo_print_payload(record, auth_payload):
     summary = record.get("summary") or {}
     detail = record.get("detail") or []
     empresa = _get_empresa_data() or {}
-    total_recibo = _to_float(summary.get("total_doc"))
+    total_recibo = _to_float(
+        summary.get("total_recibo")
+        or summary.get("total_pago")
+        or summary.get("monto_pagar")
+        or summary.get("total_doc")
+    )
     balance_rd = _to_float(_get_open_ed_balance(header.get("cliente")))
     metodo_lineas = []
     if _to_float(header.get("efectivo")) > 0:
@@ -2952,6 +3177,816 @@ def _render_submodule(request, *, perm_code, page_title, submodule_title, submod
     return render(request, "caja/submodulo.html", ctx)
 
 
+def _load_financiamiento_search_rows(query="", filtro="documento", limit=120):
+    cab_columns = _load_table_columns("CAB_PRESTAMO")
+    if not cab_columns:
+        return []
+
+    safe_limit = max(20, min(int(limit or 120), 300))
+    doc_col = _pick_existing_column(cab_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+    no_fact_col = _pick_existing_column(cab_columns, "ID_DOC", "NO_DOC", "DOCUMENTO", "FACTURA", "NO_FACT", "NO_FACTURA", "DOCUMENTO_BASE", "FACTURA_BASE", doc_col)
+    no_col = _pick_existing_column(cab_columns, "ID_PRESTAMO", "NO_PRESTAMO", "NO", "ID_DOC", doc_col)
+    id_sn_col = _pick_existing_column(cab_columns, "ID_SN", "CLIENTE", "COD_CLIENTE")
+    nombre_col = _pick_existing_column(cab_columns, "NOM_SN", "NOM_SOCIO", "NOMBRE", "NOM_CLIENTE")
+    rnc_col = _pick_existing_column(cab_columns, "RNC_CED", "RNC", "CEDULA")
+    fecha_col = _pick_existing_column(cab_columns, "FECHA_DOC", "FECHA_CONT", "FECHA", "FECHA_APLIC")
+    estado_col = _pick_existing_column(cab_columns, "EST_DOC", "ESTATUS", "ESTADO")
+    total_col = _pick_existing_column(
+        cab_columns,
+        "TOTAL_DOC",
+        "MONTO",
+        "IMPORTE",
+        "TOTAL",
+        "CAPITAL",
+        "CAPITAL_FINANCIADO",
+    )
+    saldo_col = _pick_existing_column(cab_columns, "SALDO", "BALANCE", "SALDO_INSOLUTO")
+    abono_col = _pick_existing_column(cab_columns, "ABONO")
+    tipo_col = _pick_existing_column(cab_columns, "TIPO", "TIPO_DOC", "CLASE_DOC")
+
+    if not doc_col:
+        return []
+
+    sql = f"SELECT TOP {safe_limit} * FROM CAB_PRESTAMO"
+    where_parts = []
+    params = []
+    query = str(query or "").strip()
+    filtro = str(filtro or "documento").strip().lower()
+    if query:
+        target_col = doc_col
+        if filtro == "codigo" and id_sn_col:
+            target_col = id_sn_col
+        elif filtro == "nombre" and nombre_col:
+            target_col = nombre_col
+        elif filtro == "cedula" and rnc_col:
+            target_col = rnc_col
+        where_parts.append(f"CAST([{target_col}] AS NVARCHAR(255)) LIKE %s")
+        params.append(f"%{query}%")
+    if where_parts:
+        sql += " WHERE " + " AND ".join(where_parts)
+    order_col = fecha_col or no_col or doc_col
+    sql += f" ORDER BY [{order_col}] DESC"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        raw_columns = [col[0] for col in cursor.description]
+        rows = [_normalize_result_row(raw_columns, raw_row) for raw_row in cursor.fetchall()]
+
+    id_sns = [
+        _pick_row_text(row, id_sn_col)
+        for row in rows
+        if id_sn_col
+    ]
+    maestro_lookup = _load_maestro_sn_lookup(id_sns)
+    detail_lookup_candidates = []
+    for row in rows:
+        for candidate in (
+            _stringify_doc(_pick_row_value(row, doc_col)),
+            _stringify_doc(_pick_row_value(row, no_col)),
+            _stringify_doc(_pick_row_value(row, no_fact_col)),
+        ):
+            if candidate:
+                detail_lookup_candidates.append(candidate)
+    prestamo_rows_by_doc = _load_prestamo_rows_by_doc(detail_lookup_candidates)
+
+    results = []
+    for row in rows:
+        codigo = _pick_row_text(row, id_sn_col)
+        maestro_row = maestro_lookup.get(codigo, {})
+        monto = _to_float(_pick_row_value(row, total_col, default=0))
+        saldo = _to_float(_pick_row_value(row, saldo_col, default=0))
+        abono = _to_float(_pick_row_value(row, abono_col, default=0))
+        saldo_reconstruido = max(monto - abono, 0.0) if monto > 0.01 else 0.0
+        saldo_detalle = 0.0
+        has_detail_rows = False
+        for detail_lookup in (
+            _stringify_doc(_pick_row_value(row, doc_col)),
+            _stringify_doc(_pick_row_value(row, no_col)),
+            _stringify_doc(_pick_row_value(row, no_fact_col)),
+        ):
+            if not detail_lookup:
+                continue
+            detail_rows = prestamo_rows_by_doc.get(detail_lookup) or []
+            if not detail_rows:
+                continue
+            has_detail_rows = True
+            saldo_detalle = sum(
+                _to_float(
+                    _resolve_prestamo_balance(
+                        detail_row.get("balance"),
+                        detail_row.get("saldo_insoluto"),
+                        detail_row.get("cuota"),
+                        None,
+                        detail_row.get("abono_cuota"),
+                    )
+                )
+                for detail_row in detail_rows
+            )
+            break
+        saldo = saldo_detalle if has_detail_rows else max(saldo, saldo_reconstruido)
+        results.append(
+            {
+                "no_doc": _stringify_doc(_pick_row_value(row, doc_col, no_col)),
+                "no_factura": _stringify_doc(_pick_row_value(row, no_fact_col, doc_col, no_col)),
+                "no": _stringify_doc(_pick_row_value(row, no_col, doc_col)),
+                "codigo": codigo,
+                "nombre": _pick_row_text(row, nombre_col) or maestro_row.get("nombre", ""),
+                "cedula": _pick_row_text(row, rnc_col) or maestro_row.get("rnc_ced", ""),
+                "fecha": _fmt_date_flexible(_pick_row_value(row, fecha_col)),
+                "estado": _pick_row_text(row, estado_col) or ("Abierto" if saldo > 0.01 else "Cerrado"),
+                "tipo": _pick_row_text(row, tipo_col) or "Financiamiento",
+                "monto": monto,
+                "saldo": saldo,
+            }
+        )
+    return results
+
+
+def _load_financiamiento_factura_doc_set(doc_numbers):
+    docs = [_stringify_doc(value) for value in doc_numbers if _stringify_doc(value)]
+    if not docs:
+        return set()
+
+    financed_docs = set()
+    unique_docs = list(dict.fromkeys(docs))
+
+    det_columns = _load_table_columns("DET_PRESTAMO")
+    det_doc_col = _pick_existing_column(det_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+    if det_doc_col:
+        for docs_chunk in _chunked(unique_docs, 300):
+            placeholders = ", ".join(["%s"] * len(docs_chunk))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT CAST([{det_doc_col}] AS NVARCHAR(255))
+                    FROM DET_PRESTAMO
+                    WHERE CAST([{det_doc_col}] AS NVARCHAR(255)) IN ({placeholders})
+                    """,
+                    docs_chunk,
+                )
+                financed_docs.update(_stringify_doc(row[0]) for row in cursor.fetchall() if row and row[0] is not None)
+
+    cab_columns = _load_table_columns("CAB_PRESTAMO")
+    cab_fact_col = _pick_existing_column(cab_columns, "NO_FACT", "NO_FACTURA", "DOCUMENTO_BASE", "FACTURA_BASE")
+    if cab_fact_col:
+        for docs_chunk in _chunked(unique_docs, 300):
+            placeholders = ", ".join(["%s"] * len(docs_chunk))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT DISTINCT CAST([{cab_fact_col}] AS NVARCHAR(255))
+                    FROM CAB_PRESTAMO
+                    WHERE CAST([{cab_fact_col}] AS NVARCHAR(255)) IN ({placeholders})
+                    """,
+                    docs_chunk,
+                )
+                financed_docs.update(_stringify_doc(row[0]) for row in cursor.fetchall() if row and row[0] is not None)
+
+    return financed_docs
+
+
+def _load_financiamiento_facturas_disponibles(query="", filtro="nombre", limit=120):
+    cab_columns = _load_table_columns("CAB_FACTURA")
+    if not cab_columns:
+        return []
+
+    safe_limit = max(20, min(int(limit or 120), 300))
+    fetch_limit = max(safe_limit * 4, 120)
+    doc_col = _pick_existing_column(cab_columns, "ID_DOC", "NO_DOC", "DOCUMENTO", "FACTURA")
+    id_sn_col = _pick_existing_column(cab_columns, "ID_SN", "CLIENTE", "COD_CLIENTE")
+    nombre_col = _pick_existing_column(cab_columns, "NOM_SN", "NOM_SOCIO", "NOMBRE", "NOM_CLIENTE")
+    rnc_col = _pick_existing_column(cab_columns, "RNC_CED", "RNC", "CEDULA")
+    fecha_col = _pick_existing_column(cab_columns, "FECHA_DOC", "FECHA_CONT", "FECHA", "FECHA_APLIC")
+    total_col = _pick_existing_column(cab_columns, "TOTAL_DOC", "MONTO", "IMPORTE", "TOTAL")
+    saldo_col = _pick_existing_column(cab_columns, "SALDO", "BALANCE")
+    abono_col = _pick_existing_column(cab_columns, "ABONO")
+    estado_col = _pick_existing_column(cab_columns, "EST_DOC", "ESTATUS", "ESTADO")
+    tipo_col = _pick_existing_column(cab_columns, "TIPO_DOC", "TD", "CLASE_DOC", "TIPO")
+    comentario_col = _pick_existing_column(cab_columns, "COMENTARIO", "OBSERVACION")
+
+    if not doc_col:
+        return []
+
+    sql = f"SELECT TOP {fetch_limit} * FROM CAB_FACTURA"
+    where_parts = []
+    params = []
+    query = str(query or "").strip()
+    filtro = str(filtro or "nombre").strip().lower()
+    if query:
+        target_col = nombre_col or doc_col
+        if filtro == "documento":
+            target_col = doc_col
+        elif filtro == "codigo" and id_sn_col:
+            target_col = id_sn_col
+        elif filtro == "cedula" and rnc_col:
+            target_col = rnc_col
+        where_parts.append(f"CAST([{target_col}] AS NVARCHAR(255)) LIKE %s")
+        params.append(f"%{query}%")
+    if where_parts:
+        sql += " WHERE " + " AND ".join(where_parts)
+    order_col = fecha_col or doc_col
+    sql += f" ORDER BY [{order_col}] DESC"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        raw_columns = [col[0] for col in cursor.description]
+        rows = [_normalize_result_row(raw_columns, raw_row) for raw_row in cursor.fetchall()]
+
+    doc_numbers = [_stringify_doc(_pick_row_value(row, doc_col)) for row in rows]
+    maestro_lookup = _load_maestro_sn_lookup(
+        [_pick_row_text(row, id_sn_col) for row in rows if id_sn_col]
+    )
+    financed_docs = _load_financiamiento_factura_doc_set(doc_numbers)
+
+    results = []
+    for row in rows:
+        no_doc = _stringify_doc(_pick_row_value(row, doc_col))
+        if not no_doc or no_doc in financed_docs:
+            continue
+
+        codigo = _pick_row_text(row, id_sn_col)
+        maestro_row = maestro_lookup.get(codigo, {})
+        total_doc_val = max(_to_float(_pick_row_value(row, total_col, default=0)), 0.0)
+        saldo_doc_val = max(_to_float(_pick_row_value(row, saldo_col, default=0)), 0.0)
+        abono_doc_val = max(_to_float(_pick_row_value(row, abono_col, default=0)), 0.0)
+        estado_doc = str(_pick_row_text(row, estado_col) or "").strip().upper()
+        saldo_doc_reconstruido = saldo_doc_val if saldo_doc_val > 0.01 else max(total_doc_val - abono_doc_val, 0.0)
+        if estado_doc != "ABIERTO" or saldo_doc_reconstruido <= 0.01 or _factura_closed_by_abono(total_doc_val, abono_doc_val):
+            continue
+
+        results.append(
+            {
+                "no_doc": no_doc,
+                "codigo": codigo,
+                "nombre": _pick_row_text(row, nombre_col) or maestro_row.get("nombre", ""),
+                "cedula": _pick_row_text(row, rnc_col) or maestro_row.get("rnc_ced", ""),
+                "fecha": _fmt_date_flexible(_pick_row_value(row, fecha_col)),
+                "fecha_iso": _fmt_date_input(_pick_row_value(row, fecha_col)),
+                "estado": _pick_row_text(row, estado_col) or "Abierto",
+                "tipo_doc": _pick_row_text(row, tipo_col) or "",
+                "total_doc": total_doc_val,
+                "saldo": saldo_doc_reconstruido,
+                "comentario": _pick_row_text(row, comentario_col),
+            }
+        )
+        if len(results) >= safe_limit:
+            break
+
+    return results
+
+
+def _load_financiamiento_detail_rows(no_doc):
+    no_doc_text = str(no_doc or "").strip()
+    if not no_doc_text:
+        return []
+
+    det_columns = _load_table_columns("DET_PRESTAMO")
+    doc_col = _pick_existing_column(det_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+    cuota_num_col = _pick_existing_column(det_columns, "NO_CUOTA", "CUOTA_NUM", "NUM_CUOTA")
+    fecha_col = _pick_existing_column(det_columns, "FECHA")
+    fecha_venc_col = _pick_existing_column(det_columns, "FECHA_VENC", "F_VENC", "VENCIMIENTO")
+    cuota_col = _pick_existing_column(det_columns, "CUOTA", "MONTO_CUOTA", "VALOR_CUOTA")
+    balance_col = _pick_existing_column(det_columns, "BALANCE")
+    saldo_insoluto_col = _pick_existing_column(det_columns, "SALDO_INSOLUTO")
+    abono_cuota_col = _pick_existing_column(det_columns, "ABONO_CUOTA", "ABONOCUOTA", "ABONO_CUENTA", "ABONOCUENTA")
+    interes_col = _pick_existing_column(det_columns, "MONTO_INTERES", "MTO_INTERES", "INTERES", "IMP_INTERES", "INT")
+    capital_col = _pick_existing_column(det_columns, "CAPITAL", "MONTO_CAPITAL", "CAPITAL_CUOTA")
+    no_recibo_col = _pick_existing_column(det_columns, "NORECIBO", "NO_RECIBO")
+    if not doc_col:
+        return []
+
+    where_sql, where_params = _build_doc_lookup_where([doc_col], no_doc_text)
+
+    with connection.cursor() as cursor:
+        order_sql = f"[{cuota_num_col}]" if cuota_num_col else f"[{doc_col}]"
+        if cuota_num_col:
+            order_sql = f"TRY_CAST([{cuota_num_col}] AS BIGINT), [{cuota_num_col}]"
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM DET_PRESTAMO
+            WHERE {where_sql}
+            ORDER BY {order_sql}
+            """,
+            where_params,
+        )
+        raw_columns = [col[0] for col in cursor.description]
+        raw_rows = [_normalize_result_row(raw_columns, raw_row) for raw_row in cursor.fetchall()]
+
+    detail_rows = []
+    for row in raw_rows:
+        cuota = max(_to_float(_pick_row_value(row, cuota_col, default=0)), 0.0)
+        pagado = max(_to_float(_pick_row_value(row, abono_cuota_col, default=0)), 0.0)
+        cuota_pendiente = _to_float(
+            _resolve_prestamo_balance(
+                _pick_row_value(row, balance_col),
+                cuota=_pick_row_value(row, cuota_col),
+                abono_cuota=_pick_row_value(row, abono_cuota_col),
+            )
+        )
+        balance = max(
+            _to_float(_pick_row_value(row, saldo_insoluto_col, balance_col, default=cuota_pendiente)),
+            0.0,
+        )
+        if pagado <= 0.0001 and cuota > 0:
+            pagado = max(cuota - max(cuota_pendiente, 0.0), 0.0)
+        interes = max(_to_float(_pick_row_value(row, interes_col, default=0)), 0.0)
+        capital = max(_to_float(_pick_row_value(row, capital_col, default=max(cuota - interes, 0.0))), 0.0)
+        pendiente = max(cuota_pendiente, 0.0)
+        detail_rows.append(
+            {
+                "no_cuota": _stringify_doc(_pick_row_value(row, cuota_num_col, default="")),
+                "fecha": _fmt_date_flexible(_pick_row_value(row, fecha_col)),
+                "fecha_venc": _fmt_date_flexible(_pick_row_value(row, fecha_venc_col)),
+                "monto_interes": interes,
+                "capital": capital,
+                "balance": balance,
+                "cuota": cuota,
+                "pagado": pagado,
+                "pendiente": pendiente,
+                "no_recibo": _pick_row_text(row, no_recibo_col),
+            }
+        )
+    return detail_rows
+
+
+def _load_financiamiento_record(no_doc):
+    no_doc_text = str(no_doc or "").strip()
+    if not no_doc_text:
+        return None
+
+    cab_columns = _load_table_columns("CAB_PRESTAMO")
+    if not cab_columns:
+        return None
+
+    doc_col = _pick_existing_column(cab_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+    no_fact_col = _pick_existing_column(cab_columns, "ID_DOC", "NO_DOC", "DOCUMENTO", "FACTURA", "NO_FACT", "NO_FACTURA", "DOCUMENTO_BASE", "FACTURA_BASE", doc_col)
+    no_col = _pick_existing_column(cab_columns, "ID_PRESTAMO", "NO_PRESTAMO", "NO", "ID_DOC", doc_col)
+    id_sn_col = _pick_existing_column(cab_columns, "ID_SN", "CLIENTE", "COD_CLIENTE")
+    nombre_col = _pick_existing_column(cab_columns, "NOM_SN", "NOM_SOCIO", "NOMBRE", "NOM_CLIENTE")
+    rnc_col = _pick_existing_column(cab_columns, "RNC_CED", "RNC", "CEDULA")
+    fecha_col = _pick_existing_column(cab_columns, "FECHA_DOC", "FECHA_CONT", "FECHA", "FECHA_APLIC")
+    fecha_base_col = _pick_existing_column(cab_columns, "FECHA_BASE", "FECHA_DOC", "FECHA_CONT", "FECHA")
+    estado_col = _pick_existing_column(cab_columns, "EST_DOC", "ESTATUS", "ESTADO")
+    tipo_col = _pick_existing_column(cab_columns, "TIPO", "TIPO_DOC", "CLASE_DOC")
+    moneda_col = _pick_existing_column(cab_columns, "MON_DOC", "MONEDA")
+    tasa_col = _pick_existing_column(cab_columns, "TASAFACT", "TASA", "FACTOR", "TIPO_CAMBIO")
+    total_col = _pick_existing_column(
+        cab_columns,
+        "TOTAL_DOC",
+        "MONTO",
+        "IMPORTE",
+        "TOTAL",
+        "CAPITAL",
+        "CAPITAL_FINANCIADO",
+    )
+    saldo_col = _pick_existing_column(cab_columns, "SALDO", "BALANCE", "SALDO_INSOLUTO")
+    abono_col = _pick_existing_column(cab_columns, "ABONO")
+    porc_interes_col = _pick_existing_column(cab_columns, "PORC_INTERES", "PORC_INT", "INTERES_PORC", "PORCENTAJE_INTERES")
+    plazo_col = _pick_existing_column(cab_columns, "PLAZO", "MESES", "NUM_CUOTAS", "CUOTAS")
+    metodo_col = _pick_existing_column(cab_columns, "METODO", "METODO_CALC", "FORMA", "SISTEMA", "AMORTIZACION")
+    tipo_cuota_col = _pick_existing_column(cab_columns, "TIPO_CUOTA", "TIPO_PAGO", "FRECUENCIA", "PERIODO")
+    cuota_valor_col = _pick_existing_column(cab_columns, "CUOTA", "MONTO_CUOTA", "VALOR_CUOTA")
+    comentario_col = _pick_existing_column(cab_columns, "COMENTARIO", "OBSERVACION")
+    if not doc_col:
+        return None
+
+    where_sql, where_params = _build_doc_lookup_where([doc_col, no_fact_col, no_col], no_doc_text)
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT TOP 1 * FROM CAB_PRESTAMO WHERE {where_sql}",
+            where_params,
+        )
+        raw_row = cursor.fetchone()
+        if not raw_row:
+            return None
+        raw_columns = [col[0] for col in cursor.description]
+        cab_row = _normalize_result_row(raw_columns, raw_row)
+
+    detail_rows = []
+    detail_lookup_candidates = [
+        _stringify_doc(_pick_row_value(cab_row, doc_col)),
+        _stringify_doc(_pick_row_value(cab_row, no_col)),
+        _stringify_doc(_pick_row_value(cab_row, no_fact_col)),
+        no_doc_text,
+    ]
+    for detail_lookup in detail_lookup_candidates:
+        if not detail_lookup:
+            continue
+        detail_rows = _load_financiamiento_detail_rows(detail_lookup)
+        if detail_rows:
+            break
+    codigo = _pick_row_text(cab_row, id_sn_col)
+    maestro_lookup = _load_maestro_sn_lookup([codigo]) if codigo else {}
+    maestro_row = maestro_lookup.get(codigo, {})
+
+    monto = max(_to_float(_pick_row_value(cab_row, total_col, default=0)), 0.0)
+    saldo = max(_to_float(_pick_row_value(cab_row, saldo_col, default=0)), 0.0)
+    total_pagado = sum(float(row.get("pagado") or 0) for row in detail_rows)
+    total_pendiente = sum(float(row.get("pendiente") or 0) for row in detail_rows)
+    capital_total = sum(float(row.get("capital") or 0) for row in detail_rows)
+    interes_total = sum(float(row.get("monto_interes") or 0) for row in detail_rows)
+    cuota_total = sum(float(row.get("cuota") or 0) for row in detail_rows)
+    if monto <= 0.0001 and cuota_total > 0:
+        monto = cuota_total
+    if saldo <= 0.0001 and total_pendiente > 0:
+        saldo = total_pendiente
+    valor_cuota = max(
+        _to_float(_pick_row_value(cab_row, cuota_valor_col, default=0)),
+        float(detail_rows[0].get("cuota") or 0) if detail_rows else 0.0,
+    )
+    plazo = int(_to_float(_pick_row_value(cab_row, plazo_col, default=len(detail_rows) if detail_rows else 0)))
+    if plazo <= 0:
+        plazo = len(detail_rows)
+
+    prestamo = {
+        "no_doc": _stringify_doc(_pick_row_value(cab_row, doc_col, no_col)),
+        "no_factura": _stringify_doc(_pick_row_value(cab_row, no_fact_col, doc_col, no_col)),
+        "no": _stringify_doc(_pick_row_value(cab_row, no_col, doc_col)),
+        "codigo": codigo,
+        "nombre": _pick_row_text(cab_row, nombre_col) or maestro_row.get("nombre", ""),
+        "cedula": _pick_row_text(cab_row, rnc_col) or maestro_row.get("rnc_ced", ""),
+        "estado": _pick_row_text(cab_row, estado_col) or ("Abierto" if saldo > 0.01 else "Cerrado"),
+        "fecha": _fmt_date_input(_pick_row_value(cab_row, fecha_col)),
+        "tipo": _pick_row_text(cab_row, tipo_col) or "Financiamiento",
+        "moneda": _pick_row_text(cab_row, moneda_col) or "RD$",
+        "tasa": max(_to_float(_pick_row_value(cab_row, tasa_col, default=1)), 0.0) or 1.0,
+        "monto": monto,
+        "porc_interes": max(_to_float(_pick_row_value(cab_row, porc_interes_col, default=0)), 0.0),
+        "plazo": plazo,
+        "metodo": _pick_row_text(cab_row, metodo_col) or "Lineal",
+        "tipo_cuota": _pick_row_text(cab_row, tipo_cuota_col) or "Mensual",
+        "fecha_base": _fmt_date_input(_pick_row_value(cab_row, fecha_base_col)),
+        "valor_cuota": valor_cuota,
+        "comentario": _pick_row_text(cab_row, comentario_col),
+        "saldo": saldo,
+        "abono": max(_to_float(_pick_row_value(cab_row, abono_col, default=max(monto - saldo, 0))), 0.0),
+        "total_pagado": total_pagado,
+        "total_pendiente": total_pendiente,
+    }
+    historial = [
+        row for row in detail_rows
+        if row.get("pagado", 0) > 0.0001 or str(row.get("no_recibo") or "").strip()
+    ]
+    tolerance = 0.01
+    estado_text = str(prestamo.get("estado") or "").strip().upper()
+    detail_initial_state = True
+    for row in detail_rows:
+        cuota_val = _to_float(row.get("cuota"))
+        pagado_val = _to_float(row.get("pagado"))
+        pendiente_val = _to_float(row.get("pendiente"))
+        if pagado_val > tolerance:
+            detail_initial_state = False
+            break
+        if str(row.get("no_recibo") or "").strip():
+            detail_initial_state = False
+            break
+        if cuota_val > tolerance and abs(cuota_val - pendiente_val) > tolerance:
+            detail_initial_state = False
+            break
+    editable = (
+        estado_text == "ABIERTO"
+        and _to_float(prestamo.get("abono")) <= tolerance
+        and _to_float(prestamo.get("total_pagado")) <= tolerance
+        and detail_initial_state
+    )
+    finanzas = {
+        "capital_total": capital_total,
+        "interes_total": interes_total,
+        "cuota_total": cuota_total,
+        "pagado_total": total_pagado,
+        "pendiente_total": total_pendiente,
+    }
+    return {
+        "prestamo": prestamo,
+        "detalle": detail_rows,
+        "historial": historial,
+        "finanzas": finanzas,
+        "editable": editable,
+    }
+
+
+def _normalize_financiamiento_choice(value, allowed, default_value):
+    text = str(value or "").strip().lower()
+    allowed_map = {str(option).strip().lower(): option for option in (allowed or [])}
+    return allowed_map.get(text, default_value)
+
+
+def _prepare_financiamiento_detail_rows(raw_detail):
+    if not isinstance(raw_detail, list):
+        raise ValueError("Detalle invalido.")
+
+    rows = []
+    used_cuotas = set()
+    for index, item in enumerate(raw_detail, start=1):
+        if not isinstance(item, dict):
+            continue
+
+        no_cuota = str(item.get("no_cuota") or index).strip() or str(index)
+        if no_cuota in used_cuotas:
+            raise ValueError(f"La cuota {no_cuota} esta repetida.")
+        used_cuotas.add(no_cuota)
+
+        fecha_venc = _parse_date_value(item.get("fecha_venc") or item.get("fecha"))
+        if not fecha_venc:
+            raise ValueError(f"Debes indicar la fecha de vencimiento de la cuota {no_cuota}.")
+
+        monto_interes = max(_to_decimal(item.get("monto_interes")), Decimal("0"))
+        capital = max(_to_decimal(item.get("capital")), Decimal("0"))
+        saldo_insoluto = max(_to_decimal(item.get("balance")), Decimal("0"))
+        cuota = max(_to_decimal(item.get("cuota")), Decimal("0"))
+        if cuota <= Decimal("0.01"):
+            raise ValueError(f"La cuota {no_cuota} debe tener un valor mayor a 0.")
+        if capital <= Decimal("0.01") and cuota <= Decimal("0.01"):
+            raise ValueError(f"La cuota {no_cuota} no tiene valores validos.")
+
+        rows.append(
+            {
+                "linea": index,
+                "no_cuota": no_cuota,
+                "fecha_venc": fecha_venc,
+                "monto_interes": monto_interes,
+                "capital": capital,
+                "saldo_insoluto": saldo_insoluto,
+                "cuota": cuota,
+                "balance": cuota,
+                "abono_cuota": Decimal("0"),
+            }
+        )
+
+    if not rows:
+        raise ValueError("Debes generar al menos una cuota antes de grabar.")
+    return rows
+
+
+def _lock_financiamiento_factura_base(cursor, factura_no):
+    factura_columns = _load_table_columns("CAB_FACTURA")
+    factura_doc_col = _pick_existing_column(factura_columns, "ID_DOC", "NO_DOC", "DOCUMENTO", "FACTURA")
+    if not factura_doc_col:
+        raise ValueError("No se pudo identificar la clave de CAB_FACTURA.")
+
+    cursor.execute(
+        f"SELECT TOP 1 * FROM CAB_FACTURA WITH (UPDLOCK, HOLDLOCK) WHERE CAST([{factura_doc_col}] AS NVARCHAR(255)) = %s",
+        [factura_no],
+    )
+    raw_row = cursor.fetchone()
+    if not raw_row:
+        raise ValueError(f"No se encontro la factura {factura_no}.")
+
+    factura_row = _normalize_result_row([col[0] for col in cursor.description], raw_row)
+    estado_col = _pick_existing_column(factura_columns, "EST_DOC", "ESTATUS", "ESTADO")
+    total_col = _pick_existing_column(factura_columns, "TOTAL_DOC", "MONTO", "IMPORTE", "TOTAL")
+    saldo_col = _pick_existing_column(factura_columns, "SALDO", "BALANCE")
+    abono_col = _pick_existing_column(factura_columns, "ABONO")
+    id_sn_col = _pick_existing_column(factura_columns, "ID_SN", "CLIENTE", "COD_CLIENTE")
+    nombre_col = _pick_existing_column(factura_columns, "NOM_SN", "NOM_SOCIO", "NOMBRE", "NOM_CLIENTE")
+    rnc_col = _pick_existing_column(factura_columns, "RNC_CED", "RNC", "CEDULA")
+    fecha_col = _pick_existing_column(factura_columns, "FECHA_DOC", "FECHA_CONT", "FECHA", "FECHA_APLIC")
+    comentario_col = _pick_existing_column(factura_columns, "COMENTARIO", "OBSERVACION")
+
+    total_doc = max(_to_decimal(_pick_row_value(factura_row, total_col, default=0)), Decimal("0"))
+    saldo_doc = max(_to_decimal(_pick_row_value(factura_row, saldo_col, default=0)), Decimal("0"))
+    abono_doc = max(_to_decimal(_pick_row_value(factura_row, abono_col, default=0)), Decimal("0"))
+    estado_doc = _pick_row_text(factura_row, estado_col).strip().upper()
+    saldo_reconstruido = saldo_doc if saldo_doc > Decimal("0.01") else max(total_doc - abono_doc, Decimal("0"))
+    if estado_doc != "ABIERTO" or saldo_reconstruido <= Decimal("0.01") or _factura_closed_by_abono(total_doc, abono_doc):
+        raise ValueError(f"La factura {factura_no} no esta disponible para financiamiento.")
+
+    return {
+        "columns": factura_columns,
+        "doc_col": factura_doc_col,
+        "row": factura_row,
+        "id_sn": _pick_row_text(factura_row, id_sn_col),
+        "nombre": _pick_row_text(factura_row, nombre_col),
+        "cedula": _pick_row_text(factura_row, rnc_col),
+        "fecha": _pick_row_value(factura_row, fecha_col),
+        "comentario": _pick_row_text(factura_row, comentario_col),
+        "total_doc": total_doc,
+        "saldo": saldo_reconstruido,
+        "estado": estado_doc,
+    }
+
+
+def _persist_financiamiento_record(
+    cursor,
+    *,
+    record_lookup,
+    factura_no,
+    fecha_doc,
+    fecha_base,
+    metodo,
+    tipo_cuota,
+    porc_interes,
+    comentario,
+    detail_rows,
+    usuario_id,
+    usuario_nombre,
+    terminal,
+):
+    cab_columns = _load_table_columns("CAB_PRESTAMO")
+    det_columns = _load_table_columns("DET_PRESTAMO")
+    if not cab_columns or not det_columns:
+        raise ValueError("No se pudieron cargar las tablas CAB_PRESTAMO/DET_PRESTAMO.")
+
+    cab_identity_columns = _load_identity_columns("CAB_PRESTAMO")
+    det_identity_columns = _load_identity_columns("DET_PRESTAMO")
+
+    cab_doc_col = _pick_existing_column(cab_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+    cab_fact_col = _pick_existing_column(
+        cab_columns,
+        "ID_DOC",
+        "NO_FACT",
+        "NO_FACTURA",
+        "DOCUMENTO_BASE",
+        "FACTURA_BASE",
+        "FACTURA",
+        cab_doc_col,
+    )
+    cab_no_col = _pick_existing_column(cab_columns, "ID_PRESTAMO", "NO_PRESTAMO", "NO", cab_doc_col)
+    if not cab_doc_col and not cab_fact_col and not cab_no_col:
+        raise ValueError("No se pudo determinar la clave de CAB_PRESTAMO.")
+
+    factura_base = _lock_financiamiento_factura_base(cursor, factura_no)
+    id_sn = str(factura_base.get("id_sn") or "").strip()
+    nombre_cliente = str(factura_base.get("nombre") or "").strip()
+    rnc_ced = str(factura_base.get("cedula") or "").strip()
+    comentario_final = str(comentario or "").strip() or str(factura_base.get("comentario") or "").strip()
+
+    monto_principal = sum((row.get("capital") or Decimal("0")) for row in detail_rows)
+    cuota_total = sum((row.get("cuota") or Decimal("0")) for row in detail_rows)
+    valor_cuota = detail_rows[0].get("cuota") if detail_rows else Decimal("0")
+    plazo = len(detail_rows)
+    saldo_total = cuota_total
+
+    existing_record = None
+    locked_cab_row = None
+    loan_no_value = ""
+    main_doc_value = ""
+    lookup_value = str(record_lookup or "").strip()
+    if lookup_value:
+        existing_record = _load_financiamiento_record(lookup_value)
+        if not existing_record:
+            raise ValueError("No se encontro el financiamiento que intentas actualizar.")
+        if not existing_record.get("editable"):
+            raise ValueError("Solo se pueden modificar financiamientos virgenes.")
+        existing_prestamo = existing_record.get("prestamo") or {}
+        existing_factura_no = str(existing_prestamo.get("no_factura") or existing_prestamo.get("no_doc") or "").strip()
+        if existing_factura_no and existing_factura_no != factura_no:
+            raise ValueError("No se puede cambiar la factura base de un financiamiento existente.")
+
+        where_sql, where_params = _build_doc_lookup_where([cab_doc_col, cab_fact_col, cab_no_col], lookup_value)
+        cursor.execute(
+            f"SELECT TOP 1 * FROM CAB_PRESTAMO WITH (UPDLOCK, HOLDLOCK) WHERE {where_sql}",
+            where_params,
+        )
+        raw_locked = cursor.fetchone()
+        if not raw_locked:
+            raise ValueError("No se encontro el financiamiento seleccionado para actualizar.")
+        locked_cab_row = _normalize_result_row([col[0] for col in cursor.description], raw_locked)
+        loan_no_value = _stringify_doc(_pick_row_value(locked_cab_row, cab_no_col, default=""))
+        main_doc_value = _stringify_doc(_pick_row_value(locked_cab_row, cab_doc_col, default=""))
+    else:
+        financed_docs = _load_financiamiento_factura_doc_set([factura_no])
+        if factura_no in financed_docs:
+            raise ValueError(f"La factura {factura_no} ya tiene un financiamiento registrado.")
+
+    next_loan_no = None
+    if not loan_no_value:
+        loan_candidates = [
+            candidate
+            for candidate in _unique_columns(cab_no_col, "ID_PRESTAMO", "NO_PRESTAMO", "NO", "NO_DOC")
+            if candidate and candidate in cab_columns and candidate not in cab_identity_columns
+        ]
+        if loan_candidates:
+            next_loan_no = _next_table_numeric_value(cursor, "CAB_PRESTAMO", loan_candidates[0])
+            loan_no_value = _stringify_doc(next_loan_no)
+
+    if not main_doc_value:
+        main_doc_value = loan_no_value or factura_no
+
+    header_values = {}
+    if cab_doc_col == "NO_DOC":
+        header_values[cab_doc_col] = main_doc_value
+    elif cab_doc_col in {"DOCUMENTO"}:
+        header_values[cab_doc_col] = main_doc_value
+    elif cab_doc_col in {"ID_DOC", "FACTURA"}:
+        header_values[cab_doc_col] = factura_no
+
+    if cab_fact_col and cab_fact_col != cab_doc_col:
+        header_values[cab_fact_col] = factura_no
+    elif cab_fact_col and cab_fact_col == cab_doc_col and cab_fact_col not in header_values:
+        header_values[cab_fact_col] = factura_no
+
+    if cab_no_col and loan_no_value and cab_no_col not in cab_identity_columns:
+        header_values[cab_no_col] = loan_no_value
+
+    if loan_no_value:
+        _assign_existing_values(header_values, cab_columns, loan_no_value, "ID_PRESTAMO", "NO_PRESTAMO", "NO")
+    if "NO_DOC" in cab_columns and "NO_DOC" not in header_values:
+        header_values["NO_DOC"] = main_doc_value
+    if "DOCUMENTO" in cab_columns and "DOCUMENTO" not in header_values:
+        header_values["DOCUMENTO"] = main_doc_value
+    _assign_existing_values(header_values, cab_columns, factura_no, "ID_DOC", "NO_FACT", "NO_FACTURA", "DOCUMENTO_BASE", "FACTURA_BASE", "FACTURA")
+    _assign_existing_values(header_values, cab_columns, fecha_doc, "FECHA_DOC", "FECHA_CONT", "FECHA", "FECHA_APLIC")
+    _assign_existing_values(header_values, cab_columns, fecha_base, "FECHA_BASE")
+    _assign_existing_values(header_values, cab_columns, id_sn, "ID_SN", "CLIENTE", "COD_CLIENTE")
+    _assign_existing_values(header_values, cab_columns, nombre_cliente, "NOM_SN", "NOM_SOCIO", "NOMBRE", "NOM_CLIENTE")
+    _assign_existing_values(header_values, cab_columns, rnc_ced, "RNC_CED", "RNC", "CEDULA")
+    _assign_existing_values(header_values, cab_columns, "Financiamiento", "TIPO", "TIPO_DOC", "CLASE_DOC")
+    _assign_existing_values(header_values, cab_columns, "RD$", "MON_DOC", "MONEDA")
+    _assign_existing_values(header_values, cab_columns, Decimal("1"), "TASAFACT", "TASA", "FACTOR", "TIPO_CAMBIO")
+    _assign_existing_values(header_values, cab_columns, monto_principal, "TOTAL_DOC", "MONTO", "IMPORTE", "TOTAL", "CAPITAL", "CAPITAL_FINANCIADO")
+    _assign_existing_values(header_values, cab_columns, saldo_total, "SALDO", "BALANCE", "SALDO_INSOLUTO")
+    _assign_existing_values(header_values, cab_columns, Decimal("0"), "ABONO")
+    _assign_existing_values(header_values, cab_columns, porc_interes, "PORC_INTERES", "PORC_INT", "INTERES_PORC", "PORCENTAJE_INTERES")
+    _assign_existing_values(header_values, cab_columns, plazo, "PLAZO", "MESES", "NUM_CUOTAS", "CUOTAS")
+    _assign_existing_values(header_values, cab_columns, metodo, "METODO", "METODO_CALC", "FORMA", "SISTEMA", "AMORTIZACION")
+    _assign_existing_values(header_values, cab_columns, tipo_cuota, "TIPO_CUOTA", "TIPO_PAGO", "FRECUENCIA", "PERIODO")
+    _assign_existing_values(header_values, cab_columns, valor_cuota, "CUOTA", "MONTO_CUOTA", "VALOR_CUOTA")
+    _assign_existing_values(header_values, cab_columns, comentario_final, "COMENTARIO", "OBSERVACION")
+    _assign_existing_values(header_values, cab_columns, "Abierto" if saldo_total > Decimal("0.01") else "Cerrado", "EST_DOC", "ESTATUS", "ESTADO")
+    _assign_existing_values(header_values, cab_columns, usuario_id, "ID_USUARIO", "USUARIO_ID")
+    _assign_existing_values(header_values, cab_columns, usuario_nombre, "USUARIO", "USUARIO_NOMBRE")
+    _assign_existing_values(header_values, cab_columns, terminal, "TERMINAL")
+    _assign_existing_values(header_values, cab_columns, timezone.localdate(), "FECHA_CREACION")
+    _assign_existing_values(header_values, cab_columns, timezone.localtime(), "FECHA_ACT")
+    _assign_existing_values(header_values, cab_columns, str(timezone.localdate().month), "PERIODO_CONT")
+    _assign_existing_values(header_values, cab_columns, timezone.localdate().year, "EJERCICIO")
+
+    if locked_cab_row:
+        where_sql, where_params = _build_doc_lookup_where([cab_doc_col, cab_fact_col, cab_no_col], lookup_value)
+        _update_dynamic_row(cursor, "CAB_PRESTAMO", header_values, where_sql, where_params)
+    else:
+        _insert_dynamic_row(
+            cursor,
+            "CAB_PRESTAMO",
+            cab_columns,
+            header_values,
+            output_column=cab_no_col or cab_doc_col or cab_fact_col,
+            skip_columns=cab_identity_columns,
+        )
+
+    det_doc_col = _pick_existing_column(det_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+    det_line_col = _pick_existing_column(det_columns, "NO_LINEA", "LINEA", "NO_ITEM", "ORDEN")
+    det_cuota_num_col = _pick_existing_column(det_columns, "NO_CUOTA", "CUOTA_NUM", "NUM_CUOTA")
+    det_balance_col = _pick_existing_column(det_columns, "BALANCE")
+    det_abono_cuota_col = _pick_existing_column(det_columns, "ABONO_CUOTA", "ABONOCUOTA", "ABONO_CUENTA", "ABONOCUENTA")
+    det_no_recibo_col = _pick_existing_column(det_columns, "NORECIBO", "NO_RECIBO")
+    if not det_doc_col or not det_cuota_num_col:
+        raise ValueError("No se pudo determinar la estructura del detalle del financiamiento.")
+
+    where_sql, where_params = _build_doc_lookup_where([det_doc_col], factura_no)
+    cursor.execute(f"DELETE FROM DET_PRESTAMO WHERE {where_sql}", where_params)
+
+    for row in detail_rows:
+        detail_values = {}
+        _assign_existing_values(detail_values, det_columns, factura_no, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+        if loan_no_value:
+            _assign_existing_values(detail_values, det_columns, loan_no_value, "ID_PRESTAMO", "NO_PRESTAMO", "NO")
+        if det_line_col and det_line_col not in det_identity_columns:
+            _assign_existing_values(detail_values, det_columns, row["linea"], det_line_col)
+        _assign_existing_values(detail_values, det_columns, row["no_cuota"], "NO_CUOTA", "CUOTA_NUM", "NUM_CUOTA")
+        _assign_existing_values(detail_values, det_columns, fecha_doc, "FECHA", "FECHA_DOC", "FECHA_CONT")
+        _assign_existing_values(detail_values, det_columns, row["fecha_venc"], "FECHA_VENC", "F_VENC", "VENCIMIENTO")
+        _assign_existing_values(detail_values, det_columns, row["monto_interes"], "MONTO_INTERES", "MTO_INTERES", "INTERES", "IMP_INTERES", "INT")
+        _assign_existing_values(detail_values, det_columns, row["capital"], "CAPITAL", "MONTO_CAPITAL", "CAPITAL_CUOTA")
+        _assign_existing_values(detail_values, det_columns, row["saldo_insoluto"], "SALDO_INSOLUTO")
+        _assign_existing_values(detail_values, det_columns, row["cuota"], "CUOTA", "MONTO_CUOTA", "VALOR_CUOTA")
+        if det_balance_col:
+            detail_values[det_balance_col] = row["balance"]
+        if det_abono_cuota_col:
+            detail_values[det_abono_cuota_col] = row["abono_cuota"]
+        if det_no_recibo_col:
+            detail_values[det_no_recibo_col] = None
+        _assign_existing_values(detail_values, det_columns, row["balance"], "PENDIENTE", "SALDO")
+        _assign_existing_values(detail_values, det_columns, Decimal("0"), "PAGADO", "ABONO")
+        _assign_existing_values(detail_values, det_columns, id_sn, "ID_SN", "CLIENTE", "COD_CLIENTE")
+        _assign_existing_values(detail_values, det_columns, nombre_cliente, "NOM_SN", "NOM_SOCIO", "NOMBRE", "NOM_CLIENTE")
+        _assign_existing_values(detail_values, det_columns, rnc_ced, "RNC_CED", "RNC", "CEDULA")
+        _assign_existing_values(detail_values, det_columns, "Financiamiento", "TIPO", "TIPO_DOC", "CLASE_DOC")
+        _assign_existing_values(detail_values, det_columns, comentario_final, "COMENTARIO", "OBSERVACION")
+        _assign_existing_values(detail_values, det_columns, "Abierto", "EST_DOC", "ESTATUS", "ESTADO")
+        _assign_existing_values(detail_values, det_columns, usuario_id, "ID_USUARIO", "USUARIO_ID")
+        _assign_existing_values(detail_values, det_columns, usuario_nombre, "USUARIO", "USUARIO_NOMBRE")
+        _assign_existing_values(detail_values, det_columns, terminal, "TERMINAL")
+        _assign_existing_values(detail_values, det_columns, timezone.localdate(), "FECHA_CREACION")
+        _assign_existing_values(detail_values, det_columns, timezone.localtime(), "FECHA_ACT")
+        _insert_dynamic_row(
+            cursor,
+            "DET_PRESTAMO",
+            det_columns,
+            detail_values,
+            skip_columns=det_identity_columns,
+        )
+
+    return {
+        "lookup": main_doc_value or factura_no,
+        "factura_no": factura_no,
+        "loan_no": loan_no_value,
+        "created": not bool(locked_cab_row),
+    }
+
 @ensure_csrf_cookie
 def cuentas_por_cobrar_view(request):
     ctx = _base_context(request, page_title="Caja - Cuentas por cobrar", active_nav="caja")
@@ -2967,6 +4002,12 @@ def cuentas_por_cobrar_view(request):
         "cancelar": has_perm(usuario_id, "caja", "cxc_cancelar"),
         "cerrar_cuenta": has_perm(usuario_id, "caja", "cxc_cerrar_cuenta"),
     }
+    ctx["cxc_shortcuts"] = {
+        "financiamiento": has_perm(usuario_id, "caja", "ver_financiamiento"),
+        "factura": has_perm(usuario_id, "factura", "ver_documentos"),
+        "prefactura": has_perm(usuario_id, "prefacturas", "ver"),
+    }
+    ctx["cxc_default_payment_method"] = _load_cxc_default_payment_method(usuario_id)
     return render(request, "caja/cuentas_por_cobrar.html", ctx)
 
 
@@ -3148,7 +4189,7 @@ def cuentas_por_cobrar_cancelar_view(request):
     local_date = timezone.localdate()
     usuario_id = int((auth_payload or {}).get("usuario_id") or 0) or None
     usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
-    terminal = (socket.gethostname() or "")[:50]
+    terminal = _resolve_request_terminal(request, payload)
 
     try:
         with transaction.atomic():
@@ -3427,28 +4468,33 @@ def cuentas_por_cobrar_guardar_view(request):
     total_desc = sum(_to_decimal(item.get("desc_avance")) for item in detail)
     total_ret = sum(_to_decimal(item.get("total_ret")) for item in detail)
     applied_total = total_doc + total_desc
-    expected_total = total_doc + total_mora - total_desc - total_ret
-    receipt_total = total_desc if is_close_account else total_doc
+    cash_total = Decimal("0")
+    if total_doc > Decimal("0.01"):
+        cash_total = max(total_doc + total_mora - total_ret, Decimal("0"))
     monto_pagar = _to_decimal(payload.get("monto_pagar"))
 
     if applied_total <= Decimal("0"):
-        return JsonResponse({"detail": "No se puede grabar si el monto de pago no es mayor a 0."}, status=400)
+        return JsonResponse({"detail": "No se puede grabar si el pago o descuento aplicado no es mayor a 0."}, status=400)
 
     if is_close_account and total_desc <= Decimal("0"):
         return JsonResponse({"detail": "Debes aplicar un descuento mayor a 0 para cerrar la cuenta."}, status=400)
 
-    if not is_close_account and not _values_match(monto_pagar, expected_total):
+    if not is_close_account and not _values_match(monto_pagar, cash_total):
         return JsonResponse({"detail": "El monto total del pago no coincide con el detalle seleccionado."}, status=400)
 
     if is_close_account:
         efectivo = Decimal("0")
         transferencia = Decimal("0")
         total_metodos = Decimal("0")
-        expected_total = Decimal("0")
+        cash_total = Decimal("0")
+    elif cash_total <= Decimal("0.01"):
+        efectivo = Decimal("0")
+        transferencia = Decimal("0")
+        total_metodos = Decimal("0")
     elif total_metodos <= Decimal("0"):
         return JsonResponse({"detail": "Debes asignar un importe mayor a 0 en los metodos de pago."}, status=400)
 
-    if not is_close_account and not _values_match(total_metodos, expected_total):
+    if not is_close_account and cash_total > Decimal("0.01") and not _values_match(total_metodos, cash_total):
         return JsonResponse(
             {"detail": "El importe asignado en medio de pago debe ser igual al monto total del pago del documento."},
             status=400,
@@ -3464,7 +4510,7 @@ def cuentas_por_cobrar_guardar_view(request):
     ejercicio = local_date.year
     usuario_id = int((auth_payload or {}).get("usuario_id") or 0) or None
     usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
-    terminal = (socket.gethostname() or "")[:50]
+    terminal = _resolve_request_terminal(request, payload)
     recibo_estado = str(payload.get("estado") or "Abierto").strip() or "Abierto"
     cuenta_caja = str(payload.get("cuenta_caja") or "").strip()
     cuenta_caja_desc = str(payload.get("cuenta_caja_desc") or "").strip()
@@ -3479,7 +4525,7 @@ def cuentas_por_cobrar_guardar_view(request):
     comentario = str(payload.get("comentario") or "").strip()
     if is_close_account and not cuenta_desc_ret:
         return JsonResponse({"detail": "Debes indicar una cuenta Desc./Ret. para grabar el cierre de cuenta."}, status=400)
-    total_letra = _amount_to_spanish_words(receipt_total if is_close_account else expected_total)
+    total_letra = _amount_to_spanish_words(total_desc if is_close_account else cash_total)
     comentario_ed = _build_cxc_facturas_comment(detail, close_account=is_close_account)
 
     try:
@@ -3649,9 +4695,9 @@ def cuentas_por_cobrar_guardar_view(request):
                 _assign_existing_values(header_values, cab_columns, _to_decimal(payload.get("tasa_pago"), Decimal("1")), "TASA_PAGO", "TASA")
                 _assign_existing_values(header_values, cab_columns, efectivo, "IMP_EFECTIVO", "EFECTIVO", "MONTO_EFECTIVO", "PAGO_EFECTIVO")
                 _assign_existing_values(header_values, cab_columns, transferencia, "IMP_TRANSF", "TRANSFERENCIA", "MONTO_TRANSFERENCIA", "PAGO_TRANSFERENCIA")
-                _assign_existing_values(header_values, cab_columns, receipt_total if is_close_account else expected_total, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO")
+                _assign_existing_values(header_values, cab_columns, total_desc if is_close_account else cash_total, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO")
                 _assign_existing_values(header_values, cab_columns, total_mora, "TOTAL_MORA", "MORA", "CARGO")
-                _assign_existing_values(header_values, cab_columns, total_desc, "DESC_AVANCE", "DESCUENTO", "AVANCE")
+                _assign_existing_values(header_values, cab_columns, total_desc, "TOTAL_DESCTO", "DESC_AVANCE", "DESCUENTO", "AVANCE")
                 _assign_existing_values(header_values, cab_columns, total_ret, "TOTAL_RET", "RETENCION", "RET")
                 _assign_existing_values(header_values, cab_columns, "N", "IMPRESO")
                 _assign_existing_values(header_values, cab_columns, balance_cliente, "BALANCE")
@@ -3835,7 +4881,7 @@ def cuentas_por_cobrar_guardar_view(request):
                     fecha_cont=fecha_cont,
                     fecha_doc=fecha_pago,
                     fecha_venc=fecha_venc,
-                    total_recibo=total_desc if is_close_account else expected_total,
+                    total_recibo=total_desc if is_close_account else cash_total,
                     comentario=comentario_ed,
                     periodo_cont=periodo_cont,
                     ejercicio=ejercicio,
@@ -4015,6 +5061,68 @@ def _load_cuadre_caja_terminales():
     return terminales
 
 
+def _load_cuadre_caja_descuentos_por_recibo(fecha_desde, fecha_hasta):
+    cab_columns = _load_table_columns("CAB_RECIBO_INGRESO")
+    det_columns = _load_table_columns("DET_RECIBO_INGRESO")
+    if not cab_columns or not det_columns:
+        return {}
+
+    fecha_col = _pick_existing_column(cab_columns, "FECHA_CONT", "F_CONT", "FECHA_DOC", "FECHA")
+    cab_key_col = _pick_existing_column(cab_columns, "ID_RECIBO", "NO_RECIBO", "ID_DOC", "NO_DOC")
+    cab_no_recibo_col = _pick_existing_column(cab_columns, "NO_RECIBO", "ID_RECIBO", "ID_DOC", "NO_DOC")
+    det_key_col = _pick_existing_column(det_columns, "ID_RECIBO", "NO_RECIBO", "ID_DOC", "NO_DOC")
+    det_no_recibo_col = _pick_existing_column(det_columns, "NO_RECIBO", "ID_RECIBO", "ID_DOC", "NO_DOC")
+    det_desc_col = _pick_existing_column(det_columns, "DESC_AVANCE", "DESCUENTO", "AVANCE", "DESC")
+    if not fecha_col or not cab_key_col or not det_key_col or not det_desc_col:
+        return {}
+
+    join_parts = []
+    join_signatures = set()
+    cab_refs = [column for column in (cab_key_col, cab_no_recibo_col) if column]
+    det_refs = [column for column in (det_key_col, det_no_recibo_col) if column]
+    for det_ref in det_refs:
+        for cab_ref in cab_refs:
+            signature = (det_ref, cab_ref)
+            if signature in join_signatures:
+                continue
+            join_signatures.add(signature)
+            join_parts.append(
+                f"CAST(d.[{det_ref}] AS NVARCHAR(255)) = CAST(c.[{cab_ref}] AS NVARCHAR(255))"
+            )
+
+    if not join_parts:
+        return {}
+
+    group_columns = _unique_columns(cab_key_col, cab_no_recibo_col)
+    sql = f"""
+        SELECT
+            CAST(c.[{cab_key_col}] AS NVARCHAR(255)) AS RECIBO_KEY,
+            CAST(c.[{cab_no_recibo_col}] AS NVARCHAR(255)) AS RECIBO_NO,
+            SUM(ISNULL(TRY_CONVERT(DECIMAL(18, 2), d.[{det_desc_col}]), 0)) AS TOTAL_DESCUENTO
+        FROM CAB_RECIBO_INGRESO c
+        LEFT JOIN DET_RECIBO_INGRESO d
+            ON {" OR ".join(f"({part})" for part in join_parts)}
+        WHERE CONVERT(date, c.[{fecha_col}]) BETWEEN %s AND %s
+        GROUP BY {", ".join(f"c.[{column}]" for column in group_columns)}
+    """
+
+    lookup = {}
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, [fecha_desde, fecha_hasta])
+            for recibo_key, recibo_no, total_descuento in cursor.fetchall():
+                total_value = _to_float(total_descuento)
+                key = _stringify_doc(recibo_key)
+                no_key = _stringify_doc(recibo_no)
+                if key:
+                    lookup[key] = total_value
+                if no_key:
+                    lookup[no_key] = total_value
+    except Exception:
+        return {}
+    return lookup
+
+
 def _load_cuadre_caja_movimientos(fecha_desde, fecha_hasta, usuarios_lookup=None):
     usuarios_lookup = usuarios_lookup or {}
     columns = _load_table_columns("CAB_RECIBO_INGRESO")
@@ -4022,10 +5130,11 @@ def _load_cuadre_caja_movimientos(fecha_desde, fecha_hasta, usuarios_lookup=None
         return []
 
     fecha_col = _pick_existing_column(columns, "FECHA_CONT", "F_CONT", "FECHA_DOC", "FECHA")
+    cab_key_col = _pick_existing_column(columns, "ID_RECIBO", "NO_RECIBO", "ID_DOC", "NO_DOC")
     no_recibo_col = _pick_existing_column(columns, "NO_RECIBO", "ID_RECIBO", "ID_DOC")
     efectivo_col = _pick_existing_column(columns, "IMP_EFECTIVO", "EFECTIVO", "MONTO_EFECTIVO", "PAGO_EFECTIVO")
     transferencia_col = _pick_existing_column(columns, "IMP_TRANSF", "TRANSFERENCIA", "MONTO_TRANSFERENCIA", "PAGO_TRANSFERENCIA")
-    descuento_col = _pick_existing_column(columns, "DESC_AVANCE", "DESCUENTO", "AVANCE")
+    descuento_col = _pick_existing_column(columns, "TOTAL_DESCTO", "DESC_AVANCE", "DESCUENTO", "AVANCE")
     total_col = _pick_existing_column(columns, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO")
     estatus_col = _pick_existing_column(columns, "ESTATUS", "EST_DOC", "ESTADO")
     cancelado_col = _pick_existing_column(columns, "CANCELADO")
@@ -4038,6 +5147,7 @@ def _load_cuadre_caja_movimientos(fecha_desde, fecha_hasta, usuarios_lookup=None
 
     selected_columns = _unique_columns(
         fecha_col,
+        cab_key_col,
         no_recibo_col,
         efectivo_col,
         transferencia_col,
@@ -4067,12 +5177,20 @@ def _load_cuadre_caja_movimientos(fecha_desde, fecha_hasta, usuarios_lookup=None
         raw_columns = [col[0] for col in cursor.description]
         rows = [_normalize_result_row(raw_columns, raw_row) for raw_row in cursor.fetchall()]
 
+    descuentos_por_recibo = _load_cuadre_caja_descuentos_por_recibo(fecha_desde, fecha_hasta)
+
     for row in rows:
+        recibo_key = _stringify_doc(_pick_row_value(row, cab_key_col, no_recibo_col))
         efectivo = _pick_amount_value(row, efectivo_col, default=0.0)
         transferencia = _pick_amount_value(row, transferencia_col, default=0.0)
-        descuento = _pick_amount_value(row, descuento_col, default=0.0)
-        total_header = _pick_amount_value(row, total_col, default=efectivo + transferencia)
+        descuento_header = _pick_amount_value(row, descuento_col, default=0.0)
         no_recibo = _stringify_doc(_pick_row_value(row, no_recibo_col))
+        descuento_detalle = max(
+            _to_float(descuentos_por_recibo.get(recibo_key)),
+            _to_float(descuentos_por_recibo.get(no_recibo)),
+        )
+        descuento = max(descuento_header, descuento_detalle)
+        total_header = _pick_amount_value(row, total_col, default=efectivo + transferencia)
         usuario_id = _pick_row_text(row, usuario_id_col)
         usuario_nombre = usuarios_lookup.get(usuario_id) or _pick_row_text(row, usuario_nombre_col) or usuario_id or "Sin usuario"
         terminal = _pick_row_text(row, terminal_col) or "Sin terminal"
@@ -4102,6 +5220,10 @@ def _load_cuadre_caja_movimientos(fecha_desde, fecha_hasta, usuarios_lookup=None
 def _build_empty_cuadre_caja_report(label, fecha_desde, fecha_hasta):
     return {
         "label": label,
+        "header_prefix": "INFORME GENERAL",
+        "detail_title": "DETALLE DEL INFORME",
+        "usuario_label": "",
+        "terminal_label": "",
         "fecha_desde": _fmt_date(fecha_desde),
         "fecha_hasta": _fmt_date(fecha_hasta),
         "desde_recibo": "",
@@ -4123,6 +5245,73 @@ def _build_empty_cuadre_caja_report(label, fecha_desde, fecha_hasta):
     }
 
 
+def _init_cuadre_caja_report_group(
+    label,
+    fecha_desde,
+    fecha_hasta,
+    *,
+    header_prefix="INFORME GENERAL",
+    detail_title="DETALLE DEL INFORME",
+    usuario_label="",
+    terminal_label="",
+):
+    return {
+        "label": label,
+        "header_prefix": header_prefix,
+        "detail_title": detail_title,
+        "usuario_label": usuario_label,
+        "terminal_label": terminal_label,
+        "fecha_desde": _fmt_date(fecha_desde),
+        "fecha_hasta": _fmt_date(fecha_hasta),
+        "desde_recibo": "",
+        "hasta_recibo": "",
+        "desde_sort": None,
+        "hasta_sort": None,
+        "efectivo": 0.0,
+        "transferencia": 0.0,
+        "descuentos": 0.0,
+        "cancelados": 0.0,
+    }
+
+
+def _accumulate_cuadre_caja_group(group, item):
+    no_recibo = str(item.get("no_recibo") or "").strip()
+    doc_sort = item.get("no_recibo_sort")
+    if no_recibo and (group["desde_sort"] is None or doc_sort < group["desde_sort"]):
+        group["desde_sort"] = doc_sort
+        group["desde_recibo"] = no_recibo
+    if no_recibo and (group["hasta_sort"] is None or doc_sort > group["hasta_sort"]):
+        group["hasta_sort"] = doc_sort
+        group["hasta_recibo"] = no_recibo
+
+    if item.get("cancelado"):
+        group["cancelados"] += _to_float(item.get("total_efectivo_transfer"))
+        return
+
+    group["efectivo"] += _to_float(item.get("efectivo"))
+    group["transferencia"] += _to_float(item.get("transferencia"))
+    group["descuentos"] += _to_float(item.get("descuento"))
+
+
+def _finalize_cuadre_caja_group(group):
+    total_recibos = _to_float(group["efectivo"]) + _to_float(group["transferencia"])
+    total_descuentos = _to_float(group["descuentos"])
+    total_caja = total_recibos
+    return {
+        **group,
+        "total_recibos": total_recibos,
+        "total_descuentos": total_descuentos,
+        "total_caja": total_caja,
+        "efectivo_fmt": _pdf_money(group["efectivo"]),
+        "transferencia_fmt": _pdf_money(group["transferencia"]),
+        "descuentos_fmt": _pdf_money(group["descuentos"]),
+        "cancelados_fmt": _pdf_money(group["cancelados"]),
+        "total_recibos_fmt": _pdf_money(total_recibos),
+        "total_descuentos_fmt": _pdf_money(total_descuentos),
+        "total_caja_fmt": _pdf_money(total_caja),
+    }
+
+
 def _build_cuadre_caja_reports(*, movimientos, modo, fecha_desde, fecha_hasta, usuario_filtro="", terminal_filtro="", usuarios_lookup=None, terminales_lookup=None):
     usuarios_lookup = usuarios_lookup or {}
     terminales_lookup = terminales_lookup or {}
@@ -4135,83 +5324,109 @@ def _build_cuadre_caja_reports(*, movimientos, modo, fecha_desde, fecha_hasta, u
             continue
         filtered.append(item)
 
-    groups = {}
-    for item in filtered:
-        if modo == "terminal":
-            key = str(item.get("terminal") or "SIN_TERMINAL").strip() or "SIN_TERMINAL"
-            label = item.get("terminal") or terminales_lookup.get(key) or "Sin terminal"
-        elif modo == "usuario":
-            key = str(item.get("usuario_id") or item.get("usuario_nombre") or "SIN_USUARIO").strip() or "SIN_USUARIO"
-            label = item.get("usuario_nombre") or usuarios_lookup.get(key) or "Sin usuario"
-        else:
-            key = "GENERAL"
-            label = "Todas las terminales y usuarios"
-
-        group = groups.setdefault(
-            key,
-            {
-                "label": label,
-                "fecha_desde": _fmt_date(fecha_desde),
-                "fecha_hasta": _fmt_date(fecha_hasta),
-                "desde_recibo": "",
-                "hasta_recibo": "",
-                "desde_sort": None,
-                "hasta_sort": None,
-                "efectivo": 0.0,
-                "transferencia": 0.0,
-                "descuentos": 0.0,
-                "cancelados": 0.0,
-            },
+    if modo == "general":
+        general_group = _init_cuadre_caja_report_group(
+            "Todas las terminales y usuarios",
+            fecha_desde,
+            fecha_hasta,
+            header_prefix="INFORME GENERAL",
+            detail_title="DETALLE GENERAL",
         )
+        detail_groups = {}
 
-        no_recibo = str(item.get("no_recibo") or "").strip()
-        doc_sort = item.get("no_recibo_sort")
-        if no_recibo and (group["desde_sort"] is None or doc_sort < group["desde_sort"]):
-            group["desde_sort"] = doc_sort
-            group["desde_recibo"] = no_recibo
-        if no_recibo and (group["hasta_sort"] is None or doc_sort > group["hasta_sort"]):
-            group["hasta_sort"] = doc_sort
-            group["hasta_recibo"] = no_recibo
+        for item in filtered:
+            _accumulate_cuadre_caja_group(general_group, item)
 
-        if item.get("cancelado"):
-            group["cancelados"] += _to_float(item.get("total_efectivo_transfer"))
-            continue
+            usuario_label = str(item.get("usuario_nombre") or "Sin usuario").strip() or "Sin usuario"
+            terminal_label = str(item.get("terminal") or "Sin terminal").strip() or "Sin terminal"
+            usuario_key = str(item.get("usuario_id") or usuario_label).strip() or usuario_label
+            terminal_key = terminal_label
+            detail_key = f"{usuario_key}::{terminal_key}"
+            detail_group = detail_groups.setdefault(
+                detail_key,
+                _init_cuadre_caja_report_group(
+                    f"{usuario_label} / {terminal_label}",
+                    fecha_desde,
+                    fecha_hasta,
+                    header_prefix="INFORME INDIVIDUAL",
+                    detail_title="DETALLE DE USUARIO Y TERMINAL",
+                    usuario_label=usuario_label,
+                    terminal_label=terminal_label,
+                ),
+            )
+            _accumulate_cuadre_caja_group(detail_group, item)
 
-        group["efectivo"] += _to_float(item.get("efectivo"))
-        group["transferencia"] += _to_float(item.get("transferencia"))
-        group["descuentos"] += _to_float(item.get("descuento"))
+        if filtered:
+            reports = [_finalize_cuadre_caja_group(general_group)]
+            reports.extend(
+                _finalize_cuadre_caja_group(group)
+                for _, group in sorted(
+                    detail_groups.items(),
+                    key=lambda item: (
+                        str(item[1].get("usuario_label") or "").lower(),
+                        str(item[1].get("terminal_label") or "").lower(),
+                        str(item[1].get("label") or "").lower(),
+                    ),
+                )
+            )
+            return reports
+    else:
+        groups = {}
+        for item in filtered:
+            if modo == "terminal":
+                key = str(item.get("terminal") or "SIN_TERMINAL").strip() or "SIN_TERMINAL"
+                label = item.get("terminal") or terminales_lookup.get(key) or "Sin terminal"
+                group = groups.setdefault(
+                    key,
+                    _init_cuadre_caja_report_group(
+                        label,
+                        fecha_desde,
+                        fecha_hasta,
+                        header_prefix="INFORME DE TERMINAL",
+                        detail_title="DETALLE DE TERMINAL",
+                        terminal_label=label,
+                    ),
+                )
+            else:
+                key = str(item.get("usuario_id") or item.get("usuario_nombre") or "SIN_USUARIO").strip() or "SIN_USUARIO"
+                label = item.get("usuario_nombre") or usuarios_lookup.get(key) or "Sin usuario"
+                group = groups.setdefault(
+                    key,
+                    _init_cuadre_caja_report_group(
+                        label,
+                        fecha_desde,
+                        fecha_hasta,
+                        header_prefix="INFORME DE USUARIO",
+                        detail_title="DETALLE DE USUARIO",
+                        usuario_label=label,
+                    ),
+                )
+            _accumulate_cuadre_caja_group(group, item)
 
-    reports = []
-    for key, group in sorted(groups.items(), key=lambda item: str(item[1].get("label") or "").lower()):
-        total_recibos = _to_float(group["efectivo"]) + _to_float(group["transferencia"])
-        total_descuentos = _to_float(group["descuentos"])
-        total_caja = total_recibos
-        reports.append(
-            {
-                **group,
-                "total_recibos": total_recibos,
-                "total_descuentos": total_descuentos,
-                "total_caja": total_caja,
-                "efectivo_fmt": _pdf_money(group["efectivo"]),
-                "transferencia_fmt": _pdf_money(group["transferencia"]),
-                "descuentos_fmt": _pdf_money(group["descuentos"]),
-                "cancelados_fmt": _pdf_money(group["cancelados"]),
-                "total_recibos_fmt": _pdf_money(total_recibos),
-                "total_descuentos_fmt": _pdf_money(total_descuentos),
-                "total_caja_fmt": _pdf_money(total_caja),
-            }
-        )
-
-    if reports:
-        return reports
+        reports = [
+            _finalize_cuadre_caja_group(group)
+            for _, group in sorted(groups.items(), key=lambda item: str(item[1].get("label") or "").lower())
+        ]
+        if reports:
+            return reports
 
     if modo == "terminal":
         label = terminales_lookup.get(terminal_filtro, "Sin terminal") if terminal_filtro else "Sin terminal"
+        empty = _build_empty_cuadre_caja_report(label, fecha_desde, fecha_hasta)
+        empty["header_prefix"] = "INFORME DE TERMINAL"
+        empty["detail_title"] = "DETALLE DE TERMINAL"
+        empty["terminal_label"] = label
     elif modo == "usuario":
         label = usuarios_lookup.get(usuario_filtro, "Sin usuario") if usuario_filtro else "Sin usuario"
+        empty = _build_empty_cuadre_caja_report(label, fecha_desde, fecha_hasta)
+        empty["header_prefix"] = "INFORME DE USUARIO"
+        empty["detail_title"] = "DETALLE DE USUARIO"
+        empty["usuario_label"] = label
     else:
-        label = "Todas las terminales y usuarios"
-    return [_build_empty_cuadre_caja_report(label, fecha_desde, fecha_hasta)]
+        empty = _build_empty_cuadre_caja_report("Todas las terminales y usuarios", fecha_desde, fecha_hasta)
+        empty["header_prefix"] = "INFORME GENERAL"
+        empty["detail_title"] = "DETALLE GENERAL"
+    return [empty]
 
 
 def cuadre_caja_view(request):
@@ -4275,11 +5490,146 @@ def cuadre_caja_view(request):
     return render(request, "caja/cuadre_caja.html", ctx)
 
 
+@ensure_csrf_cookie
 def financiamiento_view(request):
-    return _render_submodule(
-        request,
-        perm_code="ver_financiamiento",
-        page_title="Caja - Financiamiento",
-        submodule_title="Financiamiento",
-        submodule_description="Base inicial del submodulo para planes, cuotas, financiamientos y seguimiento.",
+    ctx = _base_context(request, page_title="Caja - Financiamiento", active_nav="caja")
+    if not ctx:
+        return redirect("login")
+    if not has_perm(ctx["auth_payload"]["usuario_id"], "caja", "ver_financiamiento"):
+        return render_denied(request, active_nav="caja")
+    usuario_id = ctx["auth_payload"]["usuario_id"]
+    ctx["server_today_iso"] = _fmt_date_input(timezone.localdate())
+    ctx["usuario_firma_b64"] = _load_firma_b64(usuario_id)
+    ctx["fin_shortcuts"] = {
+        "cuentas_por_cobrar": has_perm(usuario_id, "caja", "ver_cuentas_por_cobrar"),
+        "factura": has_perm(usuario_id, "factura", "ver_documentos"),
+        "prefactura": has_perm(usuario_id, "prefacturas", "ver"),
+    }
+    return render(request, "caja/financiamiento.html", ctx)
+
+
+@require_GET
+def financiamiento_buscar_view(request):
+    auth_payload = _require_perm_json(request, "caja", "ver_financiamiento")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    query = (request.GET.get("q") or "").strip()
+    filtro = (request.GET.get("filtro") or "documento").strip().lower()
+    return JsonResponse({"results": _load_financiamiento_search_rows(query=query, filtro=filtro)})
+
+
+@require_GET
+def financiamiento_facturas_disponibles_view(request):
+    auth_payload = _require_perm_json(request, "caja", "ver_financiamiento")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    query = (request.GET.get("q") or "").strip()
+    filtro = (request.GET.get("filtro") or "nombre").strip().lower()
+    return JsonResponse({"results": _load_financiamiento_facturas_disponibles(query=query, filtro=filtro)})
+
+
+@require_GET
+def financiamiento_detalle_view(request):
+    auth_payload = _require_perm_json(request, "caja", "ver_financiamiento")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    no_doc = (request.GET.get("no_doc") or "").strip()
+    if not no_doc:
+        return JsonResponse({"detail": "Parametro no_doc requerido"}, status=400)
+
+    record = _load_financiamiento_record(no_doc)
+    if not record:
+        return JsonResponse({"detail": "Financiamiento no encontrado."}, status=404)
+    return JsonResponse(record)
+
+
+@require_http_methods(["POST"])
+def financiamiento_guardar_view(request):
+    auth_payload = _require_perm_json(request, "caja", "ver_financiamiento")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    factura_no = str(payload.get("factura_no") or "").strip()
+    if not factura_no:
+        return JsonResponse({"detail": "Debes seleccionar la factura a financiar."}, status=400)
+
+    try:
+        detail_rows = _prepare_financiamiento_detail_rows(payload.get("detail") or [])
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+
+    try:
+        plazo_payload = int(str(payload.get("plazo") or len(detail_rows)).strip() or len(detail_rows))
+    except (TypeError, ValueError):
+        plazo_payload = len(detail_rows)
+    if plazo_payload != len(detail_rows):
+        return JsonResponse({"detail": "El plazo no coincide con la cantidad de cuotas generadas."}, status=400)
+
+    metodo = _normalize_financiamiento_choice(payload.get("metodo"), ["Lineal", "Insoluto"], "Lineal")
+    tipo_cuota = _normalize_financiamiento_choice(
+        payload.get("tipo_cuota"),
+        ["Mensual", "Quincenal", "Semanal", "Diario", "Acuerdo"],
+        "Mensual",
+    )
+    fecha_doc = _parse_date_value(payload.get("fecha")) or timezone.localdate()
+    fecha_base = _parse_date_value(payload.get("fecha_base")) or fecha_doc
+    porc_interes = max(Decimal("0"), min(_to_decimal(payload.get("porc_interes")), Decimal("100")))
+    comentario = str(payload.get("comentario") or "").strip()
+    record_lookup = str(payload.get("record_lookup") or "").strip()
+
+    monto_payload = max(_to_decimal(payload.get("monto")), Decimal("0"))
+    capital_total = sum((row.get("capital") or Decimal("0")) for row in detail_rows)
+    if capital_total <= Decimal("0.01"):
+        return JsonResponse({"detail": "El financiamiento debe tener un capital total mayor a 0."}, status=400)
+    if monto_payload > Decimal("0.01") and not _values_match(monto_payload, capital_total):
+        return JsonResponse({"detail": "La tabla de financiamiento no coincide con el monto del documento."}, status=400)
+
+    usuario_id = int((auth_payload or {}).get("usuario_id") or 0) or None
+    usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
+    terminal = _resolve_request_terminal(request, payload)
+
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                save_result = _persist_financiamiento_record(
+                    cursor,
+                    record_lookup=record_lookup,
+                    factura_no=factura_no,
+                    fecha_doc=fecha_doc,
+                    fecha_base=fecha_base,
+                    metodo=metodo,
+                    tipo_cuota=tipo_cuota,
+                    porc_interes=porc_interes,
+                    comentario=comentario,
+                    detail_rows=detail_rows,
+                    usuario_id=usuario_id,
+                    usuario_nombre=usuario_nombre,
+                    terminal=terminal,
+                )
+            record = _load_financiamiento_record(
+                save_result.get("lookup")
+                or save_result.get("loan_no")
+                or save_result.get("factura_no")
+            )
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    except Exception as exc:
+        return JsonResponse({"detail": f"No se pudo grabar el financiamiento: {exc}"}, status=500)
+
+    if not record:
+        return JsonResponse({"detail": "El financiamiento se grabo, pero no se pudo recargar automaticamente."}, status=500)
+
+    return JsonResponse(
+        {
+            "detail": "Financiamiento actualizado correctamente." if record_lookup else "Financiamiento grabado correctamente.",
+            "record": record,
+        }
     )

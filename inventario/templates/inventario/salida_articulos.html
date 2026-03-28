@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Salida de articulos</h2>
+<p class="page-subtitle">Submodulo listo para registrar movimientos de salida en inventario.</p>
+
+<div class="card-grid">
+  <div class="info-card">
+    <h3>Salida articulos</h3>
+    <p>Desde aqui se preparara el flujo de despachos, consumos y documentos de salida.</p>
+    <a href="{% url 'inventario:index' %}">Volver a inventario</a>
+  </div>
+</div>
+{% endblock %}

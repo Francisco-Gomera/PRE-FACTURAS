@@ -3,6 +3,10 @@ from django.urls import path
 from .views import (
     catalogo_cuentas_detalle_view,
     catalogo_cuentas_financ_view,
+    financiamiento_buscar_view,
+    financiamiento_guardar_view,
+    financiamiento_detalle_view,
+    financiamiento_facturas_disponibles_view,
     cuentas_por_cobrar_buscar_view,
     cuentas_por_cobrar_cancelar_view,
     cuentas_por_cobrar_cobros_anteriores_view,
@@ -80,4 +84,12 @@ urlpatterns = [
     ),
     path("cuadre-caja/", cuadre_caja_view, name="cuadre_caja"),
     path("financiamiento/", financiamiento_view, name="financiamiento"),
+    path("financiamiento/buscar/", financiamiento_buscar_view, name="financiamiento_buscar"),
+    path(
+        "financiamiento/facturas-disponibles/",
+        financiamiento_facturas_disponibles_view,
+        name="financiamiento_facturas_disponibles",
+    ),
+    path("financiamiento/detalle/", financiamiento_detalle_view, name="financiamiento_detalle"),
+    path("financiamiento/guardar/", financiamiento_guardar_view, name="financiamiento_guardar"),
 ]
