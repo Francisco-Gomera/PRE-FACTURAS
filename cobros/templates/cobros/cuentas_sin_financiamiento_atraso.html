@@ -1,0 +1,317 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="fin-atraso-page">
+  <header class="fin-atraso-header">
+    <div>
+      <h2 class="page-title">Cuentas sin financiamiento en atraso</h2>
+      <p class="page-subtitle">Facturas abiertas sin financiamiento, ordenadas de mayor a menor por dias desde {{ criterio|default:"emision" }}.</p>
+    </div>
+    <div class="fin-atraso-summary">
+      <div><span>Cuentas</span><strong>{{ total_records }}</strong></div>
+      <div><span>Mayor dias</span><strong>{{ dias_mayor_atraso }}</strong></div>
+      <div><span>Balance</span><strong>{{ total_balance|floatformat:2 }}</strong></div>
+    </div>
+  </header>
+
+  <div class="fin-atraso-layout single-list">
+    <aside class="fin-atraso-filters">
+      <form method="get" class="fin-filter-card">
+        <h3>Filtros</h3>
+
+        <label for="sin_fin_q">Cliente, cedula o factura</label>
+        <input id="sin_fin_q" name="q" type="search" value="{{ q }}" placeholder="Buscar..." />
+
+        <label for="sin_fin_criterio">Calcular dias por</label>
+        <select id="sin_fin_criterio" name="criterio">
+          <option value="emision" {% if criterio == "emision" %}selected{% endif %}>Fecha de emision</option>
+          <option value="vencimiento" {% if criterio == "vencimiento" %}selected{% endif %}>Fecha de vencimiento</option>
+        </select>
+
+        <div class="fin-filter-grid">
+          <div>
+            <label for="sin_fin_dias_desde">Dias desde</label>
+            <input id="sin_fin_dias_desde" name="dias_desde" type="number" min="0" step="1" value="{{ dias_desde }}" />
+          </div>
+          <div>
+            <label for="sin_fin_dias_hasta">Dias hasta</label>
+            <input id="sin_fin_dias_hasta" name="dias_hasta" type="number" min="0" step="1" value="{{ dias_hasta }}" placeholder="Sin limite" />
+          </div>
+        </div>
+
+        <label for="sin_fin_sector">Sector</label>
+        <select id="sin_fin_sector" name="sector">
+          <option value="">Todos los sectores</option>
+          {% for sector in sectores %}
+          <option value="{{ sector.id_codigo }}" {% if sector_id == sector.id_codigo %}selected{% endif %}>{{ sector.descripcion }}</option>
+          {% endfor %}
+        </select>
+
+        <div class="fin-filter-actions">
+          <button type="submit">Aplicar</button>
+          <a href="{% url 'cobros:cuentas_sin_financiamiento_atraso' %}">Limpiar</a>
+        </div>
+      </form>
+    </aside>
+
+    <section class="fin-atraso-list">
+      <div class="fin-table-panel">
+        <div class="fin-table-toolbar">
+          <strong>Cuentas encontradas</strong>
+          <span>Ordenadas por mayor cantidad de dias.</span>
+        </div>
+        <div class="fin-table-wrap">
+          <table class="fin-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>No. factura</th>
+                <th>Sector</th>
+                <th>Emision</th>
+                <th>Vencimiento</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">Balance</th>
+                <th class="text-center">Dias</th>
+                <th>Ult. pago</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in records %}
+              <tr>
+                <td>
+                  <strong>{{ item.cliente }}</strong>
+                  <span>{{ item.id_sn }}{% if item.telefono %} | {{ item.telefono }}{% endif %}</span>
+                </td>
+                <td>{{ item.id_doc }}</td>
+                <td>{{ item.sector }}</td>
+                <td>{{ item.fecha_doc }}</td>
+                <td>{{ item.fecha_venc }}</td>
+                <td class="text-right">{{ item.total_doc|floatformat:2 }}</td>
+                <td class="text-right">{{ item.saldo_doc|floatformat:2 }}</td>
+                <td class="text-center fin-alert">{{ item.dias_atraso }}</td>
+                <td>{{ item.fecha_ultimo_pago|default:"-" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="9" class="fin-empty">No hay cuentas sin financiamiento en atraso para los filtros seleccionados.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+  .fin-atraso-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .fin-atraso-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .fin-atraso-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(90px, 1fr));
+    gap: 8px;
+    min-width: 320px;
+  }
+
+  .fin-atraso-summary div,
+  .fin-filter-card,
+  .fin-table-panel {
+    background: #ffffff;
+    border: 1px solid #d8e2f3;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(15, 38, 71, 0.08);
+  }
+
+  .fin-atraso-summary div {
+    padding: 10px 12px;
+  }
+
+  .fin-atraso-summary span,
+  .fin-table-toolbar span {
+    display: block;
+    color: #627d98;
+    font-size: 12px;
+  }
+
+  .fin-atraso-summary strong {
+    color: #183b56;
+    font-size: 20px;
+  }
+
+  .fin-atraso-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(520px, 1fr);
+    gap: 14px;
+    align-items: start;
+  }
+
+  .fin-atraso-filters {
+    position: sticky;
+    top: 16px;
+  }
+
+  .fin-filter-card {
+    padding: 16px;
+  }
+
+  .fin-filter-card h3 {
+    margin: 0 0 14px;
+    color: #183b56;
+    font-size: 17px;
+  }
+
+  .fin-filter-card label {
+    display: block;
+    margin: 10px 0 5px;
+    color: #52606d;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .fin-filter-card input,
+  .fin-filter-card select {
+    width: 100%;
+    min-height: 38px;
+    border: 1px solid #c9d6e8;
+    border-radius: 7px;
+    padding: 7px 9px;
+    font-size: 14px;
+    background: #ffffff;
+  }
+
+  .fin-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .fin-filter-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .fin-filter-actions button,
+  .fin-filter-actions a {
+    min-height: 38px;
+    border: 1px solid #2a67c7;
+    border-radius: 7px;
+    background: #2a67c7;
+    color: #ffffff;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .fin-filter-actions a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    color: #2a67c7;
+  }
+
+  .fin-table-panel {
+    overflow: hidden;
+  }
+
+  .fin-table-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid #d8e2f3;
+  }
+
+  .fin-table-wrap {
+    max-height: calc(100vh - 230px);
+    overflow: auto;
+  }
+
+  .fin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .fin-table th,
+  .fin-table td {
+    border-bottom: 1px solid #e6edf7;
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .fin-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f5f8fd;
+    color: #52606d;
+    font-size: 12px;
+  }
+
+  .fin-table tbody tr:hover {
+    background: #eaf2ff;
+  }
+
+  .fin-table td span {
+    display: block;
+    color: #627d98;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .text-right {
+    text-align: right !important;
+  }
+
+  .text-center {
+    text-align: center !important;
+  }
+
+  .fin-alert {
+    color: #b42318;
+    font-weight: 800;
+  }
+
+  .fin-empty {
+    height: 160px;
+    color: #627d98;
+    text-align: center !important;
+  }
+
+  @media (max-width: 900px) {
+    .fin-atraso-header,
+    .fin-table-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .fin-atraso-summary,
+    .fin-atraso-layout {
+      grid-template-columns: 1fr;
+      min-width: 0;
+    }
+
+    .fin-atraso-filters {
+      position: static;
+    }
+  }
+</style>
+{% endblock %}

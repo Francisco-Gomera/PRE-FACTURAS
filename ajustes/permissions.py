@@ -39,6 +39,7 @@ def ensure_base_perms():
         "factura": "Factura",
         "caja": "Caja",
         "chat_interno": "Chat Interno",
+        "empleados": "Empleados y Nominas",
         "ajustes": "Ajustes",
     }
     sub_perms = {

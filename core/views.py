@@ -98,6 +98,7 @@ def _base_context(request, *, page_title, active_nav):
         "factura": has_perm(usuario_id, "factura", "ver"),
         "caja": has_perm(usuario_id, "caja", "ver"),
         "chat_interno": has_perm(usuario_id, "chat_interno", "ver"),
+        "empleados": has_perm(usuario_id, "empleados", "ver"),
         "ajustes": has_perm(usuario_id, "ajustes", "ver"),
     }
     stock_request_notifications_enabled = has_perm(usuario_id, "inventario", "ver_entrada_articulos")

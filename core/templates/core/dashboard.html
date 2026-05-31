@@ -73,6 +73,13 @@
     <a href="{% url 'cobros:index' %}">Abrir modulo</a>
   </div>
   {% endif %}
+  {% if visible_modules.empleados %}
+  <div class="info-card">
+    <h3>Empleados y Nóminas</h3>
+    <p>Gestion de empleados, novedades y procesos de nomina.</p>
+    <a href="{% url 'empleados:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
   {% if visible_modules.cartas %}
   <div class="info-card">
     <h3>Cartas</h3>

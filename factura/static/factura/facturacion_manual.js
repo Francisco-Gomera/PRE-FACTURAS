@@ -1748,6 +1748,7 @@
       factura_id: facturacionMode === "editing_saved" ? (activeFacturaId || fieldNoDoc.value || "") : "",
       prefactura_id: activePrefId || "",
       lock_owner: prefLockOwner,
+      terminal_cliente: getCurrentFactTerminalName(),
       fecha_cont: fieldFechaCont.value || "",
       fecha_venc: fieldFechaVenc.value || "",
       fecha_doc: fieldFechaDoc.value || "",

@@ -596,6 +596,147 @@ def _build_financiamientos_atraso_context(cuotas_desde=None, cuotas_hasta=None, 
     }
 
 
+def _build_cuentas_sin_financiamiento_atraso_context(dias_desde=None, dias_hasta=None, sector_id=None, q="", criterio="emision"):
+    dias_desde = _parse_positive_int(dias_desde, 1)
+    dias_hasta = _parse_positive_int(dias_hasta, None)
+    if dias_desde is not None and dias_hasta is not None and dias_hasta < dias_desde:
+        dias_desde, dias_hasta = dias_hasta, dias_desde
+    try:
+        sector_id = None if sector_id in (None, "") else int(sector_id)
+    except (TypeError, ValueError):
+        sector_id = None
+    q = str(q or "").strip()
+    criterio = str(criterio or "emision").strip().lower()
+    if criterio not in {"emision", "vencimiento"}:
+        criterio = "emision"
+
+    sql = """
+        SELECT
+            f.ID_SN,
+            s.NOM_SOCIO,
+            s.RNC_CED,
+            s.TEL1,
+            s.DIR_FACTURA,
+            s.ID_SECTOR,
+            ISNULL(t.DESCRIPCION, 'SIN SECTOR') AS SECTOR,
+            f.ID_DOC,
+            f.FECHA_DOC,
+            f.TOTAL_DOC,
+            f.SALDO,
+            f.FECHA_VENC
+        FROM CAB_FACTURA f
+        INNER JOIN MAESTRO_SN s ON s.ID_SN = f.ID_SN
+        LEFT JOIN Territorio t ON t.ID_CODIGO = s.ID_SECTOR
+        WHERE UPPER(ISNULL(f.EST_DOC, '')) = 'ABIERTO'
+          AND UPPER(ISNULL(f.CANCELADO, 'N')) <> 'Y'
+          AND ISNULL(f.SALDO, 0) > 0
+          AND NOT EXISTS (
+                SELECT 1
+                FROM DET_PRESTAMO p
+                WHERE CAST(p.NO_DOC AS NVARCHAR(255)) = CAST(f.ID_DOC AS NVARCHAR(255))
+          )
+    """
+    params = []
+    if sector_id is not None:
+        sql += " AND s.ID_SECTOR = %s"
+        params.append(sector_id)
+    if q:
+        sql += """
+            AND (
+                CAST(f.ID_DOC AS NVARCHAR(255)) LIKE %s OR
+                CAST(f.ID_SN AS NVARCHAR(255)) LIKE %s OR
+                s.NOM_SOCIO LIKE %s OR
+                s.RNC_CED LIKE %s OR
+                s.TEL1 LIKE %s
+            )
+        """
+        like = f"%{q}%"
+        params.extend([like, like, like, like, like])
+    sql += " ORDER BY f.FECHA_DOC, f.ID_DOC"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    docs = [row[7] for row in rows if row[7] is not None]
+    ult_pago_by_doc = {}
+    if docs:
+        for docs_chunk in _chunked(list(dict.fromkeys(docs)), 300):
+            placeholders = ", ".join(["%s"] * len(docs_chunk))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT NO_DOC, MAX(FECHA_CONT)
+                    FROM DET_RECIBO_INGRESO
+                    WHERE NO_DOC IN ({placeholders})
+                    GROUP BY NO_DOC
+                    """,
+                    docs_chunk,
+                )
+                for no_doc, fecha_pago in cursor.fetchall():
+                    ult_pago_by_doc[no_doc] = _fmt_date(fecha_pago)
+
+    records = []
+    for row in rows:
+        (
+            id_sn,
+            nom_socio,
+            rnc_ced,
+            tel1,
+            dir_factura,
+            _id_sector,
+            sector,
+            id_doc,
+            fecha_doc,
+            total_doc,
+            saldo_doc,
+            fecha_venc,
+        ) = row
+        fecha_base = fecha_venc if criterio == "vencimiento" else fecha_doc
+        dias = _days_overdue(fecha_base)
+        if dias <= 0:
+            continue
+        if dias_desde is not None and dias < dias_desde:
+            continue
+        if dias_hasta is not None and dias > dias_hasta:
+            continue
+
+        records.append(
+            {
+                "id_sn": id_sn,
+                "cliente": nom_socio or id_sn or "",
+                "rnc_ced": rnc_ced or "",
+                "telefono": tel1 or "",
+                "direccion": dir_factura or "",
+                "sector": sector or "SIN SECTOR",
+                "id_doc": id_doc,
+                "fecha_doc": _fmt_date(fecha_doc),
+                "fecha_venc": _fmt_date(fecha_venc),
+                "total_doc": _to_float(total_doc),
+                "saldo_doc": _to_float(saldo_doc),
+                "dias_atraso": dias,
+                "fecha_ultimo_pago": ult_pago_by_doc.get(id_doc, ""),
+            }
+        )
+
+    records = sorted(
+        records,
+        key=lambda item: (-item["dias_atraso"], (item["cliente"] or "").upper(), str(item["id_doc"])),
+    )
+    return {
+        "records": records,
+        "total_records": len(records),
+        "total_balance": sum(item["saldo_doc"] for item in records),
+        "dias_mayor_atraso": max([item["dias_atraso"] for item in records] or [0]),
+        "dias_desde": dias_desde if dias_desde is not None else "",
+        "dias_hasta": dias_hasta if dias_hasta is not None else "",
+        "sector_id": sector_id if sector_id is not None else "",
+        "q": q,
+        "criterio": criterio,
+        "fecha_impresion": timezone.localdate(),
+    }
+
+
 def _build_financiamiento_aviso_context(request, no_doc, auth_payload, embed=False):
     no_doc = str(no_doc or "").strip()
     data = _build_financiamientos_atraso_context(q=no_doc)
@@ -664,6 +805,10 @@ def _can_view_financiamientos_atraso(usuario_id):
     )
 
 
+def _can_view_cuentas_sin_financiamiento_atraso(usuario_id):
+    return _can_view_financiamientos_atraso(usuario_id)
+
+
 def index(request):
     ctx = _base_context(request, page_title="Gestion de cobros", active_nav="cobros")
     if not ctx:
@@ -674,6 +819,7 @@ def index(request):
         "estado_cuenta": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_estado_cuenta"),
         "alertas": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_alertas"),
         "financiamientos_atraso": _can_view_financiamientos_atraso(ctx["auth_payload"]["usuario_id"]),
+        "cuentas_sin_financiamiento_atraso": _can_view_cuentas_sin_financiamiento_atraso(ctx["auth_payload"]["usuario_id"]),
         "acuerdos": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_acuerdos"),
         "cartas_enviadas": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_cartas_enviadas"),
     }
@@ -730,6 +876,23 @@ def financiamientos_atraso_view(request):
     ctx.update(_build_financiamientos_atraso_context(cuotas_desde, cuotas_hasta, sector_id, q))
     ctx["sectores"] = _load_sectores()
     return render(request, "cobros/financiamientos_atraso.html", ctx)
+
+
+def cuentas_sin_financiamiento_atraso_view(request):
+    ctx = _base_context(request, page_title="Cobros - Cuentas sin financiamiento en atraso", active_nav="cobros")
+    if not ctx:
+        return redirect("login")
+    if not _can_view_cuentas_sin_financiamiento_atraso(ctx["auth_payload"]["usuario_id"]):
+        return render_denied(request, active_nav="cobros")
+
+    dias_desde = request.GET.get("dias_desde", "1")
+    dias_hasta = request.GET.get("dias_hasta", "")
+    sector_id = request.GET.get("sector", "")
+    q = request.GET.get("q", "")
+    criterio = request.GET.get("criterio", "emision")
+    ctx.update(_build_cuentas_sin_financiamiento_atraso_context(dias_desde, dias_hasta, sector_id, q, criterio))
+    ctx["sectores"] = _load_sectores()
+    return render(request, "cobros/cuentas_sin_financiamiento_atraso.html", ctx)
 
 
 def acuerdos_view(request):

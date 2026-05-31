@@ -49,6 +49,7 @@ urlpatterns = [
     path('app/factura/', include('factura.urls')),
     path('app/caja/', include('caja.urls')),
     path('app/chat-interno/', include('chat_interno.urls')),
+    path('app/empleados/', include('empleados.urls')),
 ]
 
 if settings.DEBUG:

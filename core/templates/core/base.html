@@ -212,6 +212,23 @@
           </span>
         </a>
         {% endif %}
+        {% if visible_modules.empleados %}
+        <a
+          href="{% url 'empleados:index' %}"
+          class="{% if active_nav == 'empleados' %}active{% endif %}"
+          title="Empleados y Nominas - Gestion"
+        >
+          <span class="nav-item-main">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M16 20a4 4 0 0 0-8 0"/><circle cx="12" cy="8" r="3"/><path d="M4 20a6 6 0 0 1 16 0"/><path d="M19 8h2"/><path d="M20 7v2"/></svg>
+            </span>
+            <span class="nav-copy">
+              <span class="nav-label">Empleados y Nóminas</span>
+              <span class="nav-meta">Gestion</span>
+            </span>
+          </span>
+        </a>
+        {% endif %}
         {% if visible_modules.cartas %}
         <a
           href="{% url 'cartas:index' %}"

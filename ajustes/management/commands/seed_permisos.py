@@ -19,6 +19,7 @@ class Command(BaseCommand):
             ("factura", "Factura"),
             ("caja", "Caja"),
             ("chat_interno", "Chat Interno"),
+            ("empleados", "Empleados y Nominas"),
         ]
         permisos_genericos = [
             ("ver", "Ver"),

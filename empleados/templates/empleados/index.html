@@ -1,0 +1,1395 @@
+{% extends "core/base.html" %}
+
+{% block head_extra %}
+<style>
+  .emp-page {
+    display: grid;
+    gap: 8px;
+    padding-bottom: 74px;
+  }
+
+  .emp-titlebar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .emp-status {
+    min-height: 18px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .emp-status.is-error { color: #b91c1c; }
+  .emp-status.is-ok { color: #047857; }
+
+  .emp-card {
+    border: 1px solid #d6e1f1;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .emp-card-title {
+    margin: 0;
+    padding: 6px 10px;
+    border-bottom: 1px solid #d6e1f1;
+    background: #f1f6fc;
+    color: #123b65;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .emp-personal-layout {
+    display: grid;
+    grid-template-columns: minmax(360px, 1.15fr) minmax(260px, 0.85fr) 150px;
+    gap: 10px;
+    padding: 8px 10px;
+  }
+
+  .emp-general-layout {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.95fr) minmax(360px, 1.05fr);
+    gap: 12px;
+    padding: 8px 10px 10px;
+  }
+
+  .emp-mini-grid {
+    display: grid;
+    gap: 5px;
+    align-content: start;
+  }
+
+  .emp-row {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .emp-row.two {
+    grid-template-columns: 112px minmax(0, 1fr) 70px minmax(0, 1fr);
+  }
+
+  .emp-row.three {
+    grid-template-columns: 112px minmax(0, 1fr) 72px minmax(0, 1fr) 82px minmax(0, 1fr);
+  }
+
+  .emp-row label,
+  .emp-inline-title {
+    color: #334155;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .emp-row input,
+  .emp-row select {
+    width: 100%;
+    min-width: 0;
+    height: 27px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 3px 6px;
+    font: inherit;
+    font-size: 12px;
+    color: #0f172a;
+    background: #fff;
+  }
+
+  .emp-row input:disabled,
+  .emp-row select:disabled,
+  .emp-schedule-table input:disabled {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  .emp-photo {
+    min-height: 184px;
+    border: 1px solid #d6e1f1;
+    border-radius: 6px 6px 0 0;
+    background: #f8fbff;
+    display: grid;
+    place-items: center;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .emp-subtitle {
+    margin: 0 0 2px;
+    color: #123b65;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .emp-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 10px;
+    border-bottom: 1px solid #d6e1f1;
+    background: #edf4fc;
+    overflow-x: auto;
+  }
+
+  .emp-tab {
+    min-height: 28px;
+    padding: 6px 10px;
+    border: 1px solid #cbd5e1;
+    border-bottom: none;
+    border-radius: 7px 7px 0 0;
+    background: #fff;
+    color: #123b65;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .emp-tab.is-muted {
+    background: #f4f7fb;
+    color: #64748b;
+  }
+
+  .emp-tab[disabled] {
+    cursor: default;
+  }
+
+  .emp-tab.is-active {
+    background: #fff;
+    color: #0f172a;
+  }
+
+  .emp-tab-panel[hidden] {
+    display: none;
+  }
+
+  .emp-pair-card,
+  .emp-schedule-card {
+    border: 1px solid #d6e1f1;
+    border-radius: 7px;
+    padding: 8px;
+    background: #fbfdff;
+  }
+
+  .emp-pair-card[hidden],
+  .emp-schedule-card[hidden] {
+    display: none;
+  }
+
+  .emp-schedule-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .emp-schedule-table th,
+  .emp-schedule-table td {
+    padding: 4px 5px;
+    border-bottom: 1px solid #e5edf6;
+    font-size: 11px;
+    text-align: left;
+  }
+
+  .emp-schedule-table input[type="time"] {
+    width: 100%;
+    height: 25px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 2px 5px;
+    font-size: 12px;
+  }
+
+  .emp-list-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: 8px 10px 0;
+  }
+
+  .emp-inline-action {
+    min-height: 30px;
+    border: 1px solid #0f6edc;
+    border-radius: 7px;
+    padding: 5px 10px;
+    background: #0f6edc;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .emp-inline-action.is-danger {
+    border-color: #b91c1c;
+    background: #b91c1c;
+  }
+
+  .emp-inline-action:disabled {
+    border-color: #cbd5e1;
+    background: #dbe4f0;
+    color: #7c8da3;
+    cursor: not-allowed;
+  }
+
+  .emp-edit-table-wrap {
+    overflow-x: auto;
+    padding: 8px 10px 10px;
+  }
+
+  .emp-edit-table {
+    width: 100%;
+    min-width: 900px;
+    border-collapse: collapse;
+  }
+
+  .emp-edit-table th,
+  .emp-edit-table td {
+    padding: 5px;
+    border-bottom: 1px solid #e5edf6;
+    font-size: 11px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .emp-edit-table th {
+    color: #334155;
+    background: #f8fbff;
+    font-weight: 800;
+  }
+
+  .emp-edit-table input {
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 3px 6px;
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .emp-observations-panel {
+    min-height: 340px;
+    padding: 10px;
+  }
+
+  .emp-observations-panel textarea {
+    width: 100%;
+    min-height: 340px;
+    resize: vertical;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 8px;
+    color: #0f172a;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .emp-observations-panel textarea:disabled {
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  .emp-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 8px 10px;
+    border: 1px solid #d6e1f1;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
+  }
+
+  .emp-action {
+    min-width: 96px;
+    height: 36px;
+    border: 1px solid #0f6edc;
+    border-radius: 8px;
+    padding: 0 12px;
+    background: #0f6edc;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .emp-action.is-muted {
+    border-color: #cbd5e1;
+    background: #e7eef8;
+    color: #123b65;
+  }
+
+  .emp-action:disabled {
+    border-color: #cbd5e1;
+    background: #dbe4f0;
+    color: #7c8da3;
+    cursor: not-allowed;
+  }
+
+  .emp-photo-panel {
+    display: grid;
+    gap: 0;
+    align-content: start;
+  }
+
+  .emp-photo-action {
+    width: 100%;
+    height: 30px;
+    border: 1px solid #0f6edc;
+    border-top: 0;
+    border-radius: 0 0 6px 6px;
+    background: #0f6edc;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .emp-photo-action:disabled {
+    border-color: #cbd5e1;
+    background: #dbe4f0;
+    color: #7c8da3;
+    cursor: not-allowed;
+  }
+
+  .emp-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.38);
+  }
+
+  .emp-modal-backdrop.open { display: flex; }
+
+  .emp-modal {
+    width: min(920px, 96vw);
+    max-height: 86vh;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .emp-modal-head,
+  .emp-modal-search {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #d6e1f1;
+  }
+
+  .emp-modal-head {
+    justify-content: space-between;
+    background: #f1f6fc;
+  }
+
+  .emp-modal-head h3 {
+    margin: 0;
+    color: #123b65;
+    font-size: 15px;
+  }
+
+  .emp-modal-search input {
+    flex: 1 1 auto;
+    height: 32px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 6px 8px;
+    font: inherit;
+  }
+
+  .emp-modal-body { overflow: auto; }
+
+  .emp-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 720px;
+  }
+
+  .emp-table th,
+  .emp-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5edf6;
+    text-align: left;
+    font-size: 12px;
+  }
+
+  .emp-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fbff;
+    color: #334155;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  .emp-table tbody tr { cursor: pointer; }
+  .emp-table tbody tr:hover { background: #eaf2ff; }
+
+  @media (max-width: 1100px) {
+    .emp-personal-layout,
+    .emp-general-layout {
+      grid-template-columns: 1fr;
+    }
+
+    .emp-photo {
+      min-height: 110px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .emp-titlebar,
+    .emp-row,
+    .emp-row.two,
+    .emp-row.three {
+      grid-template-columns: 1fr;
+    }
+
+    .emp-footer {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .emp-action {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="emp-page" id="empleados_app">
+  <div class="emp-titlebar">
+    <div>
+      <h2 class="page-title">Maestro de Empleados</h2>
+      <p class="page-subtitle">Registro y mantenimiento de empleados.</p>
+    </div>
+    <div id="emp_status" class="emp-status"></div>
+  </div>
+
+  <form id="emp_form" autocomplete="off">
+    {% csrf_token %}
+    <input type="hidden" id="emp_id_empleado" data-field="id_empleado" />
+
+    <section class="emp-card">
+      <h3 class="emp-card-title">Datos personales</h3>
+      <div class="emp-personal-layout">
+        <div class="emp-mini-grid">
+          <div class="emp-row"><label for="emp_codigo">Codigo</label><input id="emp_codigo" data-field="codigo" maxlength="30" /></div>
+          <div class="emp-row"><label for="emp_nombres">Nombres</label><input id="emp_nombres" data-field="nombres" maxlength="100" /></div>
+          <div class="emp-row"><label for="emp_apellidos">Apellidos</label><input id="emp_apellidos" data-field="apellidos" maxlength="100" /></div>
+          <div class="emp-row"><label for="emp_apodo">Apodo</label><input id="emp_apodo" data-field="apodo" maxlength="60" /></div>
+          <div class="emp-row"><label for="emp_cedula">Cedula</label><input id="emp_cedula" data-field="cedula" maxlength="20" /></div>
+          <div class="emp-row">
+            <label for="emp_estado_civil">Estado civil</label>
+            <select id="emp_estado_civil" data-field="estado_civil">
+              <option value=""></option>
+              <option>Soltero/a</option>
+              <option>Casado/a</option>
+              <option>Union libre</option>
+              <option>Divorciado/a</option>
+              <option>Viudo/a</option>
+            </select>
+          </div>
+          <div class="emp-row"><label for="emp_direccion">Direccion</label><input id="emp_direccion" data-field="direccion" maxlength="250" /></div>
+          <div class="emp-row two">
+            <label for="emp_telefono">Telefono</label><input id="emp_telefono" data-field="telefono" maxlength="30" />
+            <label for="emp_celular">Celular</label><input id="emp_celular" data-field="celular" maxlength="30" />
+          </div>
+        </div>
+
+        <div class="emp-mini-grid">
+          <div class="emp-row"><label for="emp_fecha_nacimiento">Fecha Nac.</label><input id="emp_fecha_nacimiento" data-field="fecha_nacimiento" type="date" /></div>
+          <div class="emp-row"><label for="emp_nacionalidad">Nacionalidad</label><input id="emp_nacionalidad" data-field="nacionalidad" maxlength="80" /></div>
+          <div class="emp-row">
+            <label for="emp_genero">Genero o Sexo</label>
+            <select id="emp_genero" data-field="genero">
+              <option value=""></option>
+              <option>Femenino</option>
+              <option>Masculino</option>
+              <option>Otro</option>
+            </select>
+          </div>
+          <div class="emp-row"><label for="emp_lugar_nacimiento">Lugar Nac.</label><input id="emp_lugar_nacimiento" data-field="lugar_nacimiento" maxlength="120" /></div>
+          <div class="emp-row">
+            <label for="emp_tipo_sangre">Tipo Sangre</label>
+            <select id="emp_tipo_sangre" data-field="tipo_sangre">
+              <option value=""></option>
+              <option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option>
+              <option>AB+</option><option>AB-</option>
+              <option>O+</option><option>O-</option>
+            </select>
+          </div>
+          <div class="emp-row"><label for="emp_nivel_academico">Nivel Academ.</label><input id="emp_nivel_academico" data-field="nivel_academico" maxlength="80" /></div>
+          <div class="emp-row"><label for="emp_email">E-Mail</label><input id="emp_email" data-field="email" type="email" maxlength="120" /></div>
+        </div>
+
+        <div class="emp-photo-panel">
+          <div class="emp-photo" id="emp_photo_preview">Fotografia</div>
+          <input id="emp_photo_input" type="file" accept="image/*" hidden />
+          <button id="btn_emp_photo" type="button" class="emp-photo-action" disabled>Seleccionar foto</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="emp-card">
+      <div class="emp-tabs" role="tablist" aria-label="Secciones del empleado">
+        <button type="button" class="emp-tab is-active" role="tab" aria-selected="true" aria-controls="emp_panel_generales" data-tab-target="emp_panel_generales">Generales</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_nomina" data-tab-target="emp_panel_nomina">Datos de Nomina</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_estudios" data-tab-target="emp_panel_estudios">Estudios Realizados</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_experiencia" data-tab-target="emp_panel_experiencia">Experiencia Laboral</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_permisos" data-tab-target="emp_panel_permisos">Permisos</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_licencias" data-tab-target="emp_panel_licencias">Licencias Medicas</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_ausencias" data-tab-target="emp_panel_ausencias">Ausencias/Tardanzas</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_observaciones" data-tab-target="emp_panel_observaciones">Observaciones</button>
+        <button type="button" class="emp-tab is-muted" role="tab" aria-selected="false" aria-controls="emp_panel_acciones" data-tab-target="emp_panel_acciones">Accion de Personal</button>
+      </div>
+
+      <div id="emp_panel_generales" class="emp-general-layout emp-tab-panel" role="tabpanel">
+        <div class="emp-mini-grid">
+          <div class="emp-row"><label for="emp_carnet">No. Carnet</label><input id="emp_carnet" data-field="carnet" maxlength="40" /></div>
+          <div class="emp-row"><label for="emp_fecha_ingreso">Fecha Ingreso</label><input id="emp_fecha_ingreso" data-field="fecha_ingreso" type="date" readonly aria-readonly="true" tabindex="-1" /></div>
+          <div class="emp-row">
+            <label for="emp_clase_empleado">Clase empleado</label>
+            <select id="emp_clase_empleado" data-field="clase_empleado">
+              <option value=""></option>
+              <option>Administrativo</option>
+              <option>Obrero</option>
+            </select>
+          </div>
+          <div class="emp-row">
+            <label for="emp_departamento">Departamento</label>
+            <select id="emp_departamento" data-field="departamento">
+              <option value=""></option>
+              {% for d in departamentos %}
+              <option value="{{ d.descripcion|default:d.ceco|escape }}">{{ d.descripcion|default:d.ceco }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="emp-row">
+            <label for="emp_cargo">Cargo</label>
+            <select id="emp_cargo" data-field="cargo">
+              <option value=""></option>
+              <option>Propietario/a</option>
+              <option>Encargado/a</option>
+              <option>Cajero/a</option>
+              <option>Facturador/a</option>
+              <option>Vendedor/a</option>
+              <option>Chofer</option>
+              <option>Gestor de cobros</option>
+            </select>
+          </div>
+          <div class="emp-row"><label for="emp_supervisor">Supervisor</label><input id="emp_supervisor" data-field="supervisor" maxlength="120" /></div>
+          <div class="emp-row"><label for="emp_sucursal">Sucursal</label><input id="emp_sucursal" data-field="sucursal" maxlength="100" /></div>
+          <div class="emp-row two">
+            <label for="emp_tipo_empleado">Tipo empleado</label>
+            <select id="emp_tipo_empleado" data-field="tipo_empleado">
+              <option value=""></option>
+              <option>Fijo</option>
+              <option>Pasante</option>
+              <option>Temporal</option>
+              <option>Contrato</option>
+              <option>Probatorio</option>
+            </select>
+            <label for="emp_poncha">Poncha</label>
+            <select id="emp_poncha" data-field="poncha">
+              <option value="0">No</option>
+              <option value="1">Si</option>
+            </select>
+          </div>
+          <div class="emp-row"><label for="emp_ars">ARS</label><input id="emp_ars" data-field="ars" maxlength="80" /></div>
+          <div class="emp-row"><label for="emp_numero_afiliado">No. Afiliado</label><input id="emp_numero_afiliado" data-field="numero_afiliado" maxlength="60" /></div>
+          <div class="emp-row"><label for="emp_numero_ss">Numero SS</label><input id="emp_numero_ss" data-field="numero_ss" maxlength="60" /></div>
+          <div class="emp-row">
+            <label for="emp_estado">Estatus</label>
+            <input id="emp_estado" data-field="estado" value="Inactivo" readonly aria-readonly="true" tabindex="-1" />
+          </div>
+        </div>
+
+        <div class="emp-mini-grid">
+          <div id="emp_pair_card" class="emp-pair-card" hidden>
+            <h4 class="emp-subtitle">Datos de la pareja</h4>
+            <div class="emp-mini-grid">
+              <div class="emp-row"><label for="emp_pareja_nombre">Nombre</label><input id="emp_pareja_nombre" data-field="pareja_nombre" maxlength="140" /></div>
+              <div class="emp-row"><label for="emp_pareja_telefono">Telefono</label><input id="emp_pareja_telefono" data-field="pareja_telefono" maxlength="30" /></div>
+              <div class="emp-row"><label for="emp_numero_dependientes">No. Dependientes</label><input id="emp_numero_dependientes" data-field="numero_dependientes" type="number" min="0" max="99" /></div>
+              <div class="emp-row"><label for="emp_contacto_emergencia">Contacto emergencia</label><input id="emp_contacto_emergencia" data-field="contacto_emergencia" maxlength="140" /></div>
+              <div class="emp-row"><label for="emp_celular_emergencia">Celular emergencia</label><input id="emp_celular_emergencia" data-field="celular_emergencia" maxlength="30" /></div>
+              <div class="emp-row"><label for="emp_telefono_emergencia">Telefono emergencia</label><input id="emp_telefono_emergencia" data-field="telefono_emergencia" maxlength="30" /></div>
+            </div>
+          </div>
+
+          <div id="emp_schedule_card" class="emp-schedule-card" hidden>
+            <h4 class="emp-subtitle">Horarios de ponche</h4>
+            <table class="emp-schedule-table">
+              <thead><tr><th>Dia</th><th>Activo</th><th>Entrada</th><th>Salida</th></tr></thead>
+              <tbody id="emp_schedule_grid">
+                <tr data-day="lunes"><td>Lunes</td><td><input type="checkbox" /></td><td><input type="time" data-kind="entrada" /></td><td><input type="time" data-kind="salida" /></td></tr>
+                <tr data-day="martes"><td>Martes</td><td><input type="checkbox" /></td><td><input type="time" data-kind="entrada" /></td><td><input type="time" data-kind="salida" /></td></tr>
+                <tr data-day="miercoles"><td>Miercoles</td><td><input type="checkbox" /></td><td><input type="time" data-kind="entrada" /></td><td><input type="time" data-kind="salida" /></td></tr>
+                <tr data-day="jueves"><td>Jueves</td><td><input type="checkbox" /></td><td><input type="time" data-kind="entrada" /></td><td><input type="time" data-kind="salida" /></td></tr>
+                <tr data-day="viernes"><td>Viernes</td><td><input type="checkbox" /></td><td><input type="time" data-kind="entrada" /></td><td><input type="time" data-kind="salida" /></td></tr>
+                <tr data-day="sabado"><td>Sabado</td><td><input type="checkbox" /></td><td><input type="time" data-kind="entrada" /></td><td><input type="time" data-kind="salida" /></td></tr>
+                <tr data-day="domingo"><td>Domingo</td><td><input type="checkbox" /></td><td><input type="time" data-kind="entrada" /></td><td><input type="time" data-kind="salida" /></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="emp_panel_nomina" class="emp-general-layout emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-mini-grid">
+          <div class="emp-row"><label for="emp_salario_base">Salario base</label><input id="emp_salario_base" data-field="salario_base" type="number" min="0" step="0.01" /></div>
+          <div class="emp-row">
+            <label for="emp_forma_pago">Forma de pago</label>
+            <select id="emp_forma_pago" data-field="forma_pago">
+              <option value=""></option>
+              <option>Transferencia</option>
+              <option>Efectivo</option>
+              <option>Cheque</option>
+            </select>
+          </div>
+          <div class="emp-row"><label for="emp_banco">Banco</label><input id="emp_banco" data-field="banco" maxlength="100" /></div>
+        </div>
+
+        <div class="emp-mini-grid">
+          <div class="emp-row"><label for="emp_cuenta_bancaria">Cuenta bancaria</label><input id="emp_cuenta_bancaria" data-field="cuenta_bancaria" inputmode="numeric" pattern="[0-9]*" maxlength="60" /></div>
+          <div class="emp-row">
+            <label for="emp_tipo_cuenta">Tipo de cuenta</label>
+            <select id="emp_tipo_cuenta" data-field="tipo_cuenta">
+              <option value=""></option>
+              <option>Ahorro</option>
+              <option>Corriente</option>
+            </select>
+          </div>
+          <div class="emp-row">
+            <label for="emp_frecuencia_pago">Frecuencia pago</label>
+            <select id="emp_frecuencia_pago" data-field="frecuencia_pago">
+              <option value=""></option>
+              <option>Semanal</option>
+              <option>Quincenal</option>
+              <option>Mensual</option>
+              <option>Trimestral</option>
+              <option>Indefinido</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div id="emp_panel_estudios" class="emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-list-toolbar">
+          <button id="btn_emp_add_study" type="button" class="emp-inline-action" disabled>Agregar estudio</button>
+        </div>
+        <div class="emp-edit-table-wrap">
+          <table class="emp-edit-table">
+            <thead>
+              <tr>
+                <th>Estudio realizado</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+                <th>Lugar de estudio</th>
+                <th>Telefono</th>
+                <th>Contacto</th>
+                <th>Accion</th>
+              </tr>
+            </thead>
+            <tbody id="emp_studies_body">
+              <tr data-empty="1"><td colspan="7">No hay estudios registrados.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="emp_panel_experiencia" class="emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-list-toolbar">
+          <button id="btn_emp_add_experience" type="button" class="emp-inline-action" disabled>Agregar experiencia</button>
+        </div>
+        <div class="emp-edit-table-wrap">
+          <table class="emp-edit-table">
+            <thead>
+              <tr>
+                <th>Lugar de trabajo</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+                <th>Cargo</th>
+                <th>Supervisor</th>
+                <th>Telefono</th>
+                <th>Accion</th>
+              </tr>
+            </thead>
+            <tbody id="emp_experience_body">
+              <tr data-empty="1"><td colspan="7">No hay experiencia laboral registrada.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="emp_panel_permisos" class="emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-edit-table-wrap">
+          <table class="emp-edit-table">
+            <thead>
+              <tr>
+                <th>Descripcion del permiso</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+              </tr>
+            </thead>
+            <tbody id="emp_permissions_body">
+              <tr><td colspan="3">No hay permisos registrados.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="emp_panel_licencias" class="emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-edit-table-wrap">
+          <table class="emp-edit-table">
+            <thead>
+              <tr>
+                <th>Descripción de la Licencia</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+              </tr>
+            </thead>
+            <tbody id="emp_medical_leaves_body">
+              <tr><td colspan="3">No hay licencias medicas registradas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="emp_panel_ausencias" class="emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-edit-table-wrap">
+          <table class="emp-edit-table">
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Descripcion de la ausencia</th>
+                <th>Desde</th>
+                <th>Hasta</th>
+                <th>Hora entrada</th>
+                <th>Hora salida</th>
+              </tr>
+            </thead>
+            <tbody id="emp_absences_body">
+              <tr><td colspan="6">No hay ausencias o tardanzas registradas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="emp_panel_observaciones" class="emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-observations-panel">
+          <textarea id="emp_observaciones" data-field="observaciones"></textarea>
+        </div>
+      </div>
+
+      <div id="emp_panel_acciones" class="emp-tab-panel" role="tabpanel" hidden>
+        <div class="emp-edit-table-wrap">
+          <table class="emp-edit-table">
+            <thead>
+              <tr>
+                <th>No. Accion</th>
+                <th>Estatus</th>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody id="emp_personnel_actions_body">
+              <tr><td colspan="5">No hay acciones de personal registradas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </form>
+
+  <footer class="emp-footer">
+    <button id="btn_emp_nuevo" type="button" class="emp-action">Nuevo</button>
+    <button id="btn_emp_buscar" type="button" class="emp-action">Buscar</button>
+    <button id="btn_emp_cancelar" type="button" class="emp-action is-muted" disabled>Cancelar</button>
+    <button id="btn_emp_grabar" type="button" class="emp-action" disabled>Grabar</button>
+  </footer>
+</div>
+
+<div id="emp_search_backdrop" class="emp-modal-backdrop" aria-hidden="true">
+  <div class="emp-modal" role="dialog" aria-modal="true" aria-labelledby="emp_search_title">
+    <div class="emp-modal-head">
+      <h3 id="emp_search_title">Buscar empleado</h3>
+      <button id="btn_emp_search_close" type="button" class="emp-action is-muted">Cerrar</button>
+    </div>
+    <div class="emp-modal-search">
+      <input id="emp_search_q" type="search" placeholder="Codigo, nombre, cedula o cargo" />
+      <button id="btn_emp_search_exec" type="button" class="emp-action">Buscar</button>
+    </div>
+    <div class="emp-modal-body">
+      <table class="emp-table">
+        <thead>
+          <tr>
+            <th>Codigo</th>
+            <th>Nombre</th>
+            <th>Cedula</th>
+            <th>Cargo</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="emp_search_body">
+          <tr><td colspan="5">Pulsa Buscar para consultar empleados.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const urls = {
+      buscar: "{% url 'empleados:buscar' %}",
+      detalleTemplate: "{% url 'empleados:detalle' 0 %}",
+      guardar: "{% url 'empleados:guardar' %}",
+    };
+    const csrfToken = "{{ csrf_token }}";
+    const form = document.getElementById("emp_form");
+    const statusNode = document.getElementById("emp_status");
+    const fields = Array.from(form.querySelectorAll("[data-field]"));
+    const tabButtons = Array.from(document.querySelectorAll("[data-tab-target]"));
+    const tabPanels = Array.from(document.querySelectorAll(".emp-tab-panel"));
+    const readonlyMasterFields = ["id_empleado", "estado", "fecha_ingreso"];
+    const editableFields = fields.filter((field) => !readonlyMasterFields.includes(field.dataset.field));
+    const btnNuevo = document.getElementById("btn_emp_nuevo");
+    const btnBuscar = document.getElementById("btn_emp_buscar");
+    const btnCancelar = document.getElementById("btn_emp_cancelar");
+    const btnGrabar = document.getElementById("btn_emp_grabar");
+    const searchBackdrop = document.getElementById("emp_search_backdrop");
+    const searchBody = document.getElementById("emp_search_body");
+    const searchInput = document.getElementById("emp_search_q");
+    const scheduleRows = Array.from(document.querySelectorAll("#emp_schedule_grid tr"));
+    const ponchaField = document.getElementById("emp_poncha");
+    const scheduleCard = document.getElementById("emp_schedule_card");
+    const estadoCivilField = document.getElementById("emp_estado_civil");
+    const pairCard = document.getElementById("emp_pair_card");
+    const photoInput = document.getElementById("emp_photo_input");
+    const photoButton = document.getElementById("btn_emp_photo");
+    const photoPreview = document.getElementById("emp_photo_preview");
+    const studiesBody = document.getElementById("emp_studies_body");
+    const btnAddStudy = document.getElementById("btn_emp_add_study");
+    const experienceBody = document.getElementById("emp_experience_body");
+    const btnAddExperience = document.getElementById("btn_emp_add_experience");
+    const requiredEmployeeFields = [
+      ["nombres", "Los nombres son obligatorios."],
+      ["apellidos", "Los apellidos son obligatorios."],
+      ["cedula", "La cedula es obligatoria."],
+      ["estado_civil", "El estado civil es obligatorio."],
+      ["direccion", "La direccion es obligatoria."],
+      ["telefono", "El telefono es obligatorio."],
+      ["fecha_nacimiento", "La fecha de nacimiento es obligatoria."],
+      ["nacionalidad", "La nacionalidad es obligatoria."],
+      ["genero", "El genero es obligatorio."],
+      ["clase_empleado", "La clase de empleado es obligatoria."],
+      ["cargo", "El cargo es obligatorio."],
+      ["departamento", "El departamento es obligatorio."],
+      ["tipo_empleado", "El tipo de empleado es obligatorio."],
+    ];
+    let mode = "idle";
+    let photoObjectUrl = "";
+
+    function setStatus(message, type) {
+      statusNode.textContent = message || "";
+      statusNode.classList.toggle("is-error", type === "error");
+      statusNode.classList.toggle("is-ok", type === "ok");
+    }
+
+    function activateTab(targetId) {
+      tabButtons.forEach((button) => {
+        const active = button.dataset.tabTarget === targetId;
+        button.classList.toggle("is-active", active);
+        button.classList.toggle("is-muted", !active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      tabPanels.forEach((panel) => {
+        panel.hidden = panel.id !== targetId;
+      });
+    }
+
+    function shouldShowPairData() {
+      const value = String(estadoCivilField.value || "").toLowerCase();
+      return value.includes("casado") || value.includes("union libre");
+    }
+
+    function syncPairState() {
+      const canEdit = mode === "new" || mode === "edit";
+      const show = shouldShowPairData();
+      pairCard.hidden = !show;
+      pairCard.querySelectorAll("[data-field]").forEach((field) => {
+        field.disabled = !canEdit || !show;
+        if (!show) field.value = "";
+      });
+    }
+
+    function syncScheduleState() {
+      const canEdit = mode === "new" || mode === "edit";
+      const ponchaEnabled = ponchaField.value === "1";
+      const enabled = canEdit && ponchaEnabled;
+      scheduleCard.hidden = !ponchaEnabled;
+      scheduleRows.forEach((row) => {
+        row.querySelectorAll("input").forEach((input) => {
+          input.disabled = !enabled;
+          if (!ponchaEnabled) {
+            if (input.type === "checkbox") input.checked = false;
+            if (input.type === "time") input.value = "";
+          }
+        });
+      });
+    }
+
+    function studyRows() {
+      return Array.from(studiesBody.querySelectorAll("tr[data-study-row='1']"));
+    }
+
+    function syncStudiesState() {
+      const canEdit = mode === "new" || mode === "edit";
+      btnAddStudy.disabled = !canEdit;
+      studyRows().forEach((row) => {
+        row.querySelectorAll("input, button").forEach((control) => {
+          control.disabled = !canEdit;
+        });
+      });
+    }
+
+    function experienceRows() {
+      return Array.from(experienceBody.querySelectorAll("tr[data-experience-row='1']"));
+    }
+
+    function syncExperienceState() {
+      const canEdit = mode === "new" || mode === "edit";
+      btnAddExperience.disabled = !canEdit;
+      experienceRows().forEach((row) => {
+        row.querySelectorAll("input, button").forEach((control) => {
+          control.disabled = !canEdit;
+        });
+      });
+    }
+
+    function renderEmptyStudiesRow() {
+      if (studyRows().length) return;
+      studiesBody.innerHTML = "<tr data-empty='1'><td colspan='7'>No hay estudios registrados.</td></tr>";
+    }
+
+    function addStudyRow(item) {
+      const emptyRow = studiesBody.querySelector("tr[data-empty='1']");
+      if (emptyRow) emptyRow.remove();
+      const row = document.createElement("tr");
+      row.dataset.studyRow = "1";
+      row.innerHTML = `
+        <td><input data-study-field="estudio_realizado" maxlength="160" /></td>
+        <td><input data-study-field="desde" type="date" /></td>
+        <td><input data-study-field="hasta" type="date" /></td>
+        <td><input data-study-field="lugar_estudio" maxlength="160" /></td>
+        <td><input data-study-field="telefono" maxlength="30" /></td>
+        <td><input data-study-field="contacto" maxlength="120" /></td>
+        <td><button type="button" class="emp-inline-action is-danger" data-study-remove>Quitar</button></td>
+      `;
+      row.querySelectorAll("[data-study-field]").forEach((field) => {
+        field.value = item ? item[field.dataset.studyField] || "" : "";
+      });
+      row.querySelector("[data-study-remove]").addEventListener("click", () => {
+        row.remove();
+        renderEmptyStudiesRow();
+        syncStudiesState();
+      });
+      studiesBody.appendChild(row);
+      syncStudiesState();
+      return row;
+    }
+
+    function clearStudies() {
+      studiesBody.innerHTML = "";
+      renderEmptyStudiesRow();
+    }
+
+    function renderEmptyExperienceRow() {
+      if (experienceRows().length) return;
+      experienceBody.innerHTML = "<tr data-empty='1'><td colspan='7'>No hay experiencia laboral registrada.</td></tr>";
+    }
+
+    function addExperienceRow(item) {
+      const emptyRow = experienceBody.querySelector("tr[data-empty='1']");
+      if (emptyRow) emptyRow.remove();
+      const row = document.createElement("tr");
+      row.dataset.experienceRow = "1";
+      row.innerHTML = `
+        <td><input data-experience-field="lugar_trabajo" maxlength="160" /></td>
+        <td><input data-experience-field="desde" type="date" /></td>
+        <td><input data-experience-field="hasta" type="date" /></td>
+        <td><input data-experience-field="cargo" maxlength="120" /></td>
+        <td><input data-experience-field="supervisor" maxlength="120" /></td>
+        <td><input data-experience-field="telefono" maxlength="30" /></td>
+        <td><button type="button" class="emp-inline-action is-danger" data-experience-remove>Quitar</button></td>
+      `;
+      row.querySelectorAll("[data-experience-field]").forEach((field) => {
+        field.value = item ? item[field.dataset.experienceField] || "" : "";
+      });
+      row.querySelector("[data-experience-remove]").addEventListener("click", () => {
+        row.remove();
+        renderEmptyExperienceRow();
+        syncExperienceState();
+      });
+      experienceBody.appendChild(row);
+      syncExperienceState();
+      return row;
+    }
+
+    function clearExperience() {
+      experienceBody.innerHTML = "";
+      renderEmptyExperienceRow();
+    }
+
+    function setMode(nextMode) {
+      mode = nextMode;
+      const editing = mode === "new" || mode === "edit";
+      editableFields.forEach((field) => {
+        field.disabled = !editing;
+      });
+      btnNuevo.disabled = editing;
+      btnBuscar.disabled = editing;
+      btnCancelar.disabled = !editing;
+      btnGrabar.disabled = !editing;
+      photoButton.disabled = !editing;
+      syncPairState();
+      syncScheduleState();
+      syncStudiesState();
+      syncExperienceState();
+    }
+
+    function clearForm() {
+      fields.forEach((field) => {
+        if (field.dataset.field === "estado") {
+          field.value = "Inactivo";
+        } else if (field.dataset.field === "poncha") {
+          field.value = "0";
+        } else {
+          field.value = "";
+        }
+      });
+      scheduleRows.forEach((row) => {
+        row.querySelector("input[type='checkbox']").checked = false;
+        row.querySelectorAll("input[type='time']").forEach((input) => {
+          input.value = "";
+        });
+      });
+      if (photoObjectUrl) {
+        URL.revokeObjectURL(photoObjectUrl);
+        photoObjectUrl = "";
+      }
+      photoInput.value = "";
+      photoPreview.textContent = "Fotografia";
+      photoPreview.style.backgroundImage = "";
+      photoPreview.style.backgroundSize = "";
+      photoPreview.style.backgroundPosition = "";
+      clearStudies();
+      clearExperience();
+      syncPairState();
+      syncScheduleState();
+      syncStudiesState();
+      syncExperienceState();
+    }
+
+    function collectSchedule() {
+      const data = {};
+      scheduleRows.forEach((row) => {
+        const active = row.querySelector("input[type='checkbox']").checked;
+        const entrada = row.querySelector("input[data-kind='entrada']").value || "";
+        const salida = row.querySelector("input[data-kind='salida']").value || "";
+        if (active || entrada || salida) {
+          data[row.dataset.day] = { activo: active, entrada, salida };
+        }
+      });
+      return data;
+    }
+
+    function collectStudies() {
+      return studyRows().map((row) => {
+        const item = {};
+        row.querySelectorAll("[data-study-field]").forEach((field) => {
+          item[field.dataset.studyField] = field.value || "";
+        });
+        return item;
+      });
+    }
+
+    function collectExperience() {
+      return experienceRows().map((row) => {
+        const item = {};
+        row.querySelectorAll("[data-experience-field]").forEach((field) => {
+          item[field.dataset.experienceField] = field.value || "";
+        });
+        return item;
+      });
+    }
+
+    function applySchedule(data) {
+      const horarios = data || {};
+      scheduleRows.forEach((row) => {
+        const item = horarios[row.dataset.day] || {};
+        row.querySelector("input[type='checkbox']").checked = !!item.activo;
+        row.querySelector("input[data-kind='entrada']").value = item.entrada || "";
+        row.querySelector("input[data-kind='salida']").value = item.salida || "";
+      });
+    }
+
+    function collectPayload() {
+      const payload = {};
+      fields.forEach((field) => {
+        const name = field.dataset.field;
+        if (readonlyMasterFields.includes(name) && name !== "id_empleado") return;
+        payload[name] = name === "poncha" ? field.value === "1" : field.value || "";
+      });
+      payload.horarios = collectSchedule();
+      payload.estudios = collectStudies();
+      payload.experiencias_laborales = collectExperience();
+      return payload;
+    }
+
+    function hasAnySchedule(horarios) {
+      return Object.values(horarios || {}).some((item) => (
+        item && (item.activo || item.entrada || item.salida)
+      ));
+    }
+
+    function isNumericValue(value) {
+      return /^\d+(\.\d+)?$/.test(String(value || "").trim());
+    }
+
+    function isDigitsOnly(value) {
+      return /^\d+$/.test(String(value || "").trim());
+    }
+
+    function fillForm(data) {
+      fields.forEach((field) => {
+        const name = field.dataset.field;
+        if (name === "poncha") {
+          field.value = data.poncha ? "1" : "0";
+        } else {
+          field.value = data[name] || (name === "estado" ? "Inactivo" : "");
+        }
+      });
+      applySchedule(data.horarios || {});
+      clearStudies();
+      (data.estudios || []).forEach((item) => addStudyRow(item));
+      renderEmptyStudiesRow();
+      clearExperience();
+      (data.experiencias_laborales || []).forEach((item) => addExperienceRow(item));
+      renderEmptyExperienceRow();
+      syncPairState();
+      syncScheduleState();
+      syncStudiesState();
+      syncExperienceState();
+    }
+
+    function openSearchModal() {
+      searchBackdrop.classList.add("open");
+      searchBackdrop.setAttribute("aria-hidden", "false");
+      searchInput.focus();
+      searchInput.select();
+      fetchEmployees();
+    }
+
+    function closeSearchModal() {
+      searchBackdrop.classList.remove("open");
+      searchBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function renderSearchRows(rows) {
+      if (!rows.length) {
+        searchBody.innerHTML = "<tr><td colspan='5'>No se encontraron empleados.</td></tr>";
+        return;
+      }
+      searchBody.innerHTML = rows.map((row) => `
+        <tr data-id="${row.id_empleado}">
+          <td>${escapeHtml(row.codigo)}</td>
+          <td>${escapeHtml(row.nombre)}</td>
+          <td>${escapeHtml(row.cedula)}</td>
+          <td>${escapeHtml(row.cargo)}</td>
+          <td>${escapeHtml(row.estado)}</td>
+        </tr>
+      `).join("");
+      Array.from(searchBody.querySelectorAll("tr[data-id]")).forEach((row) => {
+        row.addEventListener("dblclick", () => loadEmployee(row.dataset.id));
+      });
+    }
+
+    async function fetchEmployees() {
+      searchBody.innerHTML = "<tr><td colspan='5'>Buscando empleados...</td></tr>";
+      const q = searchInput.value || "";
+      try {
+        const res = await fetch(`${urls.buscar}?q=${encodeURIComponent(q)}`, {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          searchBody.innerHTML = "<tr><td colspan='5'>No se pudo consultar empleados.</td></tr>";
+          return;
+        }
+        renderSearchRows(data.results || []);
+      } catch (error) {
+        searchBody.innerHTML = "<tr><td colspan='5'>Error de conexion.</td></tr>";
+      }
+    }
+
+    async function loadEmployee(id) {
+      if (!id) return;
+      try {
+        const url = urls.detalleTemplate.replace(/0\/$/, `${id}/`);
+        const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setStatus(data.detail || "No se pudo cargar el empleado.", "error");
+          return;
+        }
+        fillForm(data.empleado || {});
+        closeSearchModal();
+        setMode("edit");
+        setStatus("Empleado cargado para edicion.", "ok");
+      } catch (error) {
+        setStatus("Error de conexion cargando el empleado.", "error");
+      }
+    }
+
+    async function saveEmployee() {
+      const payload = collectPayload();
+      if (!String(payload.codigo || "").trim()) {
+        setStatus("El codigo es obligatorio.", "error");
+        return;
+      }
+      for (const [fieldName, message] of requiredEmployeeFields) {
+        if (!String(payload[fieldName] || "").trim()) {
+          setStatus(message, "error");
+          return;
+        }
+      }
+      if (String(payload.salario_base || "").trim() && !isNumericValue(payload.salario_base)) {
+        setStatus("El salario base solo acepta valores numericos.", "error");
+        return;
+      }
+      if (String(payload.cuenta_bancaria || "").trim() && !isDigitsOnly(payload.cuenta_bancaria)) {
+        setStatus("La cuenta bancaria solo acepta valores numericos.", "error");
+        return;
+      }
+      if (payload.poncha && !hasAnySchedule(payload.horarios)) {
+        setStatus("Debe registrar por lo menos un horario si el empleado poncha.", "error");
+        activateTab("emp_panel_generales");
+        return;
+      }
+      btnGrabar.disabled = true;
+      try {
+        const res = await fetch(urls.guardar, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRFToken": csrfToken,
+          },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setStatus(data.detail || "No se pudo guardar el empleado.", "error");
+          btnGrabar.disabled = false;
+          return;
+        }
+        fillForm(data.empleado || {});
+        setMode("edit");
+        setStatus("Empleado guardado correctamente.", "ok");
+      } catch (error) {
+        setStatus("Error de conexion guardando el empleado.", "error");
+        btnGrabar.disabled = false;
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[char]));
+    }
+
+    btnNuevo.addEventListener("click", () => {
+      clearForm();
+      setMode("new");
+      setStatus("Formulario listo para nuevo empleado.");
+      document.getElementById("emp_codigo").focus();
+    });
+    btnBuscar.addEventListener("click", openSearchModal);
+    btnCancelar.addEventListener("click", () => {
+      clearForm();
+      setMode("idle");
+      setStatus("");
+    });
+    btnGrabar.addEventListener("click", saveEmployee);
+    btnAddStudy.addEventListener("click", () => {
+      const row = addStudyRow();
+      const firstInput = row.querySelector("[data-study-field='estudio_realizado']");
+      if (firstInput) firstInput.focus();
+    });
+    btnAddExperience.addEventListener("click", () => {
+      const row = addExperienceRow();
+      const firstInput = row.querySelector("[data-experience-field='lugar_trabajo']");
+      if (firstInput) firstInput.focus();
+    });
+    tabButtons.forEach((button) => {
+      button.addEventListener("click", () => activateTab(button.dataset.tabTarget));
+    });
+    document.getElementById("btn_emp_search_close").addEventListener("click", closeSearchModal);
+    document.getElementById("btn_emp_search_exec").addEventListener("click", fetchEmployees);
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        fetchEmployees();
+      }
+    });
+    searchBackdrop.addEventListener("click", (event) => {
+      if (event.target === searchBackdrop) closeSearchModal();
+    });
+    ponchaField.addEventListener("change", syncScheduleState);
+    estadoCivilField.addEventListener("change", syncPairState);
+    document.getElementById("emp_cuenta_bancaria").addEventListener("input", (event) => {
+      event.target.value = event.target.value.replace(/\D/g, "");
+    });
+    photoButton.addEventListener("click", () => photoInput.click());
+    photoInput.addEventListener("change", () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (!file) return;
+      if (photoObjectUrl) URL.revokeObjectURL(photoObjectUrl);
+      photoObjectUrl = URL.createObjectURL(file);
+      photoPreview.textContent = "";
+      photoPreview.style.backgroundImage = `url("${photoObjectUrl}")`;
+      photoPreview.style.backgroundSize = "cover";
+      photoPreview.style.backgroundPosition = "center";
+    });
+
+    clearForm();
+    activateTab("emp_panel_generales");
+    setMode("idle");
+  })();
+</script>
+{% endblock %}

@@ -86,6 +86,7 @@ INSTALLED_APPS = [
     'factura',
     'caja',
     'chat_interno',
+    'empleados',
 ]
 
 MIDDLEWARE = [

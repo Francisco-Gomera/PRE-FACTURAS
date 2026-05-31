@@ -26,6 +26,13 @@
     <a href="{% url 'cobros:financiamientos_atraso' %}">Abrir listado</a>
   </div>
   {% endif %}
+  {% if submodules.cuentas_sin_financiamiento_atraso %}
+  <div class="info-card">
+    <h3>Cuentas sin financiamiento en atraso</h3>
+    <p>Facturas abiertas sin financiamiento, ordenadas por dias desde emision o vencimiento.</p>
+    <a href="{% url 'cobros:cuentas_sin_financiamiento_atraso' %}">Abrir listado</a>
+  </div>
+  {% endif %}
   {% if submodules.acuerdos %}
   <div class="info-card">
     <h3>Acuerdos</h3>

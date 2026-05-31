@@ -60,6 +60,27 @@ PREFACTURA_LOCK_TTL_SECONDS = 60 * 15
 PREFACTURA_LOCK_CACHE_PREFIX = "factura.prefactura.lock"
 
 
+def _normalize_terminal_name(value):
+    text = " ".join(str(value or "").split()).strip()
+    if not text:
+        return ""
+    return text[:50]
+
+
+def _resolve_request_terminal(request, payload=None):
+    payload = payload if isinstance(payload, dict) else {}
+    for candidate in (
+        payload.get("terminal_cliente"),
+        payload.get("terminal"),
+        request.headers.get("X-Client-Terminal"),
+        request.META.get("HTTP_X_CLIENT_TERMINAL"),
+    ):
+        terminal_name = _normalize_terminal_name(candidate)
+        if terminal_name:
+            return terminal_name
+    return _normalize_terminal_name(socket.gethostname()) or "FACTURA"
+
+
 def _bool_post(value):
     return str(value or "").strip().lower() in {"1", "true", "on", "si", "sí", "y", "yes"}
 
@@ -1753,7 +1774,7 @@ def emision_prefactura_lock_view(request):
 
     usuario_id = _to_int((auth_payload or {}).get("usuario_id"), 0)
     usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
-    terminal = socket.gethostname() or "FACTURA"
+    terminal = _resolve_request_terminal(request, payload)
 
     if action == "release":
         changed = _prefactura_lock_release(prefactura_id, owner_id=owner_id)
@@ -2373,7 +2394,7 @@ def facturacion_cancelar_factura_view(request):
 
     usuario_id = _to_int((auth_payload or {}).get("usuario_id"), 0)
     usuario_nombre = _clip_str((auth_payload or {}).get("usuario_nombre"), 100)
-    terminal = (socket.gethostname() or "FACTURA")[:50]
+    terminal = _resolve_request_terminal(request, payload)
 
     with transaction.atomic():
         with connection.cursor() as cursor:
@@ -2542,7 +2563,7 @@ def cancelar_factura_view(request):
         return JsonResponse({"detail": "factura_id requerido"}, status=400)
 
     usuario_id = _to_int((auth_payload or {}).get("usuario_id"), 0)
-    terminal = socket.gethostname() or "FACTURA"
+    terminal = _resolve_request_terminal(request, payload)
     today = timezone.localdate()
 
     with transaction.atomic():
@@ -2765,7 +2786,16 @@ def cancelar_factura_view(request):
     )
 
 
-def _emitir_factura_desde_prefactura(*, request, auth_payload, prefactura_id, tipo_ecf="", lock_owner="", event_id=""):
+def _emitir_factura_desde_prefactura(
+    *,
+    request,
+    auth_payload,
+    prefactura_id,
+    tipo_ecf="",
+    lock_owner="",
+    event_id="",
+    terminal_cliente="",
+):
     prefactura_id = str(prefactura_id or "").strip()
     tipo_ecf = str(tipo_ecf or "").strip()
     lock_owner = str(lock_owner or "").strip()
@@ -2778,7 +2808,7 @@ def _emitir_factura_desde_prefactura(*, request, auth_payload, prefactura_id, ti
 
     usuario_id = _to_int((auth_payload or {}).get("usuario_id"), 0)
     usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
-    terminal = socket.gethostname() or "FACTURA"
+    terminal = _resolve_request_terminal(request, {"terminal_cliente": terminal_cliente})
     if not lock_owner:
         return None, JsonResponse({"detail": "lock_owner requerido para guardar la prefactura."}, status=400)
 
@@ -3034,7 +3064,7 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
     total_doc = _to_decimal(payload.get("total_doc"))
     usuario_id = _to_int_or_none((auth_payload or {}).get("usuario_id")) or 0
     usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
-    terminal = (socket.gethostname() or "FACTURA")[:50]
+    terminal = _resolve_request_terminal(request, payload)
     if prefactura_id and not lock_owner:
         return None, JsonResponse({"detail": "lock_owner requerido para guardar la prefactura."}, status=400)
     lock_acquired = False
@@ -3808,6 +3838,7 @@ def emitir_factura_manual_view(request):
             tipo_ecf="",
             lock_owner=payload.get("lock_owner"),
             event_id=payload.get("event_id"),
+            terminal_cliente=payload.get("terminal_cliente"),
         )
     if error:
         return error
@@ -3832,6 +3863,7 @@ def emitir_factura_view(request):
         tipo_ecf=payload.get("tipo_ecf") or "32",
         lock_owner=payload.get("lock_owner"),
         event_id=payload.get("event_id"),
+        terminal_cliente=payload.get("terminal_cliente"),
     )
     if error:
         return error
