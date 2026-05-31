@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ document_title }}</title>
+  <style>
+    @page {
+      size: letter portrait;
+      margin: 9mm 11mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eef2f7;
+      color: #111111;
+      font-family: "Times New Roman", serif;
+      font-size: 12pt;
+      line-height: 1.35;
+    }
+
+    .toolbar {
+      max-width: 216mm;
+      margin: 12px auto 0;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 0 8px;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    .toolbar button {
+      min-width: 105px;
+      height: 34px;
+      border: 1px solid #7b8794;
+      border-radius: 7px;
+      background: #ffffff;
+      color: #183b56;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .page {
+      width: 216mm;
+      min-height: 279mm;
+      margin: 8px auto 24px;
+      background: #ffffff;
+      border: 1px solid #c9d6e8;
+      padding: 8mm 10mm 9mm;
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
+
+    .carta-header {
+      display: grid;
+      grid-template-columns: 190px 1fr;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 7mm;
+    }
+
+    .carta-logo {
+      width: 190px;
+      text-align: center;
+    }
+
+    .carta-logo img {
+      max-width: 100%;
+      height: auto;
+      object-fit: contain;
+    }
+
+    .carta-header-info {
+      font-size: 10pt;
+      font-weight: 700;
+    }
+
+    .carta-head-right {
+      margin: 2.5mm 0 4mm;
+      text-align: right;
+      font-size: 11pt;
+    }
+
+    .carta-title {
+      margin: 0 0 6mm;
+      text-align: center;
+      color: #d60000;
+      font-size: 26pt;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+    }
+
+    .carta-intro {
+      margin-top: 10mm;
+      margin-bottom: 5mm;
+    }
+
+    .body-copy {
+      margin-top: 4mm;
+      text-align: justify;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6mm;
+      font-size: 9pt;
+    }
+
+    th,
+    td {
+      border: 1px solid #333333;
+      padding: 4px 5px;
+      text-align: left;
+    }
+
+    th {
+      background: #f3f3f3;
+      font-weight: 700;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .alert-cell {
+      color: #d60000;
+      font-weight: 700;
+    }
+
+    .carta-totals {
+      margin-top: 2.5mm;
+      display: flex;
+      justify-content: flex-end;
+      gap: 26px;
+      font-weight: 700;
+      font-size: 11pt;
+    }
+
+    .legal-clause {
+      margin-top: 4mm;
+      font-size: 9.5pt;
+      line-height: 1.35;
+      text-align: justify;
+    }
+
+    .carta-sign {
+      margin-top: 1cm;
+      text-align: center;
+    }
+
+    .firma-img {
+      max-width: 200px;
+      max-height: 90px;
+      margin: 0 auto;
+      object-fit: contain;
+    }
+
+    .sello-img {
+      max-width: 220px;
+      max-height: 120px;
+      margin: 0 auto 5px;
+      object-fit: contain;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #111111;
+      width: 250px;
+      margin: 8px auto 4px;
+    }
+
+    @media print {
+      body {
+        background: #ffffff;
+      }
+
+      .toolbar {
+        display: none;
+      }
+
+      .page {
+        width: auto;
+        min-height: auto;
+        margin: 0;
+        border: none;
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  {% if not embed %}
+  <div class="toolbar">
+    <button type="button" onclick="window.print()">Imprimir</button>
+    <button type="button" onclick="window.close()">Cerrar</button>
+  </div>
+  {% endif %}
+
+  <main class="page">
+    <div>
+      <header class="carta-header">
+        <div class="carta-logo">
+          {% if empresa_logo_src %}
+          <img src="{{ empresa_logo_src }}" alt="Logo" />
+          {% endif %}
+        </div>
+        <div class="carta-header-info">
+          <div style="font-size: 18pt;">{{ empresa_nombre }}</div>
+          <div>{{ empresa_direccion }}</div>
+          <div>Telefono: {{ empresa_telefonos }}</div>
+          <div>E-Mail: {{ empresa_email }}</div>
+          <div>RNC: {{ empresa_rnc }}</div>
+        </div>
+      </header>
+
+      <div class="carta-head-right">
+        <div>{{ fecha }}</div>
+        <div>{{ ciudad_impresion }}</div>
+        <div>{{ hora }}</div>
+      </div>
+
+      <h1 class="carta-title">AVISO</h1>
+
+      <section class="carta-intro">
+        <p>Senor(a):</p>
+        <p>
+          <strong>{{ cliente_nombre }}</strong><br />
+          Cedula/Pasaporte: <strong>{{ cliente_rnc }}</strong><br />
+          Direccion: <strong>{{ cliente_direccion }}</strong><br />
+          Ciudad: <strong>{{ ciudad_impresion }}</strong><br />
+          Telefono: <strong>{{ cliente_telefono }}</strong>
+        </p>
+
+        {% if aviso_asunto %}
+        <p><strong>Asunto:</strong> {{ aviso_asunto }}</p>
+        {% endif %}
+
+        <div class="body-copy">{{ aviso_body_text|linebreaksbr }}</div>
+      </section>
+
+      <table>
+        <thead>
+          <tr>
+            <th>NoFactura</th>
+            <th>NoCuota</th>
+            <th>Fecha Venc.</th>
+            <th class="text-right">Monto</th>
+            <th class="text-right">Pagado</th>
+            <th class="text-right">Saldo</th>
+            <th class="text-center">Dias de Atraso</th>
+            <th class="text-right">Mora</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in facturas %}
+          <tr>
+            <td>{{ item.id_doc }}</td>
+            <td class="text-center">{{ item.no_cuota }}</td>
+            <td>{{ item.fecha_venc }}</td>
+            <td class="text-right">{{ item.monto_fmt }}</td>
+            <td class="text-right">{{ item.pagado_fmt }}</td>
+            <td class="text-right">{{ item.saldo_fmt }}</td>
+            <td class="text-center alert-cell">{{ item.dias }}</td>
+            <td class="text-right">{{ item.mora_fmt }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center">Este financiamiento no presenta cuotas en atraso.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="carta-totals">
+        <div>Balance en Atraso --> {{ total_saldo_fmt }}</div>
+        <div>Total Mora --> {{ total_mora_fmt }}</div>
+      </div>
+
+      <div class="legal-clause">
+        El cliente reconoce y acepta que {{ empresa_nombre }} podra consultar, compartir y reportar su informacion crediticia ante las sociedades de informacion crediticia, conforme a la normativa vigente. En caso de incumplimiento de sus obligaciones de pago reflejadas en el presente estado de cuenta, dicha informacion podra ser reportada en apego a las disposiciones legales aplicables.
+      </div>
+    </div>
+
+    <footer class="carta-sign">
+      {% if empresa_sello_src %}
+      <img class="sello-img" src="{{ empresa_sello_src }}" alt="Sello" />
+      {% endif %}
+      {% if firma_src %}
+      <img class="firma-img" src="{{ firma_src }}" alt="Firma" />
+      {% endif %}
+      <hr />
+      <div>Firma y Sello</div>
+    </footer>
+  </main>
+</body>
+</html>

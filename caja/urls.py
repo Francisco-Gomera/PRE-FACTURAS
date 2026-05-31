@@ -10,9 +10,11 @@ from .views import (
     cuentas_por_cobrar_buscar_view,
     cuentas_por_cobrar_cancelar_view,
     cuentas_por_cobrar_cobros_anteriores_view,
+    cuentas_por_cobrar_corregir_monto_view,
     cuentas_por_cobrar_detalle_view,
     cuentas_por_cobrar_guardar_view,
     cuentas_por_cobrar_marcar_impreso_view,
+    cuentas_por_cobrar_medio_pago_view,
     cuentas_por_cobrar_pdf_view,
     cuentas_por_cobrar_print_data_view,
     cuentas_por_cobrar_pendientes_view,
@@ -66,6 +68,16 @@ urlpatterns = [
         "cuentas-por-cobrar/marcar-impreso/",
         cuentas_por_cobrar_marcar_impreso_view,
         name="cuentas_por_cobrar_marcar_impreso",
+    ),
+    path(
+        "cuentas-por-cobrar/medio-pago/",
+        cuentas_por_cobrar_medio_pago_view,
+        name="cuentas_por_cobrar_medio_pago",
+    ),
+    path(
+        "cuentas-por-cobrar/corregir-monto/",
+        cuentas_por_cobrar_corregir_monto_view,
+        name="cuentas_por_cobrar_corregir_monto",
     ),
     path(
         "cuentas-por-cobrar/cancelar/",

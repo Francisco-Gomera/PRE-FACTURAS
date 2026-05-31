@@ -233,6 +233,7 @@
   const facturaEmitSuccessLabel = "{{ factura_emit_success_label|default:'Factura'|escapejs }}";
   const facturaHistoryColspan = {% if factura_allow_encf_history and factura_allow_cancel %}9{% elif factura_allow_encf_history or factura_allow_cancel %}8{% else %}7{% endif %};
   const prefListUrl = "{% url 'factura:emision_prefacturas' %}";
+  const prefSocketUrl = "/ws/prefacturas/";
   const prefDetailUrl = "{% url 'factura:emision_prefactura_detalle' %}";
   const emitirFacturaUrl = "{% if factura_mode == 'manual' %}{% url 'factura:emitir_factura_manual' %}{% else %}{% url 'factura:emitir_factura' %}{% endif %}";
   const facturasBuscarUrl = "{% url 'factura:buscar_facturas' %}";
@@ -261,6 +262,9 @@
   let prefDebounce = null;
   let activePrefId = "";
   let lastPrintUrl = "";
+  let prefStatusSocket = null;
+  let prefStatusSocketReconnectTimer = null;
+  let lastPrefStatusEventKey = "";
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -329,6 +333,98 @@
       `;
       facturaStatusHelp.style.display = "flex";
     }
+  }
+
+  function clearPrefStatusSocketReconnect() {
+    if (!prefStatusSocketReconnectTimer) return;
+    clearTimeout(prefStatusSocketReconnectTimer);
+    prefStatusSocketReconnectTimer = null;
+  }
+
+  function resolvePrefStatusSocketUrl() {
+    if (!prefSocketUrl) return "";
+    try {
+      const target = new URL(prefSocketUrl, window.location.origin);
+      target.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return target.toString();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function schedulePrefStatusSocketReconnect() {
+    if (prefStatusSocketReconnectTimer) return;
+    prefStatusSocketReconnectTimer = setTimeout(() => {
+      prefStatusSocketReconnectTimer = null;
+      connectPrefStatusSocket();
+    }, 3000);
+  }
+
+  async function handleExternalPrefStatusChange(data) {
+    const targetId = String(data?.document_id || "").trim();
+    if (!targetId || !activePrefId || targetId !== String(activePrefId)) {
+      return;
+    }
+    const nextEstado = String(data?.estado || "").trim();
+    const eventKey = `${targetId}|${nextEstado}|${String(data?.reason || "").trim()}`;
+    if (eventKey && eventKey === lastPrefStatusEventKey) {
+      return;
+    }
+    lastPrefStatusEventKey = eventKey;
+    clearFactura(true);
+    await fetchPrefacturas();
+    showStatus(
+      `La prefactura ${targetId} cambió en otra terminal${nextEstado ? ` y ahora está ${nextEstado}.` : "."}`,
+      false
+    );
+  }
+
+  function connectPrefStatusSocket() {
+    const socketTarget = resolvePrefStatusSocketUrl();
+    if (!socketTarget || typeof window.WebSocket !== "function") {
+      return;
+    }
+    if (prefStatusSocket && (
+      prefStatusSocket.readyState === window.WebSocket.OPEN ||
+      prefStatusSocket.readyState === window.WebSocket.CONNECTING
+    )) {
+      return;
+    }
+    try {
+      prefStatusSocket = new window.WebSocket(socketTarget);
+    } catch (error) {
+      schedulePrefStatusSocketReconnect();
+      return;
+    }
+    prefStatusSocket.addEventListener("open", () => {
+      clearPrefStatusSocketReconnect();
+    });
+    prefStatusSocket.addEventListener("message", (event) => {
+      let data = null;
+      try {
+        data = JSON.parse(event.data || "{}");
+      } catch (error) {
+        data = null;
+      }
+      if (!data || !data.type) return;
+      if (data.type === "prefactura.refresh") {
+        void fetchPrefacturas();
+        return;
+      }
+      if (data.type === "prefactura.document_status") {
+        void handleExternalPrefStatusChange(data);
+      }
+    });
+    prefStatusSocket.addEventListener("close", () => {
+      prefStatusSocket = null;
+      schedulePrefStatusSocketReconnect();
+    });
+    prefStatusSocket.addEventListener("error", () => {
+      try {
+        prefStatusSocket?.close();
+      } catch (error) {
+      }
+    });
   }
 
   function renderPrefResults(rows) {
@@ -626,5 +722,18 @@
 
   fetchPrefacturas();
   fetchFacturas();
+  connectPrefStatusSocket();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      connectPrefStatusSocket();
+    }
+  });
+  window.addEventListener("beforeunload", () => {
+    clearPrefStatusSocketReconnect();
+    try {
+      prefStatusSocket?.close();
+    } catch (error) {
+    }
+  });
 </script>
 {% endblock %}

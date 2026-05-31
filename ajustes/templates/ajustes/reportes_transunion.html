@@ -1,0 +1,488 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<style>
+  .tu-toolbar { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; align-items:end; margin-bottom:16px; }
+  .tu-field { display:grid; gap:6px; min-width:0; }
+  .tu-field label { font-size:.82rem; color:#51627c; font-weight:700; }
+  .tu-field input, .tu-field select { width:100%; min-width:0; height:40px; box-sizing:border-box; border:1px solid #c9d7ef; border-radius:10px; padding:8px 10px; font:inherit; }
+  .tu-card { background:#fff; border:1px solid #d9e3f3; border-radius:14px; padding:18px; box-shadow:0 10px 24px rgba(23,43,77,.06); margin-bottom:16px; min-width:0; }
+  .tu-card h3 { margin:0 0 8px; color:#173d7a; }
+  .tu-sub { margin:0 0 16px; color:#5c6b84; }
+  .tu-btn { width:100%; min-height:40px; box-sizing:border-box; border:1px solid #1a66ce; border-radius:10px; padding:10px 14px; background:#1f5fbf; color:#fff; cursor:pointer; font-weight:700; text-decoration:none; display:inline-flex; align-items:center; justify-content:center; text-align:center; }
+  .tu-btn.secondary { background:#e9f1ff; color:#1f4f9d; border-color:#c8d9f6; }
+  .tu-btn.danger { background:#fff1f1; color:#9a2525; border-color:#efc0c0; }
+  .tu-btn:disabled { opacity:.55; cursor:not-allowed; }
+  .tu-layout { display:grid; grid-template-columns:minmax(300px, 360px) minmax(0, 1fr); gap:16px; align-items:start; }
+  .tu-list { max-height:560px; overflow:auto; display:grid; gap:8px; }
+  .tu-account { width:100%; box-sizing:border-box; text-align:left; border:1px solid #dbe6fb; background:#f8fbff; border-radius:10px; padding:10px; cursor:pointer; }
+  .tu-account.is-selected { border-color:#1f5fbf; box-shadow:0 0 0 2px rgba(31,95,191,.14); }
+  .tu-account strong { display:block; color:#173d7a; }
+  .tu-account span { display:block; color:#5c6b84; font-size:.86rem; margin-top:3px; }
+  .tu-detail-layout { display:grid; grid-template-columns:minmax(0, 1fr) minmax(260px, 320px); gap:16px; align-items:start; }
+  .tu-selected-panel { min-width:0; }
+  .tu-selected-panel h4 { margin:0 0 8px; color:#173d7a; font-size:.96rem; }
+  .tu-selected-table-wrap { max-height:560px; overflow:auto; border:1px solid #e4ebf7; border-radius:10px; }
+  .tu-selected-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:.86rem; color:#20324d; }
+  .tu-selected-table th,
+  .tu-selected-table td { padding:7px 6px; border-bottom:1px solid #edf2fb; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .tu-selected-table th { background:#f8fbff; color:#3b5680; position:sticky; top:0; z-index:1; }
+  .tu-selected-table th:nth-child(1),
+  .tu-selected-table td:nth-child(1) { width:38px; text-align:right; }
+  .tu-selected-table th:nth-child(2),
+  .tu-selected-table td:nth-child(2) { width:78px; }
+  .tu-selected-table tbody tr { cursor:pointer; }
+  .tu-selected-table tbody tr:hover { background:#f4f8ff; }
+  .tu-selected-table tbody tr.is-active { background:#e8f0ff; }
+  .tu-edit-grid { display:grid; grid-template-columns:repeat(2, minmax(220px, 1fr)); gap:14px 16px; max-height:560px; overflow:auto; padding-right:6px; min-width:0; align-items:start; }
+  .tu-edit-grid .tu-field { min-width:0; }
+  .tu-empty { padding:18px; color:#667892; border:1px dashed #c9d7ef; border-radius:12px; background:#f8fbff; }
+  .tu-status { margin-top:8px; color:#5c6b84; font-size:.9rem; }
+  .tu-toolbar .tu-status { align-self:center; margin-top:0; }
+  @media (max-width: 1280px) {
+    .tu-detail-layout { grid-template-columns:1fr; }
+    .tu-selected-table-wrap { max-height:220px; }
+  }
+  @media (max-width: 1100px) {
+    .tu-layout { grid-template-columns:1fr; }
+    .tu-edit-grid { grid-template-columns:1fr; max-height:none; }
+    .tu-toolbar { grid-template-columns:1fr; }
+  }
+</style>
+
+<h2 class="page-title">Reportes TransUnion</h2>
+<p class="page-subtitle">Selecciona cuentas abiertas, revisa los datos precargados y genera el archivo para TransUnion.</p>
+
+<div class="tu-card">
+  <h3>Archivo</h3>
+  <p class="tu-sub">El nombre se genera como codigo de suscriptor mas fecha de corte. CSV usa coma; TXT usa pipe.</p>
+  <div class="tu-toolbar">
+    <div class="tu-field">
+      <label for="tu_codigo">Codigo suscriptor</label>
+      <input id="tu_codigo" type="text" value="C0542" placeholder="C0542" />
+    </div>
+    <div class="tu-field">
+      <label for="tu_corte">Fecha de corte</label>
+      <input id="tu_corte" type="date" value="{{ fecha_hoy|date:'Y-m-d' }}" />
+    </div>
+    <div class="tu-field">
+      <label for="tu_format">Formato</label>
+      <select id="tu_format">
+        <option value="csv">CSV delimitado por coma</option>
+        <option value="txt" selected>TXT delimitado por pipe</option>
+      </select>
+    </div>
+    <div class="tu-field">
+      <label for="tu_header">Encabezados</label>
+      <select id="tu_header">
+        <option value="1">Incluir encabezados</option>
+        <option value="0" selected>Solo registros</option>
+      </select>
+    </div>
+    <button id="tu_export" type="button" class="tu-btn">Generar archivo</button>
+    <div class="tu-field">
+      <label for="tu_import_file">Cargar reporte</label>
+      <input id="tu_import_file" type="file" accept=".csv,.txt,text/csv,text/plain" />
+    </div>
+    <button id="tu_import" type="button" class="tu-btn secondary">Cargar archivo</button>
+    <a class="tu-btn secondary" href="{% url 'ajustes:integraciones' %}">Volver</a>
+  </div>
+  <div id="tu_status" class="tu-status">Nombre sugerido: {{ transunion_default_filename }}</div>
+</div>
+
+<div class="tu-layout">
+  <section class="tu-card">
+    <h3>Cuentas</h3>
+    <p class="tu-sub">Busca por cliente, RNC/Cedula o numero de documento.</p>
+    <div class="tu-toolbar">
+      <div class="tu-field">
+        <label for="tu_search">Buscar</label>
+        <input id="tu_search" type="text" placeholder="Cliente, RNC o documento" />
+      </div>
+      <button id="tu_search_btn" type="button" class="tu-btn secondary">Buscar</button>
+    </div>
+    <div id="tu_accounts" class="tu-list">
+      <div class="tu-empty">Haz una busqueda para cargar cuentas abiertas.</div>
+    </div>
+  </section>
+
+  <section class="tu-card">
+    <h3>Datos del registro</h3>
+    <p class="tu-sub">Cada campo se puede editar antes de generar el archivo.</p>
+    <div class="tu-toolbar">
+      <button id="tu_remove" type="button" class="tu-btn danger" disabled>Quitar cuenta seleccionada</button>
+      <span id="tu_selected_count" class="tu-status">0 cuentas seleccionadas.</span>
+    </div>
+    <div class="tu-detail-layout">
+      <div id="tu_editor" class="tu-edit-grid">
+        <div class="tu-empty">Selecciona una cuenta de la izquierda para editar sus datos.</div>
+      </div>
+      <aside class="tu-selected-panel">
+        <h4>Seleccionadas</h4>
+        <div class="tu-selected-table-wrap">
+          <table class="tu-selected-table">
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Cuenta</th>
+                <th>Cliente</th>
+              </tr>
+            </thead>
+            <tbody id="tu_selected_list">
+              <tr><td colspan="3">Sin seleccion.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </aside>
+    </div>
+  </section>
+</div>
+
+{{ transunion_fields|json_script:"tu-fields-data" }}
+<script>
+  (function () {
+    const fields = JSON.parse(document.getElementById("tu-fields-data").textContent || "[]");
+    const urls = {
+      cuentas: "{% url 'ajustes:reportes_transunion_cuentas' %}",
+      generar: "{% url 'ajustes:reportes_transunion_generar' %}",
+    };
+    const csrfToken = "{{ csrf_token }}";
+    const selected = new Map();
+    let activeKey = "";
+
+    const accountsEl = document.getElementById("tu_accounts");
+    const editorEl = document.getElementById("tu_editor");
+    const selectedListEl = document.getElementById("tu_selected_list");
+    const statusEl = document.getElementById("tu_status");
+    const countEl = document.getElementById("tu_selected_count");
+    const removeBtn = document.getElementById("tu_remove");
+    const searchInput = document.getElementById("tu_search");
+    const corteInput = document.getElementById("tu_corte");
+
+    function setStatus(text) {
+      statusEl.textContent = text || "";
+    }
+
+    function selectedRows() {
+      return Array.from(selected.values()).map((item) => item.fields);
+    }
+
+    function fieldKeyByHeader(header) {
+      const normalized = String(header || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toLowerCase();
+      const found = fields.find((field) => {
+        const label = String(field.label || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .trim()
+          .toLowerCase();
+        return field.key.toLowerCase() === normalized || label === normalized;
+      });
+      return found ? found.key : "";
+    }
+
+    function parseDelimited(text, delimiter) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let quoted = false;
+      const value = String(text || "").replace(/^\uFEFF/, "");
+      for (let index = 0; index < value.length; index += 1) {
+        const ch = value[index];
+        const next = value[index + 1];
+        if (quoted) {
+          if (ch === '"' && next === '"') {
+            cell += '"';
+            index += 1;
+          } else if (ch === '"') {
+            quoted = false;
+          } else {
+            cell += ch;
+          }
+          continue;
+        }
+        if (ch === '"') {
+          quoted = true;
+        } else if (ch === delimiter) {
+          row.push(cell);
+          cell = "";
+        } else if (ch === "\n") {
+          row.push(cell);
+          rows.push(row);
+          row = [];
+          cell = "";
+        } else if (ch !== "\r") {
+          cell += ch;
+        }
+      }
+      if (cell || row.length) {
+        row.push(cell);
+        rows.push(row);
+      }
+      return rows.filter((items) => items.some((item) => String(item || "").trim()));
+    }
+
+    function detectDelimiter(text, fileName) {
+      const name = String(fileName || "").toLowerCase();
+      if (name.endsWith(".txt")) return "|";
+      if (name.endsWith(".csv")) return ",";
+      const sample = String(text || "").split(/\r?\n/).find((line) => line.trim()) || "";
+      return (sample.match(/\|/g) || []).length > (sample.match(/,/g) || []).length ? "|" : ",";
+    }
+
+    function importRows(parsedRows) {
+      if (!parsedRows.length) {
+        setStatus("El archivo no tiene registros para cargar.");
+        return;
+      }
+      const firstRow = parsedRows[0] || [];
+      const headerKeys = firstRow.map(fieldKeyByHeader);
+      const hasHeader = headerKeys.filter(Boolean).length >= Math.min(6, fields.length);
+      const dataRows = hasHeader ? parsedRows.slice(1) : parsedRows;
+      const keys = hasHeader ? headerKeys : fields.map((field) => field.key);
+      let imported = 0;
+      dataRows.forEach((values, index) => {
+        const fieldValues = {};
+        fields.forEach((field) => {
+          fieldValues[field.key] = "";
+        });
+        values.forEach((value, valueIndex) => {
+          const key = keys[valueIndex];
+          if (key && Object.prototype.hasOwnProperty.call(fieldValues, key)) {
+            fieldValues[key] = value;
+          }
+        });
+        const accountKey = fieldValues.numero_cuenta || fieldValues.codigo_cliente || `archivo-${Date.now()}-${index}`;
+        selected.set(accountKey, {
+          source: {
+            id_doc: fieldValues.numero_cuenta || accountKey,
+            id_sn: fieldValues.codigo_cliente || "",
+            cliente: fieldValues.nombre_completo || fieldValues.razon_social || "Registro importado",
+            saldo: fieldValues.balance_actual || "",
+          },
+          fields: fieldValues,
+        });
+        if (!activeKey) {
+          activeKey = accountKey;
+        }
+        imported += 1;
+      });
+      renderSelectedList();
+      renderEditor();
+      setStatus(`Archivo cargado: ${imported} registro${imported === 1 ? "" : "s"} importado${imported === 1 ? "" : "s"}.`);
+    }
+
+    function selectedName(item) {
+      const fields = item.fields || {};
+      const source = item.source || {};
+      return fields.nombre_completo || fields.razon_social || source.cliente || "Cliente sin nombre";
+    }
+
+    function selectedMeta(item) {
+      const fields = item.fields || {};
+      const source = item.source || {};
+      const doc = source.id_doc || fields.numero_cuenta || "";
+      const client = source.id_sn || fields.codigo_cliente || "";
+      return `Doc. ${doc || "-"} | Cliente ${client || "-"}`;
+    }
+
+    function renderSelectedList() {
+      const entries = Array.from(selected.entries());
+      if (!entries.length) {
+        selectedListEl.innerHTML = '<tr><td colspan="3">Sin seleccion.</td></tr>';
+        return;
+      }
+      selectedListEl.innerHTML = entries.map(([key, item], index) => `
+        <tr data-key="${escapeHtml(key)}" class="${key === activeKey ? "is-active" : ""}" title="Doble click para cargar">
+          <td>${index + 1}</td>
+          <td>${escapeHtml((item.fields || {}).numero_cuenta || (item.source || {}).id_doc || "-")}</td>
+          <td>${escapeHtml(selectedName(item))}</td>
+        </tr>
+      `).join("");
+      selectedListEl.querySelectorAll("tr[data-key]").forEach((itemEl) => {
+        itemEl.addEventListener("dblclick", () => {
+          activeKey = itemEl.dataset.key || "";
+          renderSelectedList();
+          renderEditor();
+        });
+      });
+    }
+
+    function refreshCount() {
+      countEl.textContent = `${selected.size} cuenta${selected.size === 1 ? "" : "s"} seleccionada${selected.size === 1 ? "" : "s"}.`;
+      removeBtn.disabled = !activeKey || !selected.has(activeKey);
+      renderSelectedList();
+    }
+
+    function renderEditor() {
+      const item = selected.get(activeKey);
+      if (!item) {
+        editorEl.innerHTML = '<div class="tu-empty">Selecciona una cuenta de la izquierda para editar sus datos.</div>';
+        refreshCount();
+        return;
+      }
+      editorEl.innerHTML = fields.map((field) => `
+        <div class="tu-field">
+          <label for="tu_field_${field.key}">${field.label}</label>
+          <input id="tu_field_${field.key}" data-key="${field.key}" type="text" value="${escapeHtml(item.fields[field.key] || "")}" />
+        </div>
+      `).join("");
+      editorEl.querySelectorAll("input[data-key]").forEach((input) => {
+        input.addEventListener("input", () => {
+          item.fields[input.dataset.key] = input.value;
+          if (["nombre_completo", "razon_social", "numero_cuenta", "codigo_cliente"].includes(input.dataset.key)) {
+            renderSelectedList();
+          }
+        });
+      });
+      refreshCount();
+    }
+
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[ch]));
+    }
+
+    function renderAccounts(results) {
+      if (!results.length) {
+        accountsEl.innerHTML = '<div class="tu-empty">No se encontraron cuentas abiertas.</div>';
+        return;
+      }
+      accountsEl.innerHTML = results.map((item) => {
+        const source = item.source || {};
+        const key = source.id_doc || item.fields.numero_cuenta;
+        const isSelected = selected.has(key);
+        return `
+          <button type="button" class="tu-account ${isSelected ? "is-selected" : ""}" data-key="${escapeHtml(key)}">
+            <strong>${escapeHtml(source.cliente || "Cliente")}</strong>
+            <span>Doc. ${escapeHtml(source.id_doc)} | Cliente ${escapeHtml(source.id_sn)} | Saldo ${escapeHtml(source.saldo)}</span>
+            <span>Vence ${escapeHtml(source.fecha_venc || "-")} | Dias atraso ${escapeHtml(source.dias_atraso || "0")}</span>
+            ${source.cuotas ? `<span>Cuotas ${escapeHtml(source.cuotas)} | Atrasadas ${escapeHtml(source.cuotas_atrasadas || "0")} | Monto atraso ${escapeHtml(source.monto_atraso || "0.00")}</span>` : ""}
+          </button>
+        `;
+      }).join("");
+      accountsEl.querySelectorAll(".tu-account").forEach((button, index) => {
+        button.addEventListener("click", () => {
+          const item = results[index];
+          const key = button.dataset.key || item.source.id_doc || item.fields.numero_cuenta;
+          if (!selected.has(key)) {
+            selected.set(key, JSON.parse(JSON.stringify(item)));
+          }
+          activeKey = key;
+          renderAccounts(results);
+          renderSelectedList();
+          renderEditor();
+        });
+      });
+    }
+
+    async function searchAccounts() {
+      const params = new URLSearchParams({
+        q: searchInput.value || "",
+        corte: corteInput.value || "",
+        limit: "150",
+      });
+      accountsEl.innerHTML = '<div class="tu-empty">Cargando cuentas...</div>';
+      setStatus("Consultando cuentas abiertas...");
+      try {
+        const response = await fetch(`${urls.cuentas}?${params.toString()}`, { credentials: "same-origin" });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || "No se pudo cargar la informacion.");
+        }
+        renderAccounts(data.results || []);
+        setStatus(`Cargadas ${(data.results || []).length} cuentas. Selecciona las que vas a reportar.`);
+      } catch (error) {
+        accountsEl.innerHTML = `<div class="tu-empty">${escapeHtml(error.message || "Error consultando cuentas.")}</div>`;
+        setStatus("No se pudo consultar cuentas.");
+      }
+    }
+
+    async function exportFile() {
+      if (!selected.size) {
+        setStatus("Selecciona al menos una cuenta antes de generar.");
+        return;
+      }
+      const payload = {
+        codigo_suscriptor: document.getElementById("tu_codigo").value || "C0542",
+        corte: corteInput.value || "",
+        format: document.getElementById("tu_format").value || "txt",
+        include_header: document.getElementById("tu_header").value === "1",
+        rows: selectedRows(),
+      };
+      setStatus("Generando archivo...");
+      const response = await fetch(urls.generar, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": csrfToken,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        let detail = "No se pudo generar el archivo.";
+        try {
+          const data = await response.json();
+          detail = data.detail || detail;
+        } catch (error) {}
+        setStatus(detail);
+        return;
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") || "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : `TransUnion.${payload.format}`;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setStatus(`Archivo generado: ${filename}`);
+    }
+
+    document.getElementById("tu_search_btn").addEventListener("click", searchAccounts);
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        searchAccounts();
+      }
+    });
+    removeBtn.addEventListener("click", () => {
+      if (activeKey) {
+        selected.delete(activeKey);
+        activeKey = "";
+        renderSelectedList();
+        renderEditor();
+      }
+    });
+    document.getElementById("tu_export").addEventListener("click", exportFile);
+    document.getElementById("tu_import").addEventListener("click", () => {
+      const input = document.getElementById("tu_import_file");
+      const file = input.files && input.files[0];
+      if (!file) {
+        setStatus("Selecciona un archivo TXT o CSV primero.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = String(reader.result || "");
+        const delimiter = detectDelimiter(text, file.name);
+        importRows(parseDelimited(text, delimiter));
+      };
+      reader.onerror = () => setStatus("No se pudo leer el archivo seleccionado.");
+      reader.readAsText(file, "utf-8");
+    });
+    refreshCount();
+  })();
+</script>
+{% endblock %}

@@ -1,14 +1,2268 @@
 {% extends "core/base.html" %}
 
-{% block content %}
-<h2 class="page-title">Salida de articulos</h2>
-<p class="page-subtitle">Submodulo listo para registrar movimientos de salida en inventario.</p>
+{% block head_extra %}
+<style>
+  .entry-page {
+    max-width: 1500px;
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    height: calc(100vh - 170px);
+    min-height: 0;
+  }
 
-<div class="card-grid">
-  <div class="info-card">
-    <h3>Salida articulos</h3>
-    <p>Desde aqui se preparara el flujo de despachos, consumos y documentos de salida.</p>
-    <a href="{% url 'inventario:index' %}">Volver a inventario</a>
+  .entry-shell {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .entry-card {
+    background: linear-gradient(180deg, #ffffff, #f7fbff);
+    border: 1px solid #cedbef;
+    border-radius: 18px;
+    box-shadow: 0 16px 30px rgba(20, 55, 110, 0.08);
+    min-width: 0;
+  }
+
+  .entry-header-card {
+    padding: 10px 12px 12px;
+  }
+
+  .entry-title {
+    margin: 0 0 8px;
+    text-align: center;
+    font-size: 22px;
+    line-height: 1.05;
+    color: #0d3f8e;
+    font-weight: 900;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .entry-header-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 520px) 220px 206px;
+    gap: 10px;
+    align-items: start;
+    justify-content: start;
+  }
+
+  .entry-form-grid {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 5px 10px;
+    align-items: center;
+  }
+
+  .entry-form-row-full {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+  }
+
+  .entry-form-grid label,
+  .entry-side-grid label,
+  .entry-comment-field label,
+  .entry-total-field label {
+    font-size: 12px;
+    font-weight: 800;
+    color: #163c73;
+  }
+
+  .entry-input,
+  .entry-select,
+  .entry-textarea {
+    width: 100%;
+    height: 24px;
+    border-radius: 8px;
+    border: 1px solid #d1dcef;
+    background: #f8fbff;
+    color: #1a2942;
+    padding: 2px 8px;
+    font-size: 12.5px;
+  }
+
+  .entry-input[readonly],
+  .entry-select:disabled,
+  .entry-input:disabled {
+    background: #eef4ff;
+    color: #294364;
+  }
+
+  .entry-select {
+    padding-right: 28px;
+  }
+
+  .entry-textarea {
+    height: 24px;
+    min-height: 24px;
+    resize: none;
+    padding-top: 2px;
+    overflow: hidden;
+  }
+
+  .entry-input.is-num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .entry-with-trigger,
+  .entry-provider-pick {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 26px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .entry-provider-code {
+    display: grid;
+    grid-template-columns: 168px 26px;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .entry-trigger-btn {
+    width: 26px;
+    height: 24px;
+    border-radius: 8px;
+    border: 1px solid #1b6fde;
+    background: linear-gradient(180deg, #eff6ff, #daeafc);
+    color: #17406e;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .entry-side-grid {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 5px 6px;
+    align-items: center;
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .entry-side-grid .entry-input,
+  .entry-side-grid .entry-select {
+    text-align: right;
+    max-width: none;
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .entry-shortcuts {
+    display: grid;
+    gap: 4px;
+    align-content: start;
+    padding: 2px 0;
+    min-width: 0;
+  }
+
+  .entry-shortcuts h3 {
+    margin: 0 0 2px;
+    font-size: 12px;
+    color: #0f3f78;
+  }
+
+  .entry-shortcut-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-height: 24px;
+    height: 24px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    border: 1px solid #1a66ce;
+    background: linear-gradient(180deg, #1f7aed, #125ec3);
+    color: #ffffff;
+    box-shadow: 0 6px 12px rgba(18, 94, 195, 0.18);
+    cursor: pointer;
+    text-align: left;
+    font-size: 11.5px;
+    text-decoration: none;
+  }
+
+  .entry-shortcut-btn strong {
+    font-size: inherit;
+    font-weight: 700;
+  }
+
+  .entry-shortcut-btn span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    font-size: 12px;
+    line-height: 1;
+    flex: 0 0 24px;
+  }
+
+  .entry-shortcut-btn:hover {
+    filter: brightness(1.03);
+  }
+
+  .entry-tabs-card {
+    padding: 10px 12px 12px;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .entry-tabs-head {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid #d5e0f2;
+    padding-bottom: 2px;
+  }
+
+  .entry-tabs-group {
+    display: flex;
+    gap: 6px;
+    align-items: flex-end;
+  }
+
+  .entry-tabs-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+    padding-bottom: 2px;
+  }
+
+  .entry-tab {
+    border: 1px solid #d2deef;
+    border-bottom: 0;
+    border-radius: 14px 14px 0 0;
+    padding: 7px 12px 6px;
+    background: #f3f8fe;
+    color: #305178;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .entry-tab.active {
+    background: #ffffff;
+    color: #0d3f8e;
+  }
+
+  .entry-tab-panel {
+    display: none;
+  }
+
+  .entry-tab-panel.active {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .entry-tab-panel.active[data-tab-panel="detalle"] {
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .entry-toolbar-btn {
+    height: 24px;
+    min-width: 118px;
+    border-radius: 8px;
+    border: 1px solid #c9d8ec;
+    background: linear-gradient(180deg, #ffffff, #edf4ff);
+    color: #17406e;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0 12px;
+  }
+
+  .entry-grid-shell {
+    border: 1px solid #cfdbeb;
+    border-radius: 14px;
+    background: #ffffff;
+    overflow: hidden;
+    min-width: 0;
+    width: 100%;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .entry-grid-scroll {
+    min-height: 0;
+    max-height: none;
+    height: 100%;
+    overflow: auto;
+    width: 100%;
+  }
+
+  .entry-grid-shell table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+
+  .entry-grid-shell th,
+  .entry-grid-shell td {
+    padding: 0 3px;
+    border-right: 1px solid #dde7f4;
+    border-bottom: 1px solid #e5edf8;
+    font-size: 10.5px;
+    line-height: 1;
+    height: auto;
+    min-height: 0;
+    vertical-align: middle;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .entry-grid-shell th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef5ff;
+    color: #21446f;
+    text-align: left;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .entry-grid-shell td:last-child,
+  .entry-grid-shell th:last-child {
+    border-right: 0;
+  }
+
+  .entry-grid-shell tbody tr:hover td {
+    background: #f8fbff;
+  }
+
+  .entry-grid-shell tbody tr.entry-row-selected td {
+    background: #eef5ff;
+  }
+
+  .entry-edit-cell {
+    padding: 0 !important;
+  }
+
+  .entry-cell-input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: 16px;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    background: #f8fbff;
+    color: #183860;
+    padding: 0 4px;
+    font-size: 10.5px;
+    line-height: 1;
+    margin: 0;
+    box-sizing: border-box;
+  }
+
+  .entry-cell-input:focus {
+    outline: 0;
+    background: #eef5ff;
+  }
+
+  .entry-cell-input[readonly] {
+    color: #294364;
+  }
+
+  .entry-cell-input:disabled {
+    background: #f5f8fc;
+    color: #6a7f98;
+  }
+
+  .entry-cell-input.is-num {
+    text-align: right;
+  }
+
+  .entry-grid-shell table th:nth-child(1),
+  .entry-grid-shell table td:nth-child(1) {
+    width: 31%;
+  }
+
+  .entry-grid-shell table th:nth-child(2),
+  .entry-grid-shell table td:nth-child(2) {
+    width: 7%;
+  }
+
+  .entry-grid-shell table th:nth-child(3),
+  .entry-grid-shell table td:nth-child(3),
+  .entry-grid-shell table th:nth-child(4),
+  .entry-grid-shell table td:nth-child(4),
+  .entry-grid-shell table th:nth-child(5),
+  .entry-grid-shell table td:nth-child(5),
+  .entry-grid-shell table th:nth-child(6),
+  .entry-grid-shell table td:nth-child(6),
+  .entry-grid-shell table th:nth-child(9),
+  .entry-grid-shell table td:nth-child(9) {
+    width: 6%;
+  }
+
+  .entry-grid-shell table th:nth-child(7),
+  .entry-grid-shell table td:nth-child(7),
+  .entry-grid-shell table th:nth-child(8),
+  .entry-grid-shell table td:nth-child(8),
+  .entry-grid-shell table th:nth-child(12),
+  .entry-grid-shell table td:nth-child(12) {
+    width: 9%;
+  }
+
+  .entry-grid-shell table th:nth-child(10),
+  .entry-grid-shell table td:nth-child(10),
+  .entry-grid-shell table th:nth-child(11),
+  .entry-grid-shell table td:nth-child(11) {
+    width: 8%;
+  }
+
+  .entry-grid-empty td {
+    height: 232px;
+    color: #6b7f9b;
+    text-align: center;
+    vertical-align: top;
+    padding-top: 18px;
+    white-space: normal;
+  }
+
+  .entry-tab-footer {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 180px;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .entry-total-field {
+    display: grid;
+    gap: 4px;
+    justify-items: end;
+  }
+
+  .entry-total-field .entry-input {
+    width: 124px;
+  }
+
+  .entry-finanzas-box {
+    min-height: 408px;
+    border: 1px dashed #d1dcef;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #fbfdff, #f3f8fe);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    text-align: center;
+    color: #5b7090;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .entry-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: flex-end;
+    min-height: 56px;
+  }
+
+  .entry-actions-left {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .entry-action,
+  .entry-close-btn {
+    height: 40px;
+    min-width: 104px;
+    border-radius: 14px;
+    border: 1px solid #1a66ce !important;
+    background: linear-gradient(180deg, #1f7aed, #125ec3) !important;
+    box-shadow: 0 8px 16px rgba(18, 94, 195, 0.2) !important;
+    color: #ffffff !important;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    cursor: pointer;
+    padding: 0 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease, background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .entry-action:hover:not(:disabled),
+  .entry-close-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 11px 20px rgba(18, 94, 195, 0.26) !important;
+    filter: brightness(1.03);
+  }
+
+  .entry-close-btn {
+    min-width: 128px;
+  }
+
+  .entry-action-icon {
+    display: none;
+  }
+
+  .entry-action.is-disabled,
+  .entry-action:disabled,
+  .entry-toolbar-btn:disabled,
+  .entry-trigger-btn:disabled {
+    background: linear-gradient(180deg, #d8e2f1, #c8d5e8) !important;
+    border-color: #bfd0e8 !important;
+    color: #6f8199 !important;
+    box-shadow: none !important;
+    opacity: 1;
+    cursor: not-allowed;
+    transform: none;
+    filter: none;
+  }
+
+  .entry-action.is-disabled:hover,
+  .entry-action:disabled:hover {
+    transform: none;
+    box-shadow: none;
+    filter: none;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1400;
+  }
+
+  .modal-backdrop.open {
+    display: flex;
+  }
+
+  .win-modal {
+    width: min(1100px, 96vw);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #ffffff, #f7fbff);
+    border-radius: 18px;
+    border: 1px solid #cddbef;
+    box-shadow: 0 18px 40px rgba(10, 45, 110, 0.2);
+  }
+
+  .win-titlebar {
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #0f4da2;
+    color: #ffffff;
+    padding: 0 16px;
+    font-size: 14px;
+    font-weight: 800;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .win-titlebar button {
+    border: none;
+    background: transparent;
+    color: #ffffff;
+    font-size: 20px;
+    cursor: pointer;
+  }
+
+  .win-body {
+    padding: 14px;
+    overflow: auto;
+  }
+
+  .search-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 170px auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .search-row label {
+    font-size: 12px;
+    font-weight: 800;
+    color: #163c73;
+  }
+
+  .search-grid {
+    border: 1px solid #cfdbeb;
+    border-radius: 14px;
+    overflow: hidden;
+    background: #ffffff;
+    height: min(58vh, 520px);
+  }
+
+  .search-grid-scroll {
+    height: 100%;
+    overflow: auto;
+  }
+
+  .search-grid table {
+    width: 100%;
+    min-width: 860px;
+    border-collapse: collapse;
+  }
+
+  .search-grid th,
+  .search-grid td {
+    padding: 8px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid #dfe8f5;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .search-grid th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef5ff;
+    color: #21446f;
+    font-weight: 800;
+  }
+
+  .search-grid tr.click-row {
+    cursor: pointer;
+  }
+
+  .search-grid tr.click-row:hover td {
+    background: #f3f8ff;
+  }
+
+  .result-empty {
+    color: #6b7f9b;
+    text-align: center;
+    font-style: italic;
+  }
+
+  @media (max-width: 1280px) {
+    .entry-header-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .entry-side-grid {
+      grid-template-columns: 82px minmax(0, 220px);
+      justify-content: start;
+    }
+
+    .entry-shortcuts {
+      max-width: 220px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .entry-page,
+    .entry-shell {
+      height: auto;
+      min-height: 0;
+    }
+
+    .entry-shell {
+      grid-template-rows: auto auto;
+    }
+
+    .entry-tabs-card {
+      grid-template-rows: auto auto auto;
+      overflow: visible;
+    }
+
+    .entry-tab-footer {
+      grid-template-columns: 1fr;
+    }
+
+    .entry-actions {
+      grid-template-columns: 1fr;
+      display: grid;
+    }
+
+    .entry-actions-left {
+      width: 100%;
+    }
+
+    .entry-action,
+    .entry-close-btn {
+      flex: 1 1 120px;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .entry-form-grid,
+    .entry-form-row-full,
+    .entry-side-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .entry-tabs-head,
+    .entry-tabs-group,
+    .entry-tabs-actions {
+      flex-wrap: wrap;
+    }
+
+    .entry-tabs-actions {
+      width: 100%;
+      justify-content: flex-end;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .entry-page {
+      gap: 8px;
+      height: auto;
+      overflow: visible;
+    }
+
+    .entry-shell {
+      gap: 8px;
+      height: auto;
+      overflow: visible;
+    }
+
+    .entry-header-card,
+    .entry-tabs-card {
+      padding: 10px;
+      border-radius: 14px;
+    }
+
+    .entry-header-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .entry-form-grid,
+    .entry-form-row-full,
+    .entry-side-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .entry-provider-pick,
+    .entry-provider-code {
+      grid-template-columns: minmax(0, 1fr) 26px;
+    }
+
+    .entry-input,
+    .entry-select,
+    .entry-textarea,
+    .entry-trigger-btn {
+      height: 34px;
+      font-size: 14px;
+      border-radius: 10px;
+      padding: 4px 10px;
+    }
+
+    .entry-textarea {
+      min-height: 34px;
+      height: 34px;
+      padding-top: 6px;
+    }
+
+    .entry-shortcuts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .entry-shortcuts h3 {
+      grid-column: 1 / -1;
+      margin-bottom: 2px;
+    }
+
+    .entry-shortcut-btn {
+      min-height: 38px;
+      height: auto;
+      padding: 8px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+
+    .entry-tabs-head,
+    .entry-tabs-group {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .entry-tabs-group {
+      width: 100%;
+    }
+
+    .entry-tab {
+      flex: 1 1 calc(50% - 6px);
+      text-align: center;
+      padding: 9px 12px 8px;
+    }
+
+    .entry-tabs-actions {
+      width: 100%;
+      justify-content: stretch;
+      padding-bottom: 0;
+    }
+
+    .entry-toolbar-btn {
+      width: 100%;
+      min-width: 0;
+      height: 34px;
+    }
+
+    .entry-grid-shell {
+      min-height: 340px;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .entry-grid-scroll {
+      height: auto;
+      min-height: 340px;
+      max-height: min(46dvh, 420px);
+    }
+
+    .entry-grid-shell table {
+      min-width: 980px;
+    }
+
+    .entry-tab-footer {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .entry-total-field,
+    .entry-total-field .entry-input {
+      width: 100%;
+      justify-items: stretch;
+    }
+
+    .entry-actions {
+      display: grid;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .entry-actions-left {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
+
+    .entry-action,
+    .entry-close-btn {
+      width: 100%;
+      min-width: 0;
+      height: 46px;
+      padding: 0 10px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="entry-page">
+  <div class="entry-shell">
+    <section class="entry-card entry-header-card">
+      <div class="entry-header-grid">
+        <div class="entry-form-grid">
+          <label for="entrada_codigo">Codigo</label>
+          <input id="entrada_codigo" class="entry-input" type="text" value="" readonly />
+
+          <label for="entrada_descripcion">Descripcion</label>
+          <input id="entrada_descripcion" class="entry-input" type="text" value="" readonly />
+
+          <label for="entrada_asunto">Asunto</label>
+          <input id="entrada_asunto" class="entry-input" type="text" value="" />
+
+          <label for="entrada_departamento">Departamento</label>
+          <select id="entrada_departamento" class="entry-select">
+            {% if not entrada_departamentos %}
+            <option value=""></option>
+            {% endif %}
+            {% for departamento in entrada_departamentos %}
+            <option value="{{ departamento.ceco|default:''|escape }}"{% if departamento.ceco == entrada_defaults.departamento_ceco %} selected{% endif %}>{{ departamento.descripcion|default:departamento.ceco }}</option>
+            {% endfor %}
+          </select>
+
+          <label for="entrada_proveedor_codigo">Prov.</label>
+          <div class="entry-provider-pick">
+            <div class="entry-provider-code">
+              <input id="entrada_proveedor_codigo" class="entry-input" type="text" value="-1" readonly />
+              <button id="btn_entrada_proveedor_pick" type="button" class="entry-trigger-btn" aria-label="Buscar proveedor">...</button>
+            </div>
+            <span></span>
+          </div>
+
+          <label for="entrada_proveedor_nombre">Nombre</label>
+          <input id="entrada_proveedor_nombre" class="entry-input" type="text" value="" readonly />
+        </div>
+
+        <div class="entry-side-grid">
+          <label for="entrada_no">No.</label>
+          <input id="entrada_no" class="entry-input is-num" type="text" value="" readonly />
+
+          <label for="entrada_estado">Estado doc.</label>
+          <input id="entrada_estado" class="entry-input" type="text" value="" readonly />
+
+          <label for="entrada_fecha_cont">Fecha cont.</label>
+          <input id="entrada_fecha_cont" class="entry-input" type="date" />
+
+          <label for="entrada_fecha_venc">Fecha venc.</label>
+          <input id="entrada_fecha_venc" class="entry-input" type="date" />
+
+          <label for="entrada_fecha_doc">Fecha doc.</label>
+          <input id="entrada_fecha_doc" class="entry-input" type="date" />
+        </div>
+
+        <aside class="entry-shortcuts">
+          <h3>Acceso directo</h3>
+          <a href="{% url 'inventario:articulos' %}" class="entry-shortcut-btn">
+            <strong>Articulos</strong>
+            <span>A</span>
+          </a>
+          <a href="{% url 'inventario:entrada_articulos' %}" class="entry-shortcut-btn">
+            <strong>Entrada articulos</strong>
+            <span>E</span>
+          </a>
+          <a href="{% url 'factura:facturacion' %}" class="entry-shortcut-btn">
+            <strong>Facturacion</strong>
+            <span>F</span>
+          </a>
+          <a href="{% url 'caja:cuentas_por_cobrar' %}" class="entry-shortcut-btn">
+            <strong>Cuentas por cobrar</strong>
+            <span>C</span>
+          </a>
+        </aside>
+      </div>
+    </section>
+
+    <section class="entry-card entry-tabs-card">
+      <div class="entry-tabs-head">
+        <div class="entry-tabs-group" role="tablist" aria-label="Salida tabs">
+          <button type="button" class="entry-tab active" data-tab-target="detalle" role="tab" aria-selected="true">Detalle</button>
+          <button type="button" class="entry-tab" data-tab-target="finanzas" role="tab" aria-selected="false">Finanzas</button>
+        </div>
+        <div class="entry-tabs-actions">
+          <button id="btn_entrada_delete_line" type="button" class="entry-toolbar-btn" disabled>Borrar linea</button>
+        </div>
+      </div>
+
+      <div class="entry-tab-panel active" data-tab-panel="detalle">
+        <div class="entry-grid-shell">
+          <div class="entry-grid-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Descripcion art./serv.</th>
+                  <th>Articulo</th>
+                  <th>Cant. Emp.</th>
+                  <th>Cant.</th>
+                  <th>UoM</th>
+                  <th>Alm.</th>
+                  <th>Pedido Cte.</th>
+                  <th>Proyecto</th>
+                  <th>CeCo</th>
+                  <th>Costo unit.</th>
+                  <th>Valor</th>
+                  <th>Cuenta mayor</th>
+                </tr>
+              </thead>
+              <tbody id="entrada_detalle_body">
+                <tr class="entry-grid-empty">
+                  <td colspan="12">La rejilla del detalle quedara disponible aqui para capturar los articulos de salida.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="entry-tab-footer">
+          <div class="entry-comment-field">
+            <label for="entrada_comentario">Comentario:</label>
+            <textarea id="entrada_comentario" class="entry-textarea"></textarea>
+          </div>
+          <div class="entry-total-field">
+            <label for="entrada_total_doc">Total Doc.</label>
+            <input id="entrada_total_doc" class="entry-input is-num" type="text" value="" readonly />
+          </div>
+        </div>
+      </div>
+
+      <div class="entry-tab-panel" data-tab-panel="finanzas">
+        <div class="entry-finanzas-box">
+          La pestaña de finanzas quedo reservada dentro del layout para conectar su informacion contable en el siguiente paso.
+        </div>
+      </div>
+
+      <div class="entry-actions">
+        <div class="entry-actions-left">
+          <button id="btn_entrada_nuevo" type="button" class="entry-action">
+            <span>Nuevo</span>
+          </button>
+          <button id="btn_entrada_buscar" type="button" class="entry-action">
+            <span>Buscar</span>
+          </button>
+          <button id="btn_entrada_cancel" type="button" class="entry-action is-disabled" disabled>
+            <span>Cancel</span>
+          </button>
+          <button id="btn_entrada_grabar" type="button" class="entry-action is-disabled" disabled>
+            <span>Grabar</span>
+          </button>
+          <button id="btn_entrada_print" type="button" class="entry-action is-disabled" disabled>
+            <span>Printer</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<div id="entrada_search_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="entrada_search_title">
+    <div class="win-titlebar">
+      <span id="entrada_search_title">Buscar salida de articulos</span>
+      <button id="btn_close_entrada_search" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="entrada_search_q">Buscar</label>
+        <input id="entrada_search_q" class="entry-input" type="text" placeholder="Documento, codigo, descripcion o proveedor" />
+        <select id="entrada_search_filtro" class="entry-select">
+          <option value="documento">Documento</option>
+          <option value="codigo">Codigo</option>
+          <option value="descripcion">Descripcion</option>
+          <option value="proveedor">Proveedor</option>
+        </select>
+        <button id="btn_entrada_search_exec" type="button" class="entry-toolbar-btn">Buscar</button>
+      </div>
+      <div class="search-grid">
+        <div class="search-grid-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Codigo</th>
+                <th>Descripcion</th>
+                <th>Proveedor</th>
+                <th>Fecha</th>
+                <th>Total</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="entrada_search_results_body">
+              <tr><td colspan="7" class="result-empty">Pulsa Buscar para consultar las salidas registradas.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
+
+<div id="entrada_proveedor_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="entrada_proveedor_title">
+    <div class="win-titlebar">
+      <span id="entrada_proveedor_title">Seleccionar proveedor</span>
+      <button id="btn_close_entrada_proveedor" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="entrada_proveedor_search_q">Buscar</label>
+        <input id="entrada_proveedor_search_q" class="entry-input" type="text" placeholder="Codigo, nombre, RNC o telefono" />
+        <div></div>
+        <button id="btn_entrada_proveedor_exec" type="button" class="entry-toolbar-btn">Buscar</button>
+      </div>
+      <div class="search-grid">
+        <div class="search-grid-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Prov.</th>
+                <th>Nombre</th>
+                <th>RNC/Cedula</th>
+                <th>Telefono</th>
+              </tr>
+            </thead>
+            <tbody id="entrada_proveedor_results_body">
+              <tr><td colspan="4" class="result-empty">Pulsa Buscar para consultar los proveedores.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="entrada_articulo_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="entrada_articulo_title">
+    <div class="win-titlebar">
+      <span id="entrada_articulo_title">Seleccionar articulo</span>
+      <button id="btn_close_entrada_articulo" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div class="search-row">
+        <label for="entrada_articulo_q">Buscar</label>
+        <input id="entrada_articulo_q" class="entry-input" type="text" placeholder="Descripcion o Codigo" />
+        <select id="entrada_articulo_filtro" class="entry-select">
+          <option value="descripcion" selected>Descripcion</option>
+          <option value="codigo">Codigo</option>
+        </select>
+        <button id="btn_entrada_articulo_exec" type="button" class="entry-toolbar-btn">Buscar</button>
+      </div>
+      <div class="search-grid">
+        <div class="search-grid-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Codigo</th>
+                <th>Descripcion</th>
+                <th>Precio</th>
+                <th>Stock</th>
+              </tr>
+            </thead>
+            <tbody id="entrada_articulo_results_body">
+              <tr><td colspan="4" class="result-empty">Pulsa Buscar para consultar los articulos.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="entrada_alert_backdrop" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal" role="dialog" aria-modal="true" aria-labelledby="entrada_alert_title">
+    <div class="win-titlebar">
+      <span id="entrada_alert_title">Mensaje</span>
+      <button id="btn_close_entrada_alert" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <div style="display:grid; gap:14px;">
+        <div id="entrada_alert_text" style="font-size:13px; color:#163c73; line-height:1.5;"></div>
+        <div style="display:flex; justify-content:flex-end;">
+          <button id="btn_entrada_alert_ok" type="button" class="entry-toolbar-btn">Aceptar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var tabs = Array.prototype.slice.call(document.querySelectorAll(".entry-tab"));
+    var panels = Array.prototype.slice.call(document.querySelectorAll(".entry-tab-panel"));
+    var btnNuevo = document.getElementById("btn_entrada_nuevo");
+    var btnBuscar = document.getElementById("btn_entrada_buscar");
+    var btnCancel = document.getElementById("btn_entrada_cancel");
+    var btnPrint = document.getElementById("btn_entrada_print");
+    var btnGrabar = document.getElementById("btn_entrada_grabar");
+    var btnDeleteLine = document.getElementById("btn_entrada_delete_line");
+    var fieldCodigo = document.getElementById("entrada_codigo");
+    var fieldDescripcion = document.getElementById("entrada_descripcion");
+    var fieldAsunto = document.getElementById("entrada_asunto");
+    var fieldDepartamento = document.getElementById("entrada_departamento");
+    var fieldProveedorCodigo = document.getElementById("entrada_proveedor_codigo");
+    var fieldProveedorNombre = document.getElementById("entrada_proveedor_nombre");
+    var btnProveedorPick = document.getElementById("btn_entrada_proveedor_pick");
+    var fieldNo = document.getElementById("entrada_no");
+    var fieldEstado = document.getElementById("entrada_estado");
+    var fieldFechaCont = document.getElementById("entrada_fecha_cont");
+    var fieldFechaVenc = document.getElementById("entrada_fecha_venc");
+    var fieldFechaDoc = document.getElementById("entrada_fecha_doc");
+    var fieldComentario = document.getElementById("entrada_comentario");
+    var fieldTotalDoc = document.getElementById("entrada_total_doc");
+    var detailBody = document.getElementById("entrada_detalle_body");
+    var searchBackdrop = document.getElementById("entrada_search_backdrop");
+    var btnCloseSearch = document.getElementById("btn_close_entrada_search");
+    var btnSearchExec = document.getElementById("btn_entrada_search_exec");
+    var fieldSearchQ = document.getElementById("entrada_search_q");
+    var fieldSearchFiltro = document.getElementById("entrada_search_filtro");
+    var searchResultsBody = document.getElementById("entrada_search_results_body");
+    var proveedorBackdrop = document.getElementById("entrada_proveedor_backdrop");
+    var btnCloseProveedor = document.getElementById("btn_close_entrada_proveedor");
+    var btnProveedorExec = document.getElementById("btn_entrada_proveedor_exec");
+    var fieldProveedorSearchQ = document.getElementById("entrada_proveedor_search_q");
+    var proveedorResultsBody = document.getElementById("entrada_proveedor_results_body");
+    var articuloBackdrop = document.getElementById("entrada_articulo_backdrop");
+    var btnCloseArticulo = document.getElementById("btn_close_entrada_articulo");
+    var btnArticuloExec = document.getElementById("btn_entrada_articulo_exec");
+    var fieldArticuloQ = document.getElementById("entrada_articulo_q");
+    var fieldArticuloFiltro = document.getElementById("entrada_articulo_filtro");
+    var articuloResultsBody = document.getElementById("entrada_articulo_results_body");
+    var alertBackdrop = document.getElementById("entrada_alert_backdrop");
+    var btnCloseAlert = document.getElementById("btn_close_entrada_alert");
+    var btnAlertOk = document.getElementById("btn_entrada_alert_ok");
+    var alertText = document.getElementById("entrada_alert_text");
+    var config = {
+      searchUrl: "{% url 'inventario:salida_articulos_buscar' %}",
+      detailUrl: "{% url 'inventario:salida_articulos_detalle' %}",
+      proveedoresUrl: "{% url 'inventario:salida_articulos_proveedores' %}",
+      articulosUrl: "{% url 'inventario:salida_articulos_articulos' %}",
+      guardarUrl: "{% url 'inventario:salida_articulos_guardar' %}",
+      solicitudDetalleUrlTemplate: "{% url 'inventario:solicitudes_existencia_detalle' 0 %}",
+      today: "{{ server_today_iso|default:''|escapejs }}",
+      csrfToken: "{{ csrf_token }}",
+      defaultCodigo: "{{ entrada_defaults.codigo|default:'4'|escapejs }}",
+      defaultDescripcion: "{{ entrada_defaults.descripcion|default:'Salida de Mercancia'|escapejs }}",
+      defaultDepartamento: "{{ entrada_defaults.departamento_ceco|default:''|escapejs }}",
+      defaultProveedorCodigo: "{{ entrada_defaults.proveedor_codigo|default:'-1'|escapejs }}",
+      prefillSolicitudId: "{{ request.GET.solicitud|default:''|escapejs }}",
+    };
+    var ENTRADA_TERMINAL_STORAGE_KEY = "prefacturas.caja.terminal_nombre";
+    var ENTRADA_TERMINAL_DEVICE_KEY = "prefacturas.caja.terminal_seed";
+    var activeLookup = "";
+    var activeSolicitudExistenciaId = "";
+    var entryMode = "initial";
+    var selectedDetalleRow = null;
+    var articuloTargetRow = null;
+    var entradaAlertCallback = null;
+
+    function setButtonDisabled(button, disabled) {
+      if (!button) return;
+      button.disabled = !!disabled;
+      button.classList.toggle("is-disabled", !!disabled);
+    }
+
+    function closeEntradaAlert() {
+      if (!alertBackdrop) return;
+      alertBackdrop.classList.remove("open");
+      alertBackdrop.setAttribute("aria-hidden", "true");
+      var callback = entradaAlertCallback;
+      entradaAlertCallback = null;
+      if (typeof callback === "function") {
+        callback();
+      }
+    }
+
+    function showMessage(message, onClose) {
+      if (!alertBackdrop || !alertText) {
+        window.alert(String(message || ""));
+        if (typeof onClose === "function") onClose();
+        return;
+      }
+      entradaAlertCallback = typeof onClose === "function" ? onClose : null;
+      alertText.textContent = String(message || "");
+      alertBackdrop.classList.add("open");
+      alertBackdrop.setAttribute("aria-hidden", "false");
+      if (btnAlertOk) {
+        btnAlertOk.focus();
+      }
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function resetDetailPlaceholder(message) {
+      if (!detailBody) return;
+      detailBody.innerHTML = '<tr class="entry-grid-empty"><td colspan="12">' + escapeHtml(message || "Sin detalle disponible.") + "</td></tr>";
+    }
+
+    function parseNum(value) {
+      if (value == null) return 0;
+      var text = String(value).replace(/,/g, "").trim();
+      if (!text) return 0;
+      var parsed = Number(text);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function normalizeEntradaTerminalName(value) {
+      return String(value == null ? "" : value)
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 50);
+    }
+
+    function getEntradaTerminalSeed() {
+      try {
+        var stored = normalizeEntradaTerminalName(window.localStorage.getItem(ENTRADA_TERMINAL_DEVICE_KEY) || "");
+        if (stored) return stored;
+        var generated = ("EQ-" + Math.random().toString(36).slice(2, 8)).toUpperCase();
+        window.localStorage.setItem(ENTRADA_TERMINAL_DEVICE_KEY, generated);
+        return generated;
+      } catch (error) {
+        return ("EQ-" + Math.random().toString(36).slice(2, 8)).toUpperCase();
+      }
+    }
+
+    function getStoredEntradaTerminalName() {
+      try {
+        return normalizeEntradaTerminalName(window.localStorage.getItem(ENTRADA_TERMINAL_STORAGE_KEY) || "");
+      } catch (error) {
+        return "";
+      }
+    }
+
+    function getCurrentEntradaTerminalName() {
+      return getStoredEntradaTerminalName() || ("Equipo-" + getEntradaTerminalSeed());
+    }
+
+    function fmtNum(value, decimals) {
+      var digits = typeof decimals === "number" ? decimals : 2;
+      var parsed = parseNum(value);
+      return parsed.toLocaleString("en-US", {
+        minimumFractionDigits: digits,
+        maximumFractionDigits: digits
+      });
+    }
+
+    function sanitizeDecimalInput(value) {
+      var text = String(value == null ? "" : value);
+      text = text.replace(/[^\d.-]/g, "");
+      var negative = "";
+      if (text.indexOf("-") !== -1) {
+        negative = "-";
+        text = text.replace(/-/g, "");
+      }
+      var parts = text.split(".");
+      if (parts.length > 2) {
+        text = parts.shift() + "." + parts.join("");
+      }
+      return negative + text;
+    }
+
+    function focusIfPossible(element) {
+      if (!element || typeof element.focus !== "function") return;
+      element.focus();
+      selectIfPossible(element);
+    }
+
+    function selectIfPossible(element) {
+      if (!element || typeof element.select !== "function") return;
+      try { element.select(); } catch (error) {}
+    }
+
+    function getDepartmentDefaultValue() {
+      if (config.defaultDepartamento) {
+        return config.defaultDepartamento;
+      }
+      if (fieldDepartamento && fieldDepartamento.options.length) {
+        return fieldDepartamento.options[0].value || "";
+      }
+      return "";
+    }
+
+    function setHeaderDefaults() {
+      if (fieldCodigo) fieldCodigo.value = config.defaultCodigo || "";
+      if (fieldDescripcion) fieldDescripcion.value = config.defaultDescripcion || "Salida de Mercancia";
+      if (fieldDepartamento) fieldDepartamento.value = getDepartmentDefaultValue();
+      if (fieldProveedorCodigo) fieldProveedorCodigo.value = config.defaultProveedorCodigo || "-1";
+      if (fieldComentario) fieldComentario.value = config.defaultDescripcion || "Salida de Mercancia";
+    }
+
+    function setHeaderEditable(enabled) {
+      var canEdit = !!enabled;
+      if (fieldAsunto) fieldAsunto.readOnly = !canEdit;
+      if (fieldFechaCont) fieldFechaCont.disabled = !canEdit;
+      if (fieldFechaVenc) fieldFechaVenc.disabled = !canEdit;
+      if (fieldFechaDoc) fieldFechaDoc.disabled = !canEdit;
+      if (fieldComentario) fieldComentario.readOnly = !canEdit;
+      if (fieldDepartamento) fieldDepartamento.disabled = !canEdit || fieldDepartamento.options.length === 0;
+      if (btnProveedorPick) btnProveedorPick.disabled = !canEdit;
+    }
+
+    function getEditableRows() {
+      return Array.prototype.slice.call(detailBody.querySelectorAll("tr.entry-detalle-row"));
+    }
+
+    function canEditDetalle() {
+      return entryMode === "new";
+    }
+
+    function updateDeleteLineButton() {
+      setButtonDisabled(btnDeleteLine, !(canEditDetalle() && selectedDetalleRow));
+    }
+
+    function clearDetalleSelection() {
+      if (selectedDetalleRow) {
+        selectedDetalleRow.classList.remove("entry-row-selected");
+      }
+      selectedDetalleRow = null;
+      updateDeleteLineButton();
+    }
+
+    function selectDetalleRow(row) {
+      if (selectedDetalleRow && selectedDetalleRow !== row) {
+        selectedDetalleRow.classList.remove("entry-row-selected");
+      }
+      selectedDetalleRow = row || null;
+      if (selectedDetalleRow) {
+        selectedDetalleRow.classList.add("entry-row-selected");
+      }
+      updateDeleteLineButton();
+    }
+
+    function updateHeaderTotalFromRows() {
+      var total = getEditableRows().reduce(function (sum, row) {
+        var articulo = String((row.querySelector(".detalle-art") || {}).value || "").trim();
+        if (!articulo) return sum;
+        return sum + parseNum((row.querySelector(".detalle-valor") || {}).value);
+      }, 0);
+      if (fieldTotalDoc) fieldTotalDoc.value = total ? fmtNum(total, 2) : "";
+    }
+
+    function updateRowCalculations(row) {
+      if (!row) return;
+      var artInput = row.querySelector(".detalle-art");
+      var cantEmpInput = row.querySelector(".detalle-cant-emp");
+      var qtyInput = row.querySelector(".detalle-cantidad");
+      var costInput = row.querySelector(".detalle-costo");
+      var valueInput = row.querySelector(".detalle-valor");
+      if (!qtyInput || !costInput || !valueInput) return;
+      qtyInput.value = sanitizeDecimalInput(qtyInput.value);
+      costInput.value = sanitizeDecimalInput(costInput.value);
+      var qty = parseNum(qtyInput.value);
+      var cost = parseNum(costInput.value);
+      if (cantEmpInput) {
+        cantEmpInput.value = qty ? fmtNum(qty, 2) : "";
+      }
+      if (!String((artInput && artInput.value) || "").trim()) {
+        valueInput.value = "";
+        updateHeaderTotalFromRows();
+        return;
+      }
+      var total = qty * cost;
+      valueInput.value = total ? fmtNum(total, 2) : "";
+      updateHeaderTotalFromRows();
+    }
+
+    function getDetalleEditableInputs(row) {
+      if (!row) return [];
+      return Array.prototype.slice.call(
+        row.querySelectorAll(".detalle-desc, .detalle-cantidad, .detalle-alm, .detalle-costo")
+      );
+    }
+
+    function buildEditableDetailRowHtml(data) {
+      var item = data || {};
+      var qty = parseNum(item.cantidad || 1) || 1;
+      var cost = parseNum(item.costo_unit || 1) || 1;
+      var total = parseNum(item.valor || (qty * cost));
+      var cantEmp = fmtNum(item.cant_emp == null || item.cant_emp === "" ? qty : item.cant_emp, 2);
+      return '' +
+        '<tr class="entry-detalle-row">' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-desc" type="text" value="' + escapeHtml(item.descripcion || item.descrip_art || "") + '" /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-art" type="text" value="' + escapeHtml(item.id_articulo || "") + '" readonly /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-cant-emp is-num" type="text" value="' + escapeHtml(cantEmp) + '" readonly /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-cantidad is-num" type="text" inputmode="decimal" value="' + escapeHtml(fmtNum(qty, 2)) + '" /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-uom" type="text" value="' + escapeHtml(item.uom || item.um_inv || "") + '" readonly /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-alm" type="text" value="' + escapeHtml(item.alm || item.alm_dft || "") + '" /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-pedido" type="text" value="' + escapeHtml(item.pedido_cte || "-1") + '" readonly /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-proyecto" type="text" value="' + escapeHtml(item.proyecto || "P01") + '" readonly /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-ceco" type="text" value="' + escapeHtml(item.ceco || getDepartmentDefaultValue()) + '" readonly /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-costo is-num" type="text" inputmode="decimal" value="' + escapeHtml(cost ? fmtNum(cost, 2) : "") + '" /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-valor is-num" type="text" value="' + escapeHtml(total ? fmtNum(total, 2) : "") + '" readonly /></td>' +
+          '<td class="entry-edit-cell"><input class="entry-cell-input detalle-cuenta" type="text" value="' + escapeHtml(item.cuenta_mayor || item.cta_aum_stock || "") + '" readonly /></td>' +
+        '</tr>';
+    }
+
+    function renderReadOnlyDetailRows(rows) {
+      if (!detailBody) return;
+      if (!Array.isArray(rows) || !rows.length) {
+        resetDetailPlaceholder("Esta salida no tiene lineas de detalle registradas.");
+        return;
+      }
+      clearDetalleSelection();
+      detailBody.innerHTML = rows.map(function (row) {
+        return "<tr>" +
+          "<td>" + escapeHtml(row.descripcion || "") + "</td>" +
+          "<td>" + escapeHtml(row.articulo || "") + "</td>" +
+          "<td>" + escapeHtml(row.cant_emp || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.cantidad || "") + "</td>" +
+          "<td>" + escapeHtml(row.uom || "") + "</td>" +
+          "<td>" + escapeHtml(row.alm || "") + "</td>" +
+          "<td>" + escapeHtml(row.pedido_cte || "") + "</td>" +
+          "<td>" + escapeHtml(row.proyecto || "") + "</td>" +
+          "<td>" + escapeHtml(row.ceco || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.costo_unit || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.valor || "") + "</td>" +
+          "<td>" + escapeHtml(row.cuenta_mayor || "") + "</td>" +
+        "</tr>";
+      }).join("");
+      updateDeleteLineButton();
+    }
+
+    function attachEditableRowBehavior(row) {
+      if (!row) return;
+      var descInput = row.querySelector(".detalle-desc");
+      var artInput = row.querySelector(".detalle-art");
+      var cantEmpInput = row.querySelector(".detalle-cant-emp");
+      var qtyInput = row.querySelector(".detalle-cantidad");
+      var costInput = row.querySelector(".detalle-costo");
+      var almInput = row.querySelector(".detalle-alm");
+      var pedidoInput = row.querySelector(".detalle-pedido");
+      var proyectoInput = row.querySelector(".detalle-proyecto");
+      var editableInputs = getDetalleEditableInputs(row);
+      if (!descInput || !editableInputs.length) return;
+
+      function updateRowEnabledState() {
+        var hasArticulo = String((artInput && artInput.value) || "").trim() !== "";
+        if (qtyInput) qtyInput.disabled = !hasArticulo;
+        if (almInput) almInput.disabled = !hasArticulo;
+        if (costInput) costInput.disabled = !hasArticulo;
+        if (pedidoInput) pedidoInput.value = "-1";
+        if (proyectoInput) proyectoInput.value = "P01";
+        if (!hasArticulo) {
+          if (qtyInput && !String(qtyInput.value || "").trim()) {
+            qtyInput.value = "1.00";
+          }
+          if (costInput && !String(costInput.value || "").trim()) {
+            costInput.value = "1.00";
+          }
+          if (cantEmpInput && !String(cantEmpInput.value || "").trim()) {
+            cantEmpInput.value = "1.00";
+          }
+        }
+        updateRowCalculations(row);
+      }
+      row._updateEnabledState = updateRowEnabledState;
+
+      row.addEventListener("click", function () {
+        selectDetalleRow(row);
+      });
+      row.addEventListener("dblclick", function () {
+        selectDetalleRow(row);
+      });
+
+      descInput.addEventListener("input", updateRowEnabledState);
+
+      [qtyInput, costInput].forEach(function (input) {
+        if (!input) return;
+        input.addEventListener("input", function () {
+          input.value = sanitizeDecimalInput(input.value);
+          updateRowCalculations(row);
+        });
+        input.addEventListener("blur", function () {
+          var value = parseNum(input.value);
+          if (input === qtyInput) {
+            input.value = value ? fmtNum(value, 2) : "1.00";
+          } else {
+            input.value = value ? fmtNum(value, 2) : "1.00";
+          }
+          updateRowCalculations(row);
+        });
+      });
+
+      editableInputs.forEach(function (input, index) {
+        input.addEventListener("keydown", function (event) {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+
+          if (input === descInput) {
+            if (canEditDetalle()) {
+              openArticuloModal(row, descInput.value || "");
+            }
+            return;
+          }
+
+          if (String((artInput && artInput.value) || "").trim() === "") {
+            focusIfPossible(descInput);
+            return;
+          }
+
+          var next = editableInputs[index + 1];
+          if (next) {
+            focusIfPossible(next);
+            return;
+          }
+
+          var descValue = String(descInput.value || "").trim();
+          var artValue = String((artInput && artInput.value) || "").trim();
+          if (!descValue || !artValue) {
+            focusIfPossible(descInput);
+            return;
+          }
+
+          var emptyRow = getEditableRows().find(function (candidate) {
+            var candidateDesc = String((candidate.querySelector(".detalle-desc") || {}).value || "").trim();
+            var candidateArt = String((candidate.querySelector(".detalle-art") || {}).value || "").trim();
+            return !candidateDesc && !candidateArt;
+          });
+          if (emptyRow) {
+            selectDetalleRow(emptyRow);
+            focusIfPossible(emptyRow.querySelector(".detalle-desc"));
+            return;
+          }
+
+          addEditableRow({}, true);
+        });
+      });
+
+      updateRowEnabledState();
+    }
+
+    function addEditableRow(data, shouldFocus) {
+      if (!detailBody) return;
+      if (!getEditableRows().length) {
+        detailBody.innerHTML = "";
+      }
+      detailBody.insertAdjacentHTML("beforeend", buildEditableDetailRowHtml(data || {}));
+      var row = detailBody.lastElementChild;
+      attachEditableRowBehavior(row);
+      selectDetalleRow(row);
+      updateRowCalculations(row);
+      if (shouldFocus) {
+        focusIfPossible(row.querySelector(".detalle-desc"));
+      }
+    }
+
+    function ensureTrailingEmptyRow() {
+      if (!canEditDetalle()) return;
+      var emptyRow = getEditableRows().find(function (row) {
+        var desc = String((row.querySelector(".detalle-desc") || {}).value || "").trim();
+        var art = String((row.querySelector(".detalle-art") || {}).value || "").trim();
+        return !desc && !art;
+      });
+      if (emptyRow) {
+        selectDetalleRow(emptyRow);
+        focusIfPossible(emptyRow.querySelector(".detalle-desc"));
+        return;
+      }
+      addEditableRow({}, true);
+    }
+
+    function renderEditableRows(rows) {
+      if (!detailBody) return;
+      clearDetalleSelection();
+      detailBody.innerHTML = "";
+      if (Array.isArray(rows) && rows.length) {
+        rows.forEach(function (row, index) {
+          addEditableRow(row, index === 0);
+        });
+      } else {
+        addEditableRow({}, true);
+      }
+      updateHeaderTotalFromRows();
+    }
+
+    function setInitialState() {
+      activeLookup = "";
+      activeSolicitudExistenciaId = "";
+      entryMode = "initial";
+      setHeaderDefaults();
+      if (fieldAsunto) fieldAsunto.value = "";
+      if (fieldProveedorCodigo) fieldProveedorCodigo.value = config.defaultProveedorCodigo || "-1";
+      if (fieldProveedorNombre) fieldProveedorNombre.value = "";
+      if (fieldNo) fieldNo.value = "";
+      if (fieldEstado) fieldEstado.value = "";
+      if (fieldFechaCont) fieldFechaCont.value = config.today || "";
+      if (fieldFechaVenc) fieldFechaVenc.value = "";
+      if (fieldFechaDoc) fieldFechaDoc.value = config.today || "";
+      if (fieldComentario) fieldComentario.value = config.defaultDescripcion || "Salida de Mercancia";
+      if (fieldTotalDoc) fieldTotalDoc.value = "";
+      resetDetailPlaceholder("La rejilla del detalle quedara disponible aqui para capturar los articulos de salida.");
+      setHeaderEditable(false);
+      setButtonDisabled(btnNuevo, false);
+      setButtonDisabled(btnBuscar, false);
+      setButtonDisabled(btnCancel, true);
+      setButtonDisabled(btnPrint, true);
+      setButtonDisabled(btnGrabar, true);
+      clearDetalleSelection();
+      updateDeleteLineButton();
+    }
+
+    function setNewState() {
+      activeLookup = "";
+      activeSolicitudExistenciaId = "";
+      entryMode = "new";
+      setHeaderDefaults();
+      if (fieldAsunto) fieldAsunto.value = "";
+      if (fieldProveedorCodigo) fieldProveedorCodigo.value = config.defaultProveedorCodigo || "-1";
+      if (fieldProveedorNombre) fieldProveedorNombre.value = "";
+      if (fieldNo) fieldNo.value = "";
+      if (fieldEstado) fieldEstado.value = "Abierto";
+      if (fieldFechaCont) fieldFechaCont.value = config.today || "";
+      if (fieldFechaVenc) fieldFechaVenc.value = config.today || "";
+      if (fieldFechaDoc) fieldFechaDoc.value = config.today || "";
+      if (fieldComentario) fieldComentario.value = config.defaultDescripcion || "Salida de Mercancia";
+      if (fieldTotalDoc) fieldTotalDoc.value = "";
+      setHeaderEditable(true);
+      setButtonDisabled(btnNuevo, true);
+      setButtonDisabled(btnBuscar, true);
+      setButtonDisabled(btnCancel, false);
+      setButtonDisabled(btnPrint, true);
+      setButtonDisabled(btnGrabar, false);
+      renderEditableRows([]);
+    }
+
+    function setViewState() {
+      entryMode = "viewing";
+      setHeaderEditable(false);
+      setButtonDisabled(btnNuevo, false);
+      setButtonDisabled(btnBuscar, false);
+      setButtonDisabled(btnCancel, false);
+      setButtonDisabled(btnPrint, true);
+      setButtonDisabled(btnGrabar, true);
+      clearDetalleSelection();
+      updateDeleteLineButton();
+    }
+
+    function openProveedorModal() {
+      if (!canEditDetalle()) return;
+      if (!proveedorBackdrop) return;
+      proveedorBackdrop.classList.add("open");
+      proveedorBackdrop.setAttribute("aria-hidden", "false");
+      if (fieldProveedorSearchQ) {
+        fieldProveedorSearchQ.focus();
+        fieldProveedorSearchQ.select();
+      }
+      fetchProveedorResults();
+    }
+
+    function closeProveedorModal() {
+      if (!proveedorBackdrop) return;
+      proveedorBackdrop.classList.remove("open");
+      proveedorBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function openSearchModal() {
+      if (!searchBackdrop) return;
+      searchBackdrop.classList.add("open");
+      searchBackdrop.setAttribute("aria-hidden", "false");
+      if (fieldSearchQ) {
+        fieldSearchQ.focus();
+        fieldSearchQ.select();
+      }
+      fetchSearchResults();
+    }
+
+    function closeSearchModal() {
+      if (!searchBackdrop) return;
+      searchBackdrop.classList.remove("open");
+      searchBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function renderDetailRows(rows) {
+      if (!detailBody) return;
+      if (!Array.isArray(rows) || !rows.length) {
+        resetDetailPlaceholder("Esta salida no tiene lineas de detalle registradas.");
+        return;
+      }
+      detailBody.innerHTML = rows.map(function (row) {
+        return "<tr>" +
+          "<td>" + escapeHtml(row.descripcion || "") + "</td>" +
+          "<td>" + escapeHtml(row.articulo || "") + "</td>" +
+          "<td>" + escapeHtml(row.cant_emp || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.cantidad || "") + "</td>" +
+          "<td>" + escapeHtml(row.uom || "") + "</td>" +
+          "<td>" + escapeHtml(row.alm || "") + "</td>" +
+          "<td>" + escapeHtml(row.pedido_cte || "") + "</td>" +
+          "<td>" + escapeHtml(row.proyecto || "") + "</td>" +
+          "<td>" + escapeHtml(row.ceco || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.costo_unit || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.valor || "") + "</td>" +
+          "<td>" + escapeHtml(row.cuenta_mayor || "") + "</td>" +
+        "</tr>";
+      }).join("");
+    }
+
+    function fillEntryRecord(record) {
+      var entry = (record && record.entry) || {};
+      activeLookup = String(entry.lookup || entry.no_doc || entry.no || "").trim();
+      if (fieldCodigo) fieldCodigo.value = entry.codigo || "";
+      if (fieldDescripcion) fieldDescripcion.value = entry.descripcion || "";
+      if (fieldAsunto) fieldAsunto.value = entry.asunto || "";
+      if (fieldDepartamento) {
+        fieldDepartamento.value = entry.departamento_ceco || "";
+        if (!fieldDepartamento.value && entry.departamento) {
+          var hasOption = Array.prototype.some.call(fieldDepartamento.options || [], function (option) {
+            return option.text === entry.departamento;
+          });
+          if (!hasOption) {
+            var tempOption = document.createElement("option");
+            tempOption.value = "__TEMP__" + entry.departamento;
+            tempOption.text = entry.departamento;
+            fieldDepartamento.appendChild(tempOption);
+            fieldDepartamento.value = tempOption.value;
+          }
+        }
+      }
+      if (fieldProveedorCodigo) fieldProveedorCodigo.value = entry.proveedor_codigo || "";
+      if (fieldProveedorNombre) fieldProveedorNombre.value = entry.proveedor_nombre || "";
+      if (fieldNo) fieldNo.value = entry.no || entry.no_doc || "";
+      if (fieldEstado) fieldEstado.value = entry.estado || "";
+      if (fieldFechaCont) fieldFechaCont.value = entry.fecha_cont || "";
+      if (fieldFechaVenc) fieldFechaVenc.value = entry.fecha_venc || "";
+      if (fieldFechaDoc) fieldFechaDoc.value = entry.fecha_doc || "";
+      if (fieldComentario) fieldComentario.value = entry.comentario || "";
+      if (fieldTotalDoc) fieldTotalDoc.value = entry.total_doc || "";
+      renderReadOnlyDetailRows((record && record.detalles) || []);
+      setViewState();
+    }
+
+    async function loadEntryRecord(lookupValue) {
+      var lookup = String(lookupValue || "").trim();
+      if (!lookup) return;
+      resetDetailPlaceholder("Cargando detalle...");
+      try {
+        var res = await fetch(config.detailUrl + "?no_doc=" + encodeURIComponent(lookup), {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          resetDetailPlaceholder(data.detail || "No se pudo cargar la salida seleccionada.");
+          return;
+        }
+        fillEntryRecord(data);
+        closeSearchModal();
+      } catch (error) {
+        resetDetailPlaceholder("Error de conexion cargando la salida.");
+      }
+    }
+
+    function buildSolicitudDetalleUrl(solicitudId) {
+      var base = String(config.solicitudDetalleUrlTemplate || "").trim();
+      return base.replace(/0\/?$/, encodeURIComponent(String(solicitudId || "").trim()) + "/");
+    }
+
+    async function preloadSolicitudExistencia(solicitudId) {
+      var lookup = String(solicitudId || "").trim();
+      if (!lookup) return;
+      try {
+        var res = await fetch(buildSolicitudDetalleUrl(lookup), {
+          headers: { "X-Requested-With": "XMLHttpRequest" }
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          showMessage(data.detail || "No se pudo cargar la solicitud de existencia.");
+          return;
+        }
+        setNewState();
+        activeSolicitudExistenciaId = String(data.id || lookup).trim();
+        if (Array.isArray(data.detalles) && data.detalles.length) {
+          renderEditableRows(data.detalles);
+          selectDetalleRow(getEditableRows()[0] || null);
+          focusIfPossible((getEditableRows()[0] || {}).querySelector ? getEditableRows()[0].querySelector(".detalle-cantidad") : null);
+        }
+        if (window.history && typeof window.history.replaceState === "function") {
+          window.history.replaceState({}, document.title, "{% url 'inventario:salida_articulos' %}");
+        }
+      } catch (error) {
+        showMessage("Error de conexion cargando la solicitud de existencia.");
+      }
+    }
+
+    function collectDetallePayload() {
+      return getEditableRows().map(function (row) {
+        var idArticulo = String((row.querySelector(".detalle-art") || {}).value || "").trim();
+        var descripcion = String((row.querySelector(".detalle-desc") || {}).value || "").trim();
+        if (!idArticulo && !descripcion) {
+          return null;
+        }
+        return {
+          id_articulo: idArticulo,
+          descripcion: descripcion,
+          cant_emp: parseNum((row.querySelector(".detalle-cant-emp") || {}).value),
+          cantidad: parseNum((row.querySelector(".detalle-cantidad") || {}).value),
+          uom: String((row.querySelector(".detalle-uom") || {}).value || "").trim(),
+          alm: String((row.querySelector(".detalle-alm") || {}).value || "").trim(),
+          pedido_cte: String((row.querySelector(".detalle-pedido") || {}).value || "").trim(),
+          proyecto: String((row.querySelector(".detalle-proyecto") || {}).value || "").trim(),
+          ceco: String((row.querySelector(".detalle-ceco") || {}).value || "").trim(),
+          costo_unit: parseNum((row.querySelector(".detalle-costo") || {}).value),
+          valor: parseNum((row.querySelector(".detalle-valor") || {}).value),
+          cuenta_mayor: String((row.querySelector(".detalle-cuenta") || {}).value || "").trim()
+        };
+      }).filter(Boolean);
+    }
+
+    function collectEntryPayload() {
+      return {
+        codigo: (fieldCodigo && fieldCodigo.value) || "",
+        descripcion: (fieldDescripcion && fieldDescripcion.value) || "",
+        asunto: (fieldAsunto && fieldAsunto.value) || "",
+        departamento_ceco: (fieldDepartamento && fieldDepartamento.value) || "",
+        proveedor_codigo: (fieldProveedorCodigo && fieldProveedorCodigo.value) || "",
+        proveedor_nombre: (fieldProveedorNombre && fieldProveedorNombre.value) || "",
+        fecha_cont: (fieldFechaCont && fieldFechaCont.value) || "",
+        fecha_venc: (fieldFechaVenc && fieldFechaVenc.value) || "",
+        fecha_doc: (fieldFechaDoc && fieldFechaDoc.value) || "",
+        comentario: (fieldComentario && fieldComentario.value) || "",
+        solicitud_existencia_id: activeSolicitudExistenciaId || "",
+        terminal_cliente: getCurrentEntradaTerminalName(),
+        detalles: collectDetallePayload()
+      };
+    }
+
+    async function saveEntry() {
+      if (entryMode !== "new") return;
+      var payload = collectEntryPayload();
+      if (!payload.detalles.length) {
+        showMessage("Debes agregar al menos una linea en el detalle.");
+        return;
+      }
+      setButtonDisabled(btnGrabar, true);
+      try {
+        var requestedNotification = !!activeSolicitudExistenciaId;
+        var res = await fetch(config.guardarUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": config.csrfToken,
+            "X-Requested-With": "XMLHttpRequest"
+          },
+          body: JSON.stringify(payload)
+        });
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          showMessage(data.detail || "No se pudo guardar la salida.");
+          setButtonDisabled(btnGrabar, false);
+          return;
+        }
+        setInitialState();
+        if (requestedNotification) {
+          window.dispatchEvent(new CustomEvent("stock-requests-updated"));
+        }
+        showMessage("Salida de articulos grabada correctamente.");
+      } catch (error) {
+        showMessage("Error de conexion guardando la salida.");
+        setButtonDisabled(btnGrabar, false);
+      }
+    }
+
+    function renderSearchResults(rows) {
+      if (!searchResultsBody) return;
+      if (!Array.isArray(rows) || !rows.length) {
+        searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">No se encontraron salidas.</td></tr>';
+        return;
+      }
+      searchResultsBody.innerHTML = rows.map(function (row) {
+        var proveedor = [row.proveedor_codigo || "", row.proveedor_nombre || ""].filter(Boolean).join(" - ");
+        return "<tr class=\"click-row\" data-lookup=\"" + escapeHtml(row.no_doc || "") + "\">" +
+          "<td>" + escapeHtml(row.no_doc || "") + "</td>" +
+          "<td>" + escapeHtml(row.codigo || "") + "</td>" +
+          "<td title=\"" + escapeHtml(row.descripcion || "") + "\">" + escapeHtml(row.descripcion || "") + "</td>" +
+          "<td title=\"" + escapeHtml(proveedor) + "\">" + escapeHtml(proveedor) + "</td>" +
+          "<td>" + escapeHtml(row.fecha_doc || "") + "</td>" +
+          "<td style=\"text-align:right;\">" + escapeHtml(row.total_doc_fmt || "") + "</td>" +
+          "<td>" + escapeHtml(row.estado || "") + "</td>" +
+        "</tr>";
+      }).join("");
+      Array.prototype.forEach.call(searchResultsBody.querySelectorAll("tr[data-lookup]"), function (row) {
+        row.addEventListener("click", function () {
+          loadEntryRecord(row.getAttribute("data-lookup") || "");
+        });
+      });
+    }
+
+    async function fetchSearchResults() {
+      if (!searchResultsBody) return;
+      searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">Buscando salidas...</td></tr>';
+      try {
+        var res = await fetch(
+          config.searchUrl + "?q=" + encodeURIComponent((fieldSearchQ && fieldSearchQ.value) || "") + "&filtro=" + encodeURIComponent((fieldSearchFiltro && fieldSearchFiltro.value) || "documento"),
+          { headers: { "X-Requested-With": "XMLHttpRequest" } }
+        );
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">' + escapeHtml(data.detail || "No se pudo cargar la lista.") + "</td></tr>";
+          return;
+        }
+        renderSearchResults(data.results || []);
+      } catch (error) {
+        searchResultsBody.innerHTML = '<tr><td colspan="7" class="result-empty">Error de conexion al buscar salidas.</td></tr>';
+      }
+    }
+
+    function renderProveedorResults(rows) {
+      if (!proveedorResultsBody) return;
+      if (!Array.isArray(rows) || !rows.length) {
+        proveedorResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">No se encontraron proveedores.</td></tr>';
+        return;
+      }
+      proveedorResultsBody.innerHTML = rows.map(function (row) {
+        return "<tr class=\"click-row\" data-id=\"" + escapeHtml(row.id_sn || "") + "\" data-nombre=\"" + escapeHtml(row.nom_socio || "") + "\">" +
+          "<td>" + escapeHtml(row.id_sn || "") + "</td>" +
+          "<td title=\"" + escapeHtml(row.nom_socio || "") + "\">" + escapeHtml(row.nom_socio || "") + "</td>" +
+          "<td>" + escapeHtml(row.rnc_ced || "") + "</td>" +
+          "<td>" + escapeHtml(row.telefono || "") + "</td>" +
+        "</tr>";
+      }).join("");
+      Array.prototype.forEach.call(proveedorResultsBody.querySelectorAll("tr[data-id]"), function (row) {
+        row.addEventListener("click", function () {
+          if (fieldProveedorCodigo) fieldProveedorCodigo.value = row.getAttribute("data-id") || "";
+          if (fieldProveedorNombre) fieldProveedorNombre.value = row.getAttribute("data-nombre") || "";
+          closeProveedorModal();
+        });
+      });
+    }
+
+    async function fetchProveedorResults() {
+      if (!proveedorResultsBody) return;
+      proveedorResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Buscando proveedores...</td></tr>';
+      try {
+        var res = await fetch(
+          config.proveedoresUrl + "?q=" + encodeURIComponent((fieldProveedorSearchQ && fieldProveedorSearchQ.value) || ""),
+          { headers: { "X-Requested-With": "XMLHttpRequest" } }
+        );
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          proveedorResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">' + escapeHtml(data.detail || "No se pudo cargar la lista.") + "</td></tr>";
+          return;
+        }
+        renderProveedorResults(data.results || []);
+      } catch (error) {
+        proveedorResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Error de conexion al buscar proveedores.</td></tr>';
+      }
+    }
+
+    function openArticuloModal(targetRow, initialQuery) {
+      if (!canEditDetalle()) return;
+      articuloTargetRow = targetRow || null;
+      if (!articuloBackdrop) return;
+      articuloBackdrop.classList.add("open");
+      articuloBackdrop.setAttribute("aria-hidden", "false");
+      if (fieldArticuloQ) {
+        fieldArticuloQ.value = initialQuery || "";
+        fieldArticuloQ.focus();
+        fieldArticuloQ.select();
+      }
+      if (fieldArticuloFiltro) {
+        fieldArticuloFiltro.value = "descripcion";
+      }
+      fetchArticuloResults();
+    }
+
+    function closeArticuloModal() {
+      if (!articuloBackdrop) return;
+      articuloBackdrop.classList.remove("open");
+      articuloBackdrop.setAttribute("aria-hidden", "true");
+      articuloTargetRow = null;
+    }
+
+    async function applyArticuloToRow(row, data) {
+      if (!row || !data) return;
+      var qtyValue = parseNum((row.querySelector(".detalle-cantidad") || {}).value) || 1;
+      row.querySelector(".detalle-desc").value = data.descrip_art || "";
+      row.querySelector(".detalle-art").value = data.id_articulo || "";
+      row.querySelector(".detalle-cant-emp").value = fmtNum(qtyValue, 2);
+      row.querySelector(".detalle-uom").value = data.um_inv || "";
+      row.querySelector(".detalle-alm").value = data.alm_dft || "";
+      row.querySelector(".detalle-pedido").value = "-1";
+      row.querySelector(".detalle-proyecto").value = "P01";
+      row.querySelector(".detalle-ceco").value = (fieldDepartamento && fieldDepartamento.value) || data.ceco || "";
+      row.querySelector(".detalle-costo").value = "1.00";
+      row.querySelector(".detalle-cuenta").value = data.cta_aum_stock || "";
+      if (typeof row._updateEnabledState === "function") {
+        row._updateEnabledState();
+      }
+      updateRowCalculations(row);
+      selectDetalleRow(row);
+      focusIfPossible(row.querySelector(".detalle-cantidad"));
+    }
+
+    function renderArticuloResults(rows) {
+      if (!articuloResultsBody) return;
+      if (!Array.isArray(rows) || !rows.length) {
+        articuloResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">No se encontraron articulos.</td></tr>';
+        return;
+      }
+      articuloResultsBody.innerHTML = rows.map(function (row) {
+        return '<tr class="click-row" data-row="' + encodeURIComponent(JSON.stringify(row)) + '">' +
+          '<td>' + escapeHtml(row.referencia || row.id_articulo || "") + '</td>' +
+          '<td title="' + escapeHtml(row.descrip_art || "") + '">' + escapeHtml(row.descrip_art || "") + '</td>' +
+          '<td style="text-align:right;">' + escapeHtml(fmtNum(row.precio_det || 0, 2)) + '</td>' +
+          '<td style="text-align:right;">' + escapeHtml(fmtNum(row.stock || 0, 2)) + '</td>' +
+        '</tr>';
+      }).join("");
+      Array.prototype.forEach.call(articuloResultsBody.querySelectorAll("tr[data-row]"), function (row) {
+        row.addEventListener("click", async function () {
+          if (!articuloTargetRow) return;
+          var data = JSON.parse(decodeURIComponent(row.getAttribute("data-row") || "{}"));
+          await applyArticuloToRow(articuloTargetRow, data);
+          closeArticuloModal();
+        });
+      });
+    }
+
+    async function fetchArticuloResults() {
+      if (!articuloResultsBody) return;
+      articuloResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Buscando articulos...</td></tr>';
+      try {
+        var res = await fetch(
+          config.articulosUrl + "?q=" + encodeURIComponent((fieldArticuloQ && fieldArticuloQ.value) || "") + "&filtro=" + encodeURIComponent((fieldArticuloFiltro && fieldArticuloFiltro.value) || "descripcion"),
+          { headers: { "X-Requested-With": "XMLHttpRequest" } }
+        );
+        var data = await res.json().catch(function () { return {}; });
+        if (!res.ok) {
+          articuloResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">' + escapeHtml(data.detail || "No se pudo cargar la lista.") + "</td></tr>";
+          return;
+        }
+        renderArticuloResults(data.results || []);
+      } catch (error) {
+        articuloResultsBody.innerHTML = '<tr><td colspan="4" class="result-empty">Error de conexion al buscar articulos.</td></tr>';
+      }
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener("click", function () {
+        var target = tab.getAttribute("data-tab-target");
+        tabs.forEach(function (item) {
+          item.classList.remove("active");
+          item.setAttribute("aria-selected", "false");
+        });
+        panels.forEach(function (panel) {
+          panel.classList.toggle("active", panel.getAttribute("data-tab-panel") === target);
+        });
+        tab.classList.add("active");
+        tab.setAttribute("aria-selected", "true");
+      });
+    });
+
+    if (btnBuscar) {
+      btnBuscar.addEventListener("click", openSearchModal);
+    }
+    if (btnNuevo) {
+      btnNuevo.addEventListener("click", setNewState);
+    }
+    if (btnCancel) {
+      btnCancel.addEventListener("click", setInitialState);
+    }
+    if (btnGrabar) {
+      btnGrabar.addEventListener("click", saveEntry);
+    }
+    if (btnCloseSearch) {
+      btnCloseSearch.addEventListener("click", closeSearchModal);
+    }
+    if (btnSearchExec) {
+      btnSearchExec.addEventListener("click", fetchSearchResults);
+    }
+    if (btnProveedorPick) {
+      btnProveedorPick.addEventListener("click", openProveedorModal);
+    }
+    if (btnCloseProveedor) {
+      btnCloseProveedor.addEventListener("click", closeProveedorModal);
+    }
+    if (btnProveedorExec) {
+      btnProveedorExec.addEventListener("click", fetchProveedorResults);
+    }
+    if (btnDeleteLine) {
+      btnDeleteLine.addEventListener("click", function () {
+        if (!selectedDetalleRow || !canEditDetalle()) return;
+        var rowToRemove = selectedDetalleRow;
+        clearDetalleSelection();
+        rowToRemove.remove();
+        if (!getEditableRows().length) {
+          addEditableRow({}, true);
+        } else {
+          selectDetalleRow(getEditableRows()[0] || null);
+        }
+        updateHeaderTotalFromRows();
+      });
+    }
+    if (searchBackdrop) {
+      searchBackdrop.addEventListener("click", function (event) {
+        if (event.target === searchBackdrop) {
+          closeSearchModal();
+        }
+      });
+    }
+    if (proveedorBackdrop) {
+      proveedorBackdrop.addEventListener("click", function (event) {
+        if (event.target === proveedorBackdrop) {
+          closeProveedorModal();
+        }
+      });
+    }
+    if (articuloBackdrop) {
+      articuloBackdrop.addEventListener("click", function (event) {
+        if (event.target === articuloBackdrop) {
+          closeArticuloModal();
+        }
+      });
+    }
+    if (fieldSearchQ) {
+      fieldSearchQ.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          fetchSearchResults();
+        }
+      });
+    }
+    if (fieldProveedorSearchQ) {
+      fieldProveedorSearchQ.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          fetchProveedorResults();
+        }
+      });
+    }
+    if (fieldArticuloQ) {
+      fieldArticuloQ.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          fetchArticuloResults();
+        }
+      });
+    }
+    if (fieldSearchFiltro) {
+      fieldSearchFiltro.addEventListener("change", fetchSearchResults);
+    }
+    if (fieldArticuloFiltro) {
+      fieldArticuloFiltro.addEventListener("change", fetchArticuloResults);
+    }
+    if (btnCloseArticulo) {
+      btnCloseArticulo.addEventListener("click", closeArticuloModal);
+    }
+    if (btnArticuloExec) {
+      btnArticuloExec.addEventListener("click", fetchArticuloResults);
+    }
+    if (fieldDepartamento) {
+      fieldDepartamento.addEventListener("change", function () {
+        getEditableRows().forEach(function (row) {
+          var cecoInput = row.querySelector(".detalle-ceco");
+          if (cecoInput) {
+            cecoInput.value = fieldDepartamento.value || "";
+          }
+        });
+      });
+    }
+    if (btnCloseAlert) {
+      btnCloseAlert.addEventListener("click", closeEntradaAlert);
+    }
+    if (btnAlertOk) {
+      btnAlertOk.addEventListener("click", closeEntradaAlert);
+    }
+    if (alertBackdrop) {
+      alertBackdrop.addEventListener("click", function (event) {
+        if (event.target === alertBackdrop) {
+          closeEntradaAlert();
+        }
+      });
+    }
+
+    setInitialState();
+    if (config.prefillSolicitudId) {
+      preloadSolicitudExistencia(config.prefillSolicitudId);
+    }
+  });
+</script>
 {% endblock %}

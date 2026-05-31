@@ -1,16 +1,131 @@
 {% extends "core/base.html" %}
 
 {% block content %}
-<h2 class="page-title">Usuarios, roles y permisos</h2>
-<p class="page-subtitle">Gestiona acceso por modulo, roles y permisos por usuario.</p>
-
-
-
-<div class="card-grid roles-grid">
-  <div class="info-card">
-    <h3>Permisos por usuario</h3>
-    <p class="helper-text">Asigna permisos directos por usuario.</p>
+<div class="page-header">
+  <div class="page-header-copy">
+    <h2 class="page-title">Usuarios, roles y permisos</h2>
+    <p class="page-subtitle">Gestiona acceso por modulo, roles y permisos por usuario.</p>
+  </div>
+  <div class="page-header-actions">
+    {% if usuarios_manage_permissions.crear %}
+    <button type="button" id="btn_open_user_admin_modal">Nuevo usuario</button>
+    {% endif %}
     <button type="button" id="btn_open_user_perm_modal">Administrar permisos</button>
+  </div>
+</div>
+
+<section class="user-admin-panel">
+  <div class="user-admin-toolbar">
+    <div>
+      <h3>Gestion de usuarios</h3>
+      <p class="helper-text">Crea usuarios, actualiza sus datos o cambia su estado.</p>
+    </div>
+    <div class="user-panel-status">
+      <span class="user-count">{{ usuarios|length }} usuarios</span>
+    </div>
+  </div>
+  <div class="table-scroll user-admin-table">
+    <table>
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Nombre</th>
+          <th>Estado</th>
+          <th>Firma</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr data-admin-user-id="{{ u.id_usuario }}">
+          <td>{{ u.usuario }}</td>
+          <td>{{ u.nombre }}</td>
+          <td><span class="status-pill status-{{ u.estado|default:'INACTIVO'|lower }}">{{ u.estado|default:"INACTIVO" }}</span></td>
+          <td>{% if u.has_firma %}Registrada{% else %}Sin firma{% endif %}</td>
+          <td class="actions-cell">
+            {% if usuarios_manage_permissions.editar %}
+            <button type="button" class="btn_edit_user" data-user-id="{{ u.id_usuario }}">Editar</button>
+            {% endif %}
+            {% if usuarios_manage_permissions.inactivar and u.estado != "INACTIVO" and u.id_usuario != auth_payload.usuario_id %}
+            <button type="button" class="btn_inactivate_user" data-user-id="{{ u.id_usuario }}">Inactivar</button>
+            {% endif %}
+            {% if usuarios_manage_permissions.inactivar and u.estado == "INACTIVO" and u.id_usuario != auth_payload.usuario_id %}
+            <button type="button" class="btn_activate_user" data-user-id="{{ u.id_usuario }}">Activar</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5">No hay usuarios registrados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<div id="user_admin_modal" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal user-admin-modal" role="dialog" aria-modal="true" aria-labelledby="user_admin_modal_title">
+    <div class="win-titlebar">
+      <span id="user_admin_modal_title">Usuario</span>
+      <button id="btn_close_user_admin_modal" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <form id="user_admin_form" class="user-admin-form" method="post" action="{% url 'ajustes:guardar_usuario' %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="id_usuario" id="admin_user_id" />
+        <input type="hidden" name="action" id="admin_user_action" value="save" />
+        <label>
+          Usuario
+          <input id="admin_usuario" name="usuario" type="text" maxlength="20" autocomplete="off" required />
+        </label>
+        <label>
+          Nombre
+          <input id="admin_nombre" name="nombre" type="text" maxlength="100" autocomplete="off" required />
+        </label>
+        <label>
+          Departamento
+          <div style="display:flex;gap:8px;align-items:center;">
+            <select id="admin_depto_ceco" name="departamento_ceco">
+              <option value="">Sin departamento</option>
+              {% for d in departamentos %}
+              <option value="{{ d.ceco|escape }}">{{ d.descripcion|escape }}</option>
+              {% endfor %}
+            </select>
+            <input type="hidden" id="admin_depto_desc" name="depto" />
+          </div>
+        </label>
+        <label>
+          Nivel
+          <select id="admin_nivel" name="nivel">
+            <option value="Normal">Normal</option>
+            <option value="Supervisor">Supervisor</option>
+            <option value="Administrador">Administrador</option>
+          </select>
+        </label>
+        <label>
+          Estado
+          <select id="admin_estado" name="estado">
+            <option value="ACTIVO">ACTIVO</option>
+            <option value="INACTIVO">INACTIVO</option>
+          </select>
+        </label>
+        <label>
+          Clave
+          <input id="admin_password" name="password" type="password" maxlength="12" autocomplete="new-password" />
+        </label>
+        <label>
+          Firma (PNG)
+          <input id="admin_firma_png" name="firma_png" type="file" accept="image/png" />
+        </label>
+        <p class="helper-text" id="admin_firma_status">Opcional. Selecciona un PNG para guardar la firma del usuario.</p>
+        <p class="helper-text" id="admin_password_hint">Deja la clave vacia para conservar la actual.</p>
+        <div class="modal-actions">
+          <button type="button" id="btn_cancel_user_admin">Cancelar</button>
+          <button type="submit" id="btn_save_user_admin">Guardar</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -23,35 +138,32 @@
     <div class="win-body">
       <div class="user-perm-grid">
         <section class="user-perm-users">
-          <h4>Usuarios</h4>
-          <div class="user-list">
-            {% for u in usuarios %}
-            <label class="user-item">
-              <input type="checkbox" class="user-select" value="{{ u.id_usuario }}" data-has-firma="{{ u.has_firma|yesno:'1,0' }}" />
-              <span>{{ u.usuario }} - {{ u.nombre }}</span>
-            </label>
-            {% endfor %}
+          <div class="user-perm-block">
+            <h4>Usuarios</h4>
+            <div class="user-list">
+              {% for u in usuarios %}
+              <label class="user-item">
+                <input type="checkbox" class="user-select" value="{{ u.id_usuario }}" data-has-firma="{{ u.has_firma|yesno:'1,0' }}" />
+                <span>{{ u.usuario }} - {{ u.nombre }}</span>
+              </label>
+              {% endfor %}
+            </div>
           </div>
-          <form id="user_firma_form" method="post" action="{% url 'ajustes:guardar_firma_usuario' %}" enctype="multipart/form-data">
-            {% csrf_token %}
-            <input type="hidden" name="id_usuario" id="firma_user_id" />
-            <label class="helper-label" for="firma_png">Firma (PNG)</label>
-            <input id="firma_png" name="firma_png" type="file" accept="image/png" disabled />
-            <button type="submit" id="btn_save_firma" disabled>Guardar firma</button>
-            <p class="helper-text" id="firma_status">Selecciona un usuario para cargar firma.</p>
-          </form>
-          <form id="user_caja_pref_form" method="post" action="{% url 'ajustes:guardar_preferencia_caja_usuario' %}">
-            {% csrf_token %}
-            <input type="hidden" name="id_usuario" id="caja_pref_user_id" />
-            <label class="helper-label" for="caja_pref_metodo">Caja: metodo por defecto</label>
-            <select id="caja_pref_metodo" name="metodo_pago_default" disabled>
-              <option value="">Sin preferencia (Efectivo)</option>
-              <option value="Efectivo">Efectivo</option>
-              <option value="Transferencia">Transferencia</option>
-            </select>
-            <button type="submit" id="btn_save_caja_pref" disabled>Guardar metodo</button>
-            <p class="helper-text" id="caja_pref_status">Selecciona un usuario para definir el metodo inicial de Caja.</p>
-          </form>
+          <div class="user-perm-block">
+            <h5>Preferencia de Caja</h5>
+            <form id="user_caja_pref_form" method="post" action="{% url 'ajustes:guardar_preferencia_caja_usuario' %}">
+              {% csrf_token %}
+              <input type="hidden" name="id_usuario" id="caja_pref_user_id" />
+              <label class="helper-label" for="caja_pref_metodo">Caja: metodo por defecto</label>
+              <select id="caja_pref_metodo" name="metodo_pago_default" disabled>
+                <option value="">Sin preferencia (Efectivo)</option>
+                <option value="Efectivo">Efectivo</option>
+                <option value="Transferencia">Transferencia</option>
+              </select>
+              <button type="submit" id="btn_save_caja_pref" disabled>Guardar metodo</button>
+              <p class="helper-text" id="caja_pref_status">Selecciona un usuario para definir el metodo inicial de Caja.</p>
+            </form>
+          </div>
         </section>
         <section class="user-perm-perms">
           <h4>Permisos</h4>
@@ -102,8 +214,25 @@
   </div>
 </div>
 
+<div id="user_state_confirm_modal" class="modal-backdrop" aria-hidden="true">
+  <div class="win-modal user-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="user_state_confirm_title" aria-describedby="user_state_confirm_message">
+    <div class="win-titlebar">
+      <span id="user_state_confirm_title">Confirmacion</span>
+      <button id="btn_close_user_state_confirm" type="button">X</button>
+    </div>
+    <div class="win-body">
+      <p id="user_state_confirm_message" class="helper-text">¿Seguro que quieres continuar?</p>
+      <div class="confirm-modal-actions">
+        <button type="button" id="btn_cancel_user_state_confirm" class="btn-muted">Cancelar</button>
+        <button type="button" id="btn_confirm_user_state" class="btn-confirm">Continuar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {{ user_perm_map|json_script:"userPermMap" }}
 {{ user_caja_pref_map|json_script:"userCajaPrefMap" }}
+{{ usuarios_json|json_script:"usersAdminData" }}
 
 <style>
   :root {
@@ -126,62 +255,168 @@
     margin: 0 0 10px;
   }
 
-  .roles-grid {
+  .user-admin-panel {
     margin-top: 12px;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .roles-grid .info-card {
     background: var(--ua-card);
     border: 1px solid var(--ua-line);
-    border-radius: 14px;
+    border-radius: 8px;
     padding: 10px;
     box-shadow: 0 10px 22px rgba(10, 45, 110, 0.08);
+    min-height: calc(100vh - 190px);
+    display: flex;
+    flex-direction: column;
   }
 
-  .roles-grid h3 {
-    font-size: 13px;
-    margin: 0 0 6px;
+  .user-admin-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .user-admin-toolbar h3 {
+    margin: 0 0 4px;
+    font-size: 14px;
     color: var(--ua-text);
   }
 
-  .roles-grid .helper-text {
-    margin: 0 0 6px;
+  .user-admin-toolbar .helper-text {
+    margin: 0;
     font-size: 11px;
     color: var(--ua-muted);
   }
 
-  .roles-grid form {
-    display: grid;
-    gap: 6px;
-  }
-
-  .roles-grid form input,
-  .roles-grid form select {
+  .user-admin-toolbar button,
+  .actions-cell button {
     height: 30px;
+    padding: 0 10px;
+    border-radius: 8px;
+    border: 1px solid #1a64c8;
+    background: linear-gradient(180deg, #1f7aed, #0f5fd1);
+    color: #fff;
     font-size: 12px;
-    padding: 4px 8px;
-    border-radius: 10px;
-    border: 1px solid var(--ua-line);
-    background: #f7faff;
-    min-width: 0;
-    width: 100%;
+    font-weight: 700;
   }
 
-  .roles-grid form button,
-  #btn_open_user_perm_modal {
+  .actions-cell {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .actions-cell .btn_inactivate_user {
+    border-color: #b83232;
+    background: linear-gradient(180deg, #d75b5b, #b83232);
+  }
+
+  .actions-cell .btn_activate_user {
+    border-color: #2f8f3d;
+    background: linear-gradient(180deg, #58b04a, #2f8f3d);
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    border: 1px solid #cbd8ec;
+    background: #f7faff;
+    color: #1f3554;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .status-activo {
+    border-color: #9fd3b8;
+    background: #e8f7ef;
+    color: #12683d;
+  }
+
+  .status-inactivo {
+    border-color: #e2adb1;
+    background: #fff0f1;
+    color: #9e2730;
+  }
+
+  .user-admin-form {
+    display: grid;
+    gap: 8px;
+  }
+
+  .user-admin-form label {
+    display: grid;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--ua-muted);
+    font-weight: 700;
+  }
+
+  .user-admin-form input,
+  .user-admin-form select {
     height: 32px;
+    border: 1px solid var(--ua-line);
+    border-radius: 8px;
+    padding: 4px 8px;
     font-size: 12px;
+    color: var(--ua-text);
+    background: #fff;
+  }
+
+  .user-admin-modal {
+    width: min(440px, 94vw);
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .page-header-copy {
+    min-width: 220px;
+  }
+
+  .page-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .user-panel-status .user-count {
+    display: inline-block;
+    color: var(--ua-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .page-header-actions button,
+  .user-admin-toolbar button {
+    height: 34px;
+    padding: 0 14px;
     border-radius: 10px;
     background: linear-gradient(180deg, #1f7aed, #0f5fd1);
     border: 1px solid #1a64c8;
     color: #fff;
+    font-size: 12px;
     font-weight: 700;
   }
+
+  .user-admin-table {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
   .table-scroll {
-    max-height: 220px;
+    flex: 1;
+    min-height: 0;
+    max-height: none;
     overflow: auto;
     border: 1px solid var(--ua-line);
     border-radius: 12px;
@@ -254,12 +489,31 @@
     border-radius: 14px;
     background: var(--ua-bg);
     padding: 8px;
+    display: grid;
+    gap: 14px;
   }
   .user-perm-users h4,
   .user-perm-perms h4 {
     margin: 0 0 6px;
     font-size: 13px;
     color: #0f3f78;
+  }
+  .user-perm-block {
+    border: 1px solid rgba(26, 100, 200, 0.12);
+    border-radius: 12px;
+    background: #fff;
+    padding: 10px;
+    display: grid;
+    gap: 8px;
+  }
+  .user-perm-block h5 {
+    margin: 0;
+    font-size: 12px;
+    color: #0f3f78;
+    font-weight: 700;
+  }
+  .user-perm-users .user-list {
+    max-height: 280px;
   }
   .helper-label {
     display: block;
@@ -361,7 +615,51 @@
     font-size: 12px;
     border-radius: 10px;
   }
+
+  .confirm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .btn-muted {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid #94a3b8;
+    background: #f5f7fb;
+    color: #1f2a42;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .btn-confirm {
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 10px;
+    border: 1px solid #1a64c8;
+    background: linear-gradient(180deg, #1f7aed, #0f5fd1);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .btn-confirm.btn-danger {
+    border-color: #b83232;
+    background: linear-gradient(180deg, #d75b5b, #b83232);
+  }
+
+  .btn-confirm.btn-success {
+    border-color: #2f8f3d;
+    background: linear-gradient(180deg, #58b04a, #2f8f3d);
+  }
   @media (max-width: 900px) {
+    .user-admin-panel {
+      min-height: calc(100dvh - 220px);
+      padding-bottom: 56px;
+    }
+
     .win-modal {
       width: 100vw;
       max-width: 100vw;
@@ -378,9 +676,6 @@
   }
 
   @media (min-width: 901px) {
-    .roles-grid {
-      grid-template-columns: repeat(4, minmax(220px, 1fr));
-    }
     .user-perm-grid {
       grid-template-columns: 260px minmax(0, 1fr);
     }
@@ -393,6 +688,23 @@
 <script>
   const userPermMap = JSON.parse(document.getElementById("userPermMap").textContent || "{}");
   const userCajaPrefMap = JSON.parse(document.getElementById("userCajaPrefMap").textContent || "{}");
+  const usersAdminData = JSON.parse(document.getElementById("usersAdminData").textContent || "[]");
+  const usersAdminMap = new Map(usersAdminData.map((user) => [String(user.id_usuario), user]));
+  const userAdminModal = document.getElementById("user_admin_modal");
+  const openUserAdminModalBtn = document.getElementById("btn_open_user_admin_modal");
+  const closeUserAdminModalBtn = document.getElementById("btn_close_user_admin_modal");
+  const cancelUserAdminBtn = document.getElementById("btn_cancel_user_admin");
+  const userAdminForm = document.getElementById("user_admin_form");
+  const adminUserId = document.getElementById("admin_user_id");
+  const adminUserAction = document.getElementById("admin_user_action");
+  const adminUsuario = document.getElementById("admin_usuario");
+  const adminNombre = document.getElementById("admin_nombre");
+  const adminEstado = document.getElementById("admin_estado");
+  const adminDeptoCeco = document.getElementById("admin_depto_ceco");
+  const adminDeptoDesc = document.getElementById("admin_depto_desc");
+  const adminNivel = document.getElementById("admin_nivel");
+  const adminPassword = document.getElementById("admin_password");
+  const adminPasswordHint = document.getElementById("admin_password_hint");
   const userPermModal = document.getElementById("user_perm_modal");
   const openUserPermModalBtn = document.getElementById("btn_open_user_perm_modal");
   const closeUserPermModalBtn = document.getElementById("btn_close_user_perm_modal");
@@ -403,14 +715,173 @@
   const exampleSelect = document.getElementById("perm_modelo_usuario");
   const permFieldset = document.getElementById("perm_table_fieldset");
   const savePermsBtn = document.getElementById("btn_save_user_perms");
-  const firmaUserIdInput = document.getElementById("firma_user_id");
-  const firmaInput = document.getElementById("firma_png");
-  const firmaSaveBtn = document.getElementById("btn_save_firma");
-  const firmaStatus = document.getElementById("firma_status");
+  const adminFirmaInput = document.getElementById("admin_firma_png");
+  const adminFirmaStatus = document.getElementById("admin_firma_status");
   const cajaPrefUserIdInput = document.getElementById("caja_pref_user_id");
   const cajaPrefMethodSelect = document.getElementById("caja_pref_metodo");
   const cajaPrefSaveBtn = document.getElementById("btn_save_caja_pref");
   const cajaPrefStatus = document.getElementById("caja_pref_status");
+
+  const closeUserAdminModal = () => {
+    if (!userAdminModal) return;
+    userAdminModal.classList.remove("open");
+    userAdminModal.setAttribute("aria-hidden", "true");
+  };
+
+  const openUserAdminModal = (userId = "") => {
+    if (!userAdminModal || !userAdminForm) return;
+    const user = userId ? usersAdminMap.get(String(userId)) : null;
+    userAdminForm.reset();
+    adminUserId.value = user ? String(user.id_usuario || "") : "";
+    adminUserAction.value = "save";
+    adminUsuario.value = user ? String(user.usuario || "") : "";
+    adminNombre.value = user ? String(user.nombre || "") : "";
+    if (adminDeptoCeco) {
+      adminDeptoCeco.value = user ? (String(user.ceco || "") || "") : "";
+    }
+    if (adminDeptoDesc) {
+      adminDeptoDesc.value = user ? (String(user.depto || "") || "") : "";
+    }
+    if (adminNivel) {
+      adminNivel.value = user ? (String(user.nivel || "Normal") || "Normal") : "Normal";
+    }
+    adminEstado.value = user ? String(user.estado || "ACTIVO").toUpperCase() : "ACTIVO";
+    adminPassword.value = "";
+    if (adminFirmaInput) {
+      adminFirmaInput.value = "";
+    }
+    if (adminFirmaStatus) {
+      adminFirmaStatus.textContent = user
+        ? user.has_firma
+          ? "Este usuario ya tiene firma registrada. Selecciona otro PNG para reemplazarla."
+          : "Sin firma registrada. Selecciona un PNG para guardar la firma."
+        : "Opcional. Selecciona un PNG para guardar la firma del usuario.";
+    }
+    if (adminPasswordHint) {
+      adminPasswordHint.textContent = user
+        ? "Deja la clave vacia para conservar la actual."
+        : "Opcional. Si la dejas vacia, el usuario creara su clave al iniciar sesion.";
+    }
+    document.getElementById("user_admin_modal_title").textContent = user ? "Editar usuario" : "Nuevo usuario";
+    userAdminModal.classList.add("open");
+    userAdminModal.setAttribute("aria-hidden", "false");
+    adminUsuario.focus();
+  };
+
+  openUserAdminModalBtn?.addEventListener("click", () => openUserAdminModal(""));
+  closeUserAdminModalBtn?.addEventListener("click", closeUserAdminModal);
+  cancelUserAdminBtn?.addEventListener("click", closeUserAdminModal);
+
+  userAdminModal?.addEventListener("click", (event) => {
+    if (event.target === userAdminModal) {
+      closeUserAdminModal();
+    }
+  });
+
+  document.querySelectorAll(".btn_edit_user").forEach((button) => {
+    button.addEventListener("click", () => openUserAdminModal(button.dataset.userId || ""));
+  });
+
+  if (adminDeptoCeco) {
+    adminDeptoCeco.addEventListener("change", () => {
+      const sel = adminDeptoCeco.options[adminDeptoCeco.selectedIndex];
+      adminDeptoDesc.value = sel ? (sel.text || "") : "";
+    });
+  }
+
+  const userStateConfirmModal = document.getElementById("user_state_confirm_modal");
+  const userStateConfirmMessage = document.getElementById("user_state_confirm_message");
+  const btnCloseUserStateConfirm = document.getElementById("btn_close_user_state_confirm");
+  const btnCancelUserStateConfirm = document.getElementById("btn_cancel_user_state_confirm");
+  const btnConfirmUserState = document.getElementById("btn_confirm_user_state");
+  let pendingUserStateAction = null;
+  let pendingUserStateId = null;
+  let pendingUserStateUser = null;
+
+  const closeUserStateConfirmModal = () => {
+    if (!userStateConfirmModal) return;
+    userStateConfirmModal.classList.remove("open");
+    userStateConfirmModal.setAttribute("aria-hidden", "true");
+    pendingUserStateAction = null;
+    pendingUserStateId = null;
+    pendingUserStateUser = null;
+  };
+
+  const openUserStateConfirmModal = (user, action) => {
+    if (!userStateConfirmModal || !userStateConfirmMessage) return;
+    pendingUserStateId = String(user.id_usuario);
+    pendingUserStateAction = action;
+    pendingUserStateUser = user;
+    const verb = action === "activate" ? "Activar" : "Inactivar";
+    userStateConfirmMessage.textContent = `${verb} el usuario ${user.usuario}?`;
+    btnConfirmUserState.textContent = verb;
+    btnConfirmUserState.classList.toggle("btn-danger", action === "inactivate");
+    btnConfirmUserState.classList.toggle("btn-success", action === "activate");
+    userStateConfirmModal.classList.add("open");
+    userStateConfirmModal.setAttribute("aria-hidden", "false");
+    btnConfirmUserState?.focus();
+  };
+
+  const submitPendingUserStateAction = () => {
+    if (!pendingUserStateId || !pendingUserStateAction) return;
+    const user = pendingUserStateUser || usersAdminMap.get(String(pendingUserStateId));
+    if (!user) return;
+    adminUserId.value = pendingUserStateId;
+    adminEstado.value = pendingUserStateAction === "activate" ? "ACTIVO" : "INACTIVO";
+    adminUsuario.value = String(user.usuario || "");
+    adminNombre.value = String(user.nombre || "");
+    if (adminNivel) adminNivel.value = String(user.nivel || "Normal");
+    adminPassword.value = "";
+    adminUserAction.value = pendingUserStateAction === "activate" ? "activate" : "inactivate";
+    userAdminForm.submit();
+  };
+
+  document.querySelectorAll(".btn_inactivate_user").forEach((button) => {
+    button.addEventListener("click", () => {
+      const user = usersAdminMap.get(String(button.dataset.userId || ""));
+      if (!user) return;
+      openUserStateConfirmModal(user, "inactivate");
+    });
+  });
+
+  document.querySelectorAll(".btn_activate_user").forEach((button) => {
+    button.addEventListener("click", () => {
+      const user = usersAdminMap.get(String(button.dataset.userId || ""));
+      if (!user) return;
+      openUserStateConfirmModal(user, "activate");
+    });
+  });
+
+  btnCloseUserStateConfirm?.addEventListener("click", closeUserStateConfirmModal);
+  btnCancelUserStateConfirm?.addEventListener("click", closeUserStateConfirmModal);
+  btnConfirmUserState?.addEventListener("click", () => {
+    submitPendingUserStateAction();
+    closeUserStateConfirmModal();
+  });
+
+  userStateConfirmModal?.addEventListener("click", (event) => {
+    if (event.target === userStateConfirmModal) {
+      closeUserStateConfirmModal();
+    }
+  });
+
+  userAdminForm?.addEventListener("submit", (event) => {
+    if (adminDeptoCeco && adminDeptoDesc) {
+      const sel = adminDeptoCeco.options[adminDeptoCeco.selectedIndex];
+      adminDeptoDesc.value = sel ? (sel.text || "") : "";
+    }
+    const password = adminPassword.value || "";
+    if (password && (password.length < 4 || password.length > 12)) {
+      event.preventDefault();
+      window.alert("La clave debe tener entre 4 y 12 caracteres.");
+      adminPassword.focus();
+      return;
+    }
+    if (!adminUsuario.value.trim() || !adminNombre.value.trim()) {
+      event.preventDefault();
+      window.alert("Completa usuario y nombre antes de guardar.");
+    }
+  });
 
   const setPermChecks = (userId) => {
     const map = userPermMap[String(userId)] || {};
@@ -430,23 +901,6 @@
     userPermIdInput.value = userId;
     if (permHelperText) {
       permHelperText.textContent = `Editando permisos para usuario ID ${userId}.`;
-    }
-    if (firmaUserIdInput) {
-      firmaUserIdInput.value = userId;
-    }
-    if (firmaInput) {
-      firmaInput.disabled = false;
-      firmaInput.value = "";
-    }
-    if (firmaSaveBtn) {
-      firmaSaveBtn.disabled = false;
-    }
-    if (firmaStatus) {
-      const selected = document.querySelector(`.user-select[value="${userId}"]`);
-      const hasFirma = selected?.dataset?.hasFirma === "1";
-      firmaStatus.textContent = hasFirma
-        ? "Este usuario ya tiene firma registrada."
-        : "Sin firma registrada. Carga una imagen PNG.";
     }
     if (cajaPrefUserIdInput) {
       cajaPrefUserIdInput.value = userId;
@@ -491,20 +945,7 @@
         if (permHelperText) {
           permHelperText.textContent = "Selecciona un usuario para editar permisos.";
         }
-        if (firmaUserIdInput) {
-          firmaUserIdInput.value = "";
-        }
-        if (firmaInput) {
-          firmaInput.disabled = true;
-          firmaInput.value = "";
-        }
-        if (firmaSaveBtn) {
-          firmaSaveBtn.disabled = true;
-        }
-        if (firmaStatus) {
-          firmaStatus.textContent = "Selecciona un usuario para cargar firma.";
-        }
-        if (cajaPrefUserIdInput) {
+          if (cajaPrefUserIdInput) {
           cajaPrefUserIdInput.value = "";
         }
         if (cajaPrefMethodSelect) {
@@ -549,19 +990,6 @@
       });
       if (permHelperText) {
         permHelperText.textContent = "Selecciona un usuario para editar permisos.";
-      }
-      if (firmaUserIdInput) {
-        firmaUserIdInput.value = "";
-      }
-      if (firmaInput) {
-        firmaInput.disabled = true;
-        firmaInput.value = "";
-      }
-      if (firmaSaveBtn) {
-        firmaSaveBtn.disabled = true;
-      }
-      if (firmaStatus) {
-        firmaStatus.textContent = "Selecciona un usuario para cargar firma.";
       }
       if (cajaPrefUserIdInput) {
         cajaPrefUserIdInput.value = "";

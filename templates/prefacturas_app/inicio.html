@@ -2983,11 +2983,17 @@
         let etiquetasSeleccionadas = [];
         let etiquetaFormatoConfig = getDefaultEtiquetaFormatoConfig();
         const empresaNombre = "{{ empresa_nombre|default:'COMERCIAL ANITA SRL'|escapejs }}";
+        const prefacturaStatusSocketUrl = "/ws/prefacturas/";
         const appAlertQueue = [];
         let appAlertOpen = false;
         let appAlertResolver = null;
         let appConfirmOpen = false;
         let appConfirmResolver = null;
+        let prefacturaStatusSocket = null;
+        let prefacturaStatusSocketReconnectTimer = null;
+        let lastPrefacturaStatusEventKey = "";
+        let pendingLocalPrefacturaEventId = "";
+        let lastProcessedPrefacturaEventId = "";
 
         const fieldIdSn = document.getElementById("cliente_id_sn");
         const fieldNomSocio = document.getElementById("cliente_nom_socio");
@@ -3421,6 +3427,129 @@
             updatePrefacturaDireccionEntregaAvailability();
         }
 
+        function clearPrefacturaStatusSocketReconnect() {
+            if (!prefacturaStatusSocketReconnectTimer) return;
+            clearTimeout(prefacturaStatusSocketReconnectTimer);
+            prefacturaStatusSocketReconnectTimer = null;
+        }
+
+        function resolvePrefacturaStatusSocketUrl() {
+            if (!prefacturaStatusSocketUrl) return "";
+            try {
+                const target = new URL(prefacturaStatusSocketUrl, window.location.origin);
+                target.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+                return target.toString();
+            } catch (error) {
+                return "";
+            }
+        }
+
+        function schedulePrefacturaStatusSocketReconnect() {
+            if (prefacturaStatusSocketReconnectTimer) return;
+            prefacturaStatusSocketReconnectTimer = setTimeout(() => {
+                prefacturaStatusSocketReconnectTimer = null;
+                connectPrefacturaStatusSocket();
+            }, 3000);
+        }
+
+        function createPrefacturaClientEventId() {
+            if (window.crypto?.randomUUID) {
+                return window.crypto.randomUUID();
+            }
+            return `pref-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+
+        function normalizePrefacturaDocKey(value) {
+            const raw = String(value || "").trim();
+            if (!raw) return "";
+            if (/^\d+$/.test(raw)) {
+                const normalized = raw.replace(/^0+/, "");
+                return normalized || "0";
+            }
+            return raw.toUpperCase();
+        }
+
+        async function handleExternalPrefacturaStatusChange(data) {
+            const currentIdDoc = String(fieldNoDoc.value || "").trim();
+            const targetIdDoc = String(data?.document_id || "").trim();
+            const currentDocKey = normalizePrefacturaDocKey(currentIdDoc);
+            const targetDocKey = normalizePrefacturaDocKey(targetIdDoc);
+            if (!currentDocKey || !targetDocKey || currentDocKey !== targetDocKey) {
+                return;
+            }
+            const nextEstado = normalizeEstadoDoc(data?.estado || "");
+            const eventId = String(data?.event_id || "").trim();
+            const eventKey = eventId
+                ? `${targetIdDoc}|${eventId}`
+                : `${targetIdDoc}|${nextEstado}|${String(data?.reason || "").trim()}`;
+            if (eventKey && eventKey === lastPrefacturaStatusEventKey) {
+                return;
+            }
+            lastPrefacturaStatusEventKey = eventKey;
+            await showAppAlert(
+                `La pre-factura ${targetIdDoc} cambió en otra terminal${nextEstado ? ` y ahora está ${nextEstado}.` : "."} La pantalla se reiniciará para evitar trabajar con datos viejos.`
+            );
+            setPrefacturaInitialState();
+        }
+
+        function connectPrefacturaStatusSocket() {
+            const socketTarget = resolvePrefacturaStatusSocketUrl();
+            if (!socketTarget || typeof window.WebSocket !== "function") {
+                return;
+            }
+            if (prefacturaStatusSocket && (
+                prefacturaStatusSocket.readyState === window.WebSocket.OPEN ||
+                prefacturaStatusSocket.readyState === window.WebSocket.CONNECTING
+            )) {
+                return;
+            }
+            try {
+                prefacturaStatusSocket = new window.WebSocket(socketTarget);
+            } catch (error) {
+                schedulePrefacturaStatusSocketReconnect();
+                return;
+            }
+            prefacturaStatusSocket.addEventListener("open", () => {
+                clearPrefacturaStatusSocketReconnect();
+            });
+            prefacturaStatusSocket.addEventListener("message", (event) => {
+                let data = null;
+                try {
+                    data = JSON.parse(event.data || "{}");
+                } catch (error) {
+                    data = null;
+                }
+                if (!data || !data.type) return;
+                const incomingEventId = String(data?.event_id || "").trim();
+                if (incomingEventId) {
+                    if (incomingEventId === lastProcessedPrefacturaEventId) {
+                        return;
+                    }
+                    if (incomingEventId === pendingLocalPrefacturaEventId) {
+                        pendingLocalPrefacturaEventId = "";
+                        lastProcessedPrefacturaEventId = incomingEventId;
+                        return;
+                    }
+                    lastProcessedPrefacturaEventId = incomingEventId;
+                }
+                if (data.type === "prefactura.document_status") {
+                    void handleExternalPrefacturaStatusChange(data);
+                    return;
+                }
+                if (data.type === "prefactura.refresh") return;
+            });
+            prefacturaStatusSocket.addEventListener("close", () => {
+                prefacturaStatusSocket = null;
+                schedulePrefacturaStatusSocketReconnect();
+            });
+            prefacturaStatusSocket.addEventListener("error", () => {
+                try {
+                    prefacturaStatusSocket?.close();
+                } catch (error) {
+                }
+            });
+        }
+
         async function confirmarCambioEstadoPrefactura(targetEstado) {
             const estadoActual = normalizeEstadoDoc(fieldEstDoc.value);
             if (estadoActual !== "Abierto") return;
@@ -3438,6 +3567,8 @@
             if (!confirmado) return;
 
             try {
+                const clientEventId = createPrefacturaClientEventId();
+                pendingLocalPrefacturaEventId = clientEventId;
                 const res = await fetch("/prefacturas/estado/actualizar/", {
                     method: "POST",
                     headers: {
@@ -3445,16 +3576,18 @@
                         "X-Requested-With": "XMLHttpRequest",
                         "X-CSRFToken": getCookie("csrftoken"),
                     },
-                    body: JSON.stringify({ id_doc: idDoc, est_doc: targetEstado }),
+                    body: JSON.stringify({ id_doc: idDoc, est_doc: targetEstado, event_id: clientEventId }),
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) {
+                    pendingLocalPrefacturaEventId = "";
                     window.alert(data.detail || "No se pudo actualizar el estado.");
                     return;
                 }
                 window.alert(`Estado actualizado correctamente a ${targetEstado}.`);
                 setPrefacturaInitialState();
             } catch (error) {
+                pendingLocalPrefacturaEventId = "";
                 window.alert("Error de conexion al actualizar el estado.");
             }
         }
@@ -4868,6 +5001,8 @@
             const idDoc = (fieldNoDoc.value || "").trim();
             if (!idDoc) return { ok: false, detail: "No hay documento para actualizar." };
             try {
+                const clientEventId = createPrefacturaClientEventId();
+                pendingLocalPrefacturaEventId = clientEventId;
                 const res = await fetch("/prefacturas/actualizar/", {
                     method: "POST",
                     headers: {
@@ -4891,13 +5026,18 @@
                         dia: fieldPrefDias.value || "",
                         condicion: fieldPrefCondicionDesc.value || "",
                         id_precio: fieldPrefIdPrecio.value || "",
+                        event_id: clientEventId,
                         detalles: collectPrefacturaDetallePayload(),
                     }),
                 });
                 const data = await res.json().catch(() => ({}));
-                if (!res.ok) return { ok: false, detail: data.detail || "No se pudo actualizar la pre-factura." };
+                if (!res.ok) {
+                    pendingLocalPrefacturaEventId = "";
+                    return { ok: false, detail: data.detail || "No se pudo actualizar la pre-factura." };
+                }
                 return { ok: true };
             } catch (error) {
+                pendingLocalPrefacturaEventId = "";
                 return { ok: false, detail: "Error de conexion al actualizar la pre-factura." };
             }
         }
@@ -4908,6 +5048,8 @@
                 return { ok: false, detail: "Debes agregar al menos un articulo." };
             }
             try {
+                const clientEventId = createPrefacturaClientEventId();
+                pendingLocalPrefacturaEventId = clientEventId;
                 const res = await fetch("/prefacturas/crear/", {
                     method: "POST",
                     headers: {
@@ -4936,13 +5078,18 @@
                         dia: fieldPrefDias.value || "",
                         condicion: fieldPrefCondicionDesc.value || "",
                         id_precio: fieldPrefIdPrecio.value || "",
+                        event_id: clientEventId,
                         detalles,
                     }),
                 });
                 const data = await res.json().catch(() => ({}));
-                if (!res.ok) return { ok: false, detail: data.detail || "No se pudo crear la pre-factura." };
+                if (!res.ok) {
+                    pendingLocalPrefacturaEventId = "";
+                    return { ok: false, detail: data.detail || "No se pudo crear la pre-factura." };
+                }
                 return { ok: true, id_doc: data.id_doc || "" };
             } catch (error) {
+                pendingLocalPrefacturaEventId = "";
                 return { ok: false, detail: "Error de conexion al crear la pre-factura." };
             }
         }
@@ -6572,6 +6719,19 @@
 
         cargarUnidadesMedida();
         setPrefacturaInitialState();
+        connectPrefacturaStatusSocket();
+        document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) {
+                connectPrefacturaStatusSocket();
+            }
+        });
+        window.addEventListener("beforeunload", () => {
+            clearPrefacturaStatusSocketReconnect();
+            try {
+                prefacturaStatusSocket?.close();
+            } catch (error) {
+            }
+        });
     </script>
 </body>
 </html>

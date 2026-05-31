@@ -1,0 +1,109 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<style>
+  .ecf-grid { display:grid; grid-template-columns:1.2fr .8fr; gap:18px; }
+  .ecf-card { background:#fff; border:1px solid #d9e3f3; border-radius:14px; padding:18px; box-shadow:0 10px 24px rgba(23,43,77,.06); }
+  .ecf-card h3 { margin:0 0 8px; color:#173d7a; }
+  .ecf-sub { margin:0 0 14px; color:#5c6b84; }
+  .ecf-form { display:grid; grid-template-columns:170px 1fr; gap:10px 14px; align-items:center; }
+  .ecf-form input, .ecf-form textarea { width:100%; padding:9px 10px; border:1px solid #c9d7ef; border-radius:10px; font:inherit; }
+  .ecf-form textarea { min-height:88px; resize:vertical; }
+  .ecf-actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .ecf-btn { border:none; border-radius:10px; padding:10px 14px; background:#1f5fbf; color:#fff; cursor:pointer; font-weight:600; text-decoration:none; display:inline-flex; align-items:center; }
+  .ecf-btn.secondary { background:#e9f1ff; color:#1f4f9d; }
+  .ecf-alert { padding:12px 14px; border-radius:12px; margin-bottom:14px; background:#eef7e8; color:#1f6a28; border:1px solid #b7d5b1; }
+  .ecf-checklist { display:grid; gap:10px; }
+  .ecf-check { padding:10px 12px; border-radius:10px; font-weight:600; }
+  .ecf-check.ok { background:#edf9ef; color:#1c7130; border:1px solid #bde1c5; }
+  .ecf-check.no { background:#fff3f3; color:#9a2525; border:1px solid #efc0c0; }
+  .ecf-kpis { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:12px; }
+  .ecf-kpi { background:#f6f9ff; border:1px solid #dbe6fb; border-radius:12px; padding:12px; }
+  .ecf-kpi strong { display:block; font-size:1.5rem; color:#173d7a; }
+  .helper { font-size:.88rem; color:#677892; }
+  @media (max-width: 1100px) {
+    .ecf-grid { grid-template-columns:1fr; }
+    .ecf-form { grid-template-columns:1fr; }
+  }
+</style>
+
+<h2 class="page-title">WhatsApp Cloud API</h2>
+<p class="page-subtitle">Configura el envio automatico de cartas de aviso desde Meta WhatsApp Business.</p>
+
+{% if status_message %}
+<div class="ecf-alert">{{ status_message }}</div>
+{% endif %}
+
+<div class="ecf-grid">
+  <section class="ecf-card">
+    <h3>Configuracion WhatsApp</h3>
+    <p class="ecf-sub">Credenciales, webhook y parametros de Meta WhatsApp Business.</p>
+    <form method="post">
+      {% csrf_token %}
+      <div class="ecf-form">
+        <label>Habilitado</label>
+        <div><input type="checkbox" name="whatsapp_habilitado" {% if whatsapp_config.habilitado %}checked{% endif %} /> Activar integracion WhatsApp</div>
+
+        <label>Version API</label>
+        <input type="text" name="whatsapp_api_version" value="{{ whatsapp_config.api_version|default:'v23.0' }}" placeholder="v23.0" />
+
+        <label>Phone Number ID</label>
+        <input type="text" name="whatsapp_phone_number_id" value="{{ whatsapp_config.phone_number_id|default:'' }}" placeholder="ID del numero en Meta" />
+
+        <label>WABA ID</label>
+        <input type="text" name="whatsapp_waba_id" value="{{ whatsapp_config.waba_id|default:'' }}" placeholder="WhatsApp Business Account ID" />
+
+        <label>Verify Token</label>
+        <input type="text" name="whatsapp_verify_token" value="{{ whatsapp_config.verify_token|default:'' }}" placeholder="Token de verificacion del webhook" />
+
+        <label>Access Token</label>
+        <div>
+          <input type="password" name="whatsapp_access_token" value="" placeholder="{% if whatsapp_runtime.token_in_db %}Dejar vacio para conservar el token actual{% else %}Pega aqui el token permanente{% endif %}" />
+          <div class="helper">Por seguridad no se muestra el token actual. Si dejas este campo vacio, se conserva el valor guardado.</div>
+          <label class="helper" style="display:flex; align-items:center; gap:8px; margin-top:8px;">
+            <input type="checkbox" name="whatsapp_clear_access_token" value="1" />
+            Borrar token guardado
+          </label>
+        </div>
+
+        <label>Webhook</label>
+        <div>
+          <input type="text" value="{{ whatsapp_webhook_url }}" readonly />
+          <div class="helper">Configura esta URL en Meta para recibir estados y respuestas.</div>
+        </div>
+
+        <label>Observaciones</label>
+        <textarea name="whatsapp_observaciones" placeholder="Notas internas: numero productivo, app de Meta, restricciones, fecha de renovacion del token">{{ whatsapp_config.observaciones|default:'' }}</textarea>
+      </div>
+      <div class="ecf-actions">
+        <button class="ecf-btn" type="submit">Guardar WhatsApp</button>
+        <a class="ecf-btn secondary" href="{% url 'ajustes:integraciones' %}">Volver a integraciones</a>
+      </div>
+    </form>
+  </section>
+
+  <aside class="ecf-card">
+    <h3>Estado WhatsApp</h3>
+    <p class="ecf-sub">La configuracion guardada en interfaz tiene prioridad sobre <code>.env</code>. Fuente actual: <strong>{{ whatsapp_runtime.source }}</strong>.</p>
+    <div class="ecf-checklist">
+      <div class="ecf-check {% if whatsapp_readiness.habilitado %}ok{% else %}no{% endif %}">Integracion habilitada</div>
+      <div class="ecf-check {% if whatsapp_readiness.api_version %}ok{% else %}no{% endif %}">Version API definida</div>
+      <div class="ecf-check {% if whatsapp_readiness.access_token %}ok{% else %}no{% endif %}">Access Token disponible</div>
+      <div class="ecf-check {% if whatsapp_readiness.phone_number_id %}ok{% else %}no{% endif %}">Phone Number ID disponible</div>
+      <div class="ecf-check {% if whatsapp_readiness.waba_id %}ok{% else %}no{% endif %}">WABA ID disponible</div>
+      <div class="ecf-check {% if whatsapp_readiness.verify_token %}ok{% else %}no{% endif %}">Verify Token disponible</div>
+      <div class="ecf-check {% if whatsapp_readiness.webhook_url %}ok{% else %}no{% endif %}">Webhook publico generado</div>
+      <div class="ecf-check {% if whatsapp_readiness.completo %}ok{% else %}no{% endif %}">Base lista para probar el envio por API</div>
+    </div>
+    <div class="ecf-kpis">
+      <div class="ecf-kpi"><span>Token en BD</span><strong>{% if whatsapp_runtime.token_in_db %}Si{% else %}No{% endif %}</strong></div>
+      <div class="ecf-kpi"><span>Origen activo</span><strong>{{ whatsapp_runtime.source }}</strong></div>
+    </div>
+    {% if whatsapp_missing %}
+    <div class="ecf-actions">
+      <div class="helper">Pendientes: {{ whatsapp_missing|join:", " }}</div>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

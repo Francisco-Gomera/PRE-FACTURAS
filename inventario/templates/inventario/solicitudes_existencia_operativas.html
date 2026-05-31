@@ -1,0 +1,662 @@
+{% extends "core/base.html" %}
+
+{% block head_extra %}
+<style>
+  .inv-ops {
+    display: grid;
+    gap: 18px;
+  }
+
+  .inv-ops-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .inv-ops-title h2 {
+    margin: 0;
+    font-size: 1.55rem;
+  }
+
+  .inv-ops-title p {
+    margin: 6px 0 0;
+    color: #5b7286;
+  }
+
+  .inv-ops-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .inv-ops-btn {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .inv-ops-btn.primary {
+    background: linear-gradient(180deg, #18b7b0, #0f8f9a);
+    color: #fff;
+  }
+
+  .inv-ops-btn.ghost {
+    background: #eef6fc;
+    color: #2d6ea6;
+    border: 1px solid #d3e4f0;
+  }
+
+  .inv-ops-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .inv-ops-stat {
+    background: #fff;
+    border: 1px solid #dce7ef;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 12px 24px rgba(17, 27, 33, 0.05);
+  }
+
+  .inv-ops-stat-label {
+    color: #698198;
+    font-size: 0.84rem;
+    margin-bottom: 8px;
+  }
+
+  .inv-ops-stat-value {
+    font-size: 1.9rem;
+    font-weight: 800;
+    color: #17324d;
+    line-height: 1;
+  }
+
+  .inv-ops-board {
+    background: linear-gradient(180deg, #f8fbfd, #f2f8fb);
+    border: 1px solid #dce7ef;
+    border-radius: 20px;
+    padding: 18px;
+    display: grid;
+    gap: 14px;
+  }
+
+  .inv-ops-board-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+
+  .inv-ops-board-title {
+    font-size: 1.02rem;
+    font-weight: 800;
+    color: #17324d;
+  }
+
+  .inv-ops-board-meta {
+    color: #698198;
+    font-size: 0.9rem;
+  }
+
+  .inv-ops-list {
+    display: grid;
+    gap: 12px;
+  }
+
+  .inv-ops-item {
+    background: #fff;
+    border: 1px solid #dce7ef;
+    border-radius: 18px;
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+    box-shadow: 0 10px 22px rgba(17, 27, 33, 0.05);
+  }
+
+  .inv-ops-item-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: start;
+    flex-wrap: wrap;
+  }
+
+  .inv-ops-item-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: #17324d;
+  }
+
+  .inv-ops-item-subtitle {
+    margin-top: 4px;
+    color: #698198;
+    font-size: 0.9rem;
+  }
+
+  .inv-ops-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 7px 10px;
+    background: #e5f8f6;
+    color: #0f8f9a;
+    font-weight: 800;
+    font-size: 0.76rem;
+    white-space: nowrap;
+  }
+
+  .inv-ops-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .inv-ops-field {
+    background: #f7fbff;
+    border: 1px solid #e3edf5;
+    border-radius: 14px;
+    padding: 10px 12px;
+  }
+
+  .inv-ops-field-label {
+    color: #6d8498;
+    font-size: 0.74rem;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .inv-ops-field-value {
+    color: #17324d;
+    font-weight: 700;
+  }
+
+  .inv-ops-items {
+    display: grid;
+    gap: 8px;
+  }
+
+  .inv-ops-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 100px 100px 120px;
+    gap: 10px;
+    align-items: center;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: #fbfdff;
+    border: 1px solid #e6eef4;
+  }
+
+  .inv-ops-row strong {
+    display: block;
+    color: #17324d;
+  }
+
+  .inv-ops-row span {
+    color: #698198;
+    font-size: 0.84rem;
+  }
+
+  .inv-ops-item-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .inv-ops-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 148px;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .inv-ops-link.primary {
+    background: linear-gradient(180deg, #18b7b0, #0f8f9a);
+    color: #fff;
+  }
+
+  .inv-ops-link.ghost {
+    background: #eef6fc;
+    color: #2d6ea6;
+    border: 1px solid #d3e4f0;
+  }
+
+  .inv-ops-link.danger {
+    background: #fff1f0;
+    color: #b3261e;
+    border: 1px solid #f1c2bf;
+    cursor: pointer;
+  }
+
+  .inv-ops-empty {
+    padding: 40px 18px;
+    text-align: center;
+    border: 1px dashed #c9dce8;
+    border-radius: 18px;
+    color: #698198;
+    background: rgba(255, 255, 255, 0.74);
+  }
+
+  .inv-ops-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 28, 42, 0.42);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 2500;
+    padding: 20px;
+  }
+
+  .inv-ops-modal.open {
+    display: flex;
+  }
+
+  .inv-ops-modal-card {
+    width: min(440px, 100%);
+    background: #fff;
+    border: 1px solid #dce7ef;
+    border-radius: 22px;
+    box-shadow: 0 24px 50px rgba(17, 27, 33, 0.16);
+    overflow: hidden;
+  }
+
+  .inv-ops-modal-head {
+    padding: 18px 20px 10px;
+  }
+
+  .inv-ops-modal-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #17324d;
+  }
+
+  .inv-ops-modal-body {
+    padding: 0 20px 18px;
+    color: #5f7488;
+    line-height: 1.5;
+  }
+
+  .inv-ops-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px 20px;
+    background: #f8fbfd;
+  }
+
+  .inv-ops-modal-btn {
+    border: 0;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .inv-ops-modal-btn.cancel {
+    background: #eaf1f7;
+    color: #2d587a;
+  }
+
+  .inv-ops-modal-btn.confirm {
+    background: linear-gradient(180deg, #d94d43, #b3261e);
+    color: #fff;
+  }
+
+  @media (max-width: 980px) {
+    .inv-ops-stats,
+    .inv-ops-grid {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .inv-ops-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .inv-ops-stats,
+    .inv-ops-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="inv-ops">
+  <div class="inv-ops-head">
+    <div class="inv-ops-title">
+      <h2>Solicitudes de Existencia</h2>
+      <p>Panel operativo en tiempo real para atender solicitudes pendientes desde inventario.</p>
+    </div>
+    <div class="inv-ops-actions">
+      <a class="inv-ops-btn ghost" href="{% url 'inventario:entrada_articulos' %}">Ir a entrada</a>
+      <button id="inv_ops_refresh" class="inv-ops-btn primary" type="button">Refrescar</button>
+    </div>
+  </div>
+
+  <div class="inv-ops-stats">
+    <div class="inv-ops-stat">
+      <div class="inv-ops-stat-label">Pendientes</div>
+      <div id="inv_ops_pending" class="inv-ops-stat-value">0</div>
+    </div>
+    <div class="inv-ops-stat">
+      <div class="inv-ops-stat-label">Articulos solicitados</div>
+      <div id="inv_ops_items" class="inv-ops-stat-value">0</div>
+    </div>
+    <div class="inv-ops-stat">
+      <div class="inv-ops-stat-label">Ultima actualizacion</div>
+      <div id="inv_ops_updated" class="inv-ops-stat-value" style="font-size:1.05rem;line-height:1.25;">--:--</div>
+    </div>
+  </div>
+
+  <div class="inv-ops-board">
+    <div class="inv-ops-board-head">
+      <div class="inv-ops-board-title">Cola operativa</div>
+      <div id="inv_ops_reason" class="inv-ops-board-meta">Esperando datos...</div>
+    </div>
+    <div id="inv_ops_list" class="inv-ops-list">
+      <div class="inv-ops-empty">Cargando solicitudes...</div>
+    </div>
+  </div>
+</div>
+
+<div id="inv_ops_delete_modal" class="inv-ops-modal" aria-hidden="true">
+  <div class="inv-ops-modal-card">
+    <div class="inv-ops-modal-head">
+      <h3 class="inv-ops-modal-title">Eliminar solicitud</h3>
+    </div>
+    <div id="inv_ops_delete_message" class="inv-ops-modal-body">
+      Esta solicitud se eliminara sin atenderla.
+    </div>
+    <div class="inv-ops-modal-actions">
+      <button id="inv_ops_delete_cancel" class="inv-ops-modal-btn cancel" type="button">Cancelar</button>
+      <button id="inv_ops_delete_confirm" class="inv-ops-modal-btn confirm" type="button">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var config = {
+      listUrl: "{% url 'inventario:solicitudes_existencia_lista' %}",
+      entradaUrl: "{% url 'inventario:entrada_articulos' %}",
+      deleteUrlTemplate: "{% url 'inventario:solicitudes_existencia_eliminar' 0 %}",
+      csrfToken: "{{ csrf_token }}",
+      socketUrl: "/ws/inventario-solicitudes/"
+    };
+
+    var pendingEl = document.getElementById("inv_ops_pending");
+    var itemsEl = document.getElementById("inv_ops_items");
+    var updatedEl = document.getElementById("inv_ops_updated");
+    var reasonEl = document.getElementById("inv_ops_reason");
+    var listEl = document.getElementById("inv_ops_list");
+    var refreshBtn = document.getElementById("inv_ops_refresh");
+    var deleteModal = document.getElementById("inv_ops_delete_modal");
+    var deleteMessage = document.getElementById("inv_ops_delete_message");
+    var deleteCancel = document.getElementById("inv_ops_delete_cancel");
+    var deleteConfirm = document.getElementById("inv_ops_delete_confirm");
+    var socket = null;
+    var reconnectTimer = null;
+    var pingTimer = null;
+    var pendingDeleteId = 0;
+    var pendingDeleteButton = null;
+
+    function escapeHtml(value) {
+      return String(value == null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function humanNow() {
+      return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function buildItemRow(item) {
+      return (
+        '<div class="inv-ops-row">' +
+          '<div><strong>' + escapeHtml(item.descripcion || "Articulo") + '</strong><span>ID ' + escapeHtml(item.articulo_id || "-") + '</span></div>' +
+          '<div><strong>' + escapeHtml(item.cantidad_faltante || "0") + '</strong><span>Cant.</span></div>' +
+          '<div><strong>' + escapeHtml(item.uom || "-") + '</strong><span>UOM</span></div>' +
+          '<div><strong>' + escapeHtml(item.alm || "-") + '</strong><span>Almacen</span></div>' +
+        '</div>'
+      );
+    }
+
+    function buildCard(item) {
+      var detailRows = Array.isArray(item.items) ? item.items.map(buildItemRow).join("") : "";
+      return (
+        '<article class="inv-ops-item">' +
+          '<div class="inv-ops-item-head">' +
+            '<div>' +
+              '<div class="inv-ops-item-title">Solicitud #' + escapeHtml(item.id || "") + ' · ' + escapeHtml(item.reference || "Sin referencia") + '</div>' +
+              '<div class="inv-ops-item-subtitle">' + escapeHtml(item.customer_name || "Sin cliente") + ' · ' + escapeHtml(item.created_by_name || item.created_by_login || "Sistema") + '</div>' +
+            '</div>' +
+            '<div class="inv-ops-badge">Pendiente</div>' +
+          '</div>' +
+          '<div class="inv-ops-grid">' +
+            '<div class="inv-ops-field"><div class="inv-ops-field-label">Modulo</div><div class="inv-ops-field-value">' + escapeHtml(item.origin_module || "-") + '</div></div>' +
+            '<div class="inv-ops-field"><div class="inv-ops-field-label">Cliente</div><div class="inv-ops-field-value">' + escapeHtml(item.customer_code || "-") + '</div></div>' +
+            '<div class="inv-ops-field"><div class="inv-ops-field-label">Items</div><div class="inv-ops-field-value">' + escapeHtml(item.item_count || "0") + '</div></div>' +
+            '<div class="inv-ops-field"><div class="inv-ops-field-label">Creada</div><div class="inv-ops-field-value">' + escapeHtml(item.created_at || "-") + '</div></div>' +
+          '</div>' +
+          (item.comment ? '<div class="inv-ops-field"><div class="inv-ops-field-label">Comentario</div><div class="inv-ops-field-value">' + escapeHtml(item.comment) + '</div></div>' : '') +
+          '<div class="inv-ops-items">' + detailRows + '</div>' +
+          '<div class="inv-ops-item-actions">' +
+            '<a class="inv-ops-link ghost" href="' + escapeHtml(item.url || (config.entradaUrl + "?solicitud=" + item.id)) + '">Abrir solicitud</a>' +
+            '<a class="inv-ops-link primary" href="' + escapeHtml(item.url || (config.entradaUrl + "?solicitud=" + item.id)) + '">Atender en entrada</a>' +
+            '<button class="inv-ops-link danger" type="button" data-delete-id="' + escapeHtml(item.id || "") + '">Eliminar solicitud</button>' +
+          '</div>' +
+        '</article>'
+      );
+    }
+
+    function buildActionUrl(template, itemId) {
+      var safeId = encodeURIComponent(String(itemId || "").trim());
+      return String(template || "").replace(/\/0(?=\/|$)/, "/" + safeId);
+    }
+
+    function closeDeleteModal() {
+      pendingDeleteId = 0;
+      pendingDeleteButton = null;
+      deleteModal.classList.remove("open");
+      deleteModal.setAttribute("aria-hidden", "true");
+    }
+
+    function openDeleteModal(solicitudId, button) {
+      pendingDeleteId = Number(solicitudId || 0);
+      pendingDeleteButton = button || null;
+      if (deleteMessage) {
+        deleteMessage.textContent = "Esta solicitud de existencia se eliminara sin atenderla. Esta accion no se puede deshacer.";
+      }
+      deleteModal.classList.add("open");
+      deleteModal.setAttribute("aria-hidden", "false");
+    }
+
+    function confirmDeleteSolicitud() {
+      if (!pendingDeleteId) {
+        closeDeleteModal();
+        return;
+      }
+      if (pendingDeleteButton) {
+        pendingDeleteButton.disabled = true;
+      }
+      fetch(buildActionUrl(config.deleteUrlTemplate, pendingDeleteId), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": config.csrfToken
+        },
+        body: JSON.stringify({})
+      })
+        .then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (data) {
+            return { ok: res.ok, data: data || {} };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok) {
+            if (pendingDeleteButton) {
+              pendingDeleteButton.disabled = false;
+            }
+            closeDeleteModal();
+            window.alert(result.data.detail || "No se pudo eliminar la solicitud.");
+            return;
+          }
+          closeDeleteModal();
+          load("Solicitud eliminada");
+        })
+        .catch(function () {
+          if (pendingDeleteButton) {
+            pendingDeleteButton.disabled = false;
+          }
+          closeDeleteModal();
+          window.alert("Error de conexion eliminando la solicitud.");
+        });
+    }
+
+    function bindDeleteActions() {
+      Array.prototype.slice.call(listEl.querySelectorAll("[data-delete-id]")).forEach(function (button) {
+        button.addEventListener("click", function () {
+          var solicitudId = Number(button.getAttribute("data-delete-id") || 0);
+          if (!solicitudId) return;
+          openDeleteModal(solicitudId, button);
+        });
+      });
+    }
+
+    function render(results, reasonText) {
+      var rows = Array.isArray(results) ? results : [];
+      var totalItems = rows.reduce(function (acc, row) {
+        return acc + Number(row.item_count || 0);
+      }, 0);
+      pendingEl.textContent = String(rows.length);
+      itemsEl.textContent = String(totalItems);
+      updatedEl.textContent = humanNow();
+      reasonEl.textContent = reasonText || "Actualizado";
+      if (!rows.length) {
+        listEl.innerHTML = '<div class="inv-ops-empty">No hay solicitudes pendientes en este momento.</div>';
+        return;
+      }
+      listEl.innerHTML = rows.map(buildCard).join("");
+      bindDeleteActions();
+    }
+
+    function load(reasonText) {
+      fetch(config.listUrl, { headers: { "X-Requested-With": "XMLHttpRequest" } })
+        .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data || {} }; }); })
+        .then(function (result) {
+          if (!result.ok) {
+            listEl.innerHTML = '<div class="inv-ops-empty">' + escapeHtml(result.data.detail || "No se pudo cargar la cola operativa.") + '</div>';
+            return;
+          }
+          render(result.data.results || [], reasonText || "Lista actualizada");
+        })
+        .catch(function () {
+          listEl.innerHTML = '<div class="inv-ops-empty">Error de conexion cargando solicitudes.</div>';
+        });
+    }
+
+    function clearReconnect() {
+      if (!reconnectTimer) return;
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+
+    function clearPing() {
+      if (!pingTimer) return;
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+
+    function ensurePing() {
+      if (pingTimer) return;
+      pingTimer = setInterval(function () {
+        if (!socket || socket.readyState !== window.WebSocket.OPEN) {
+          clearPing();
+          return;
+        }
+        socket.send(JSON.stringify({ action: "ping" }));
+      }, 12000);
+    }
+
+    function connectSocket() {
+      if (typeof window.WebSocket !== "function") return;
+      if (socket && (socket.readyState === window.WebSocket.OPEN || socket.readyState === window.WebSocket.CONNECTING)) return;
+      var target = new URL(config.socketUrl, window.location.origin);
+      target.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new window.WebSocket(target.toString());
+      socket.addEventListener("open", function () {
+        clearReconnect();
+        ensurePing();
+      });
+      socket.addEventListener("message", function (event) {
+        var data = {};
+        try { data = JSON.parse(event.data || "{}"); } catch (error) {}
+        if (data.type === "inventario.solicitudes.refresh") {
+          load("Actualizado por cambio en otra terminal");
+        }
+      });
+      socket.addEventListener("close", function () {
+        socket = null;
+        clearPing();
+        if (!reconnectTimer) {
+          reconnectTimer = setTimeout(function () {
+            reconnectTimer = null;
+            connectSocket();
+          }, 3000);
+        }
+      });
+      socket.addEventListener("error", function () {
+        try { if (socket) socket.close(); } catch (error) {}
+      });
+    }
+
+    if (refreshBtn) {
+      refreshBtn.addEventListener("click", function () {
+        load("Actualizado manualmente");
+      });
+    }
+    if (deleteCancel) {
+      deleteCancel.addEventListener("click", closeDeleteModal);
+    }
+    if (deleteConfirm) {
+      deleteConfirm.addEventListener("click", confirmDeleteSolicitud);
+    }
+    if (deleteModal) {
+      deleteModal.addEventListener("click", function (event) {
+        if (event.target === deleteModal) {
+          closeDeleteModal();
+        }
+      });
+    }
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && deleteModal && deleteModal.classList.contains("open")) {
+        closeDeleteModal();
+      }
+    });
+
+    load("Cargando solicitudes activas");
+    connectSocket();
+  })();
+</script>
+{% endblock %}

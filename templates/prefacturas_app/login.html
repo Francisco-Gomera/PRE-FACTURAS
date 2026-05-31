@@ -3,6 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#125ec3">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="CA ERP">
+    {% load static %}
+    <link rel="icon" type="image/svg+xml" href="{% static 'core/favicon.svg' %}">
+    <link rel="shortcut icon" href="{% static 'core/favicon.svg' %}">
+    <link rel="manifest" href="{% static 'core/manifest.webmanifest' %}">
     <title>CA ERP 3.0 - Login</title>
     <style>
         @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap");
@@ -20,25 +29,25 @@
             margin: 0;
         }
         .card {
-            width: min(430px, 92vw);
+            width: min(520px, 94vw);
             background: linear-gradient(180deg, #ffffff, #f6faff);
-            padding: 26px;
-            border-radius: 16px;
+            padding: 30px;
+            border-radius: 22px;
             border: 1px solid #d2dff1;
-            box-shadow: 0 18px 44px rgba(22, 74, 139, 0.2);
+            box-shadow: 0 24px 72px rgba(22, 74, 139, 0.16);
         }
         .brand {
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
         }
         .brand-tag {
             font-family: "Space Grotesk", "Outfit", sans-serif;
             background: linear-gradient(135deg, #0f3f78, #1162bf 58%, #0bb1bf);
             color: #fff;
             border-radius: 999px;
-            padding: 4px 12px;
+            padding: 5px 14px;
             font-size: 13px;
             font-weight: 700;
             letter-spacing: .5px;
@@ -52,9 +61,15 @@
         }
         h1 {
             font-family: "Space Grotesk", "Outfit", sans-serif;
-            font-size: 27px;
+            font-size: 28px;
             color: #123f77;
-            margin: 0 0 14px;
+            margin: 0 0 10px;
+        }
+        p.lead {
+            margin: 0 0 20px;
+            color: #4f6580;
+            line-height: 1.6;
+            font-size: 14px;
         }
         label {
             display: block;
@@ -63,53 +78,190 @@
             font-weight: 600;
             color: #2f4a66;
         }
-        input {
+        input, select {
             width: 100%;
-            padding: 10px 12px;
-            margin-bottom: 12px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
             border: 1px solid #c8d8ed;
-            border-radius: 9px;
+            border-radius: 12px;
             font-size: 14px;
+            background: #fff;
             box-sizing: border-box;
             transition: border-color .18s ease, box-shadow .18s ease;
         }
-        input:focus {
+        input:focus, select:focus {
             outline: none;
             border-color: #1f7aed;
             box-shadow: 0 0 0 3px rgba(31, 122, 237, 0.14);
         }
         button {
             width: 100%;
-            padding: 11px;
-            border: 1px solid #145ebf;
+            padding: 12px;
+            border: none;
             background: linear-gradient(180deg, #1f7aed, #125ec3);
             color: #fff;
-            border-radius: 10px;
+            border-radius: 12px;
             font-size: 14px;
             font-weight: 700;
             cursor: pointer;
-            box-shadow: 0 10px 18px rgba(18, 94, 195, 0.22);
+            box-shadow: 0 12px 20px rgba(18, 94, 195, 0.2);
         }
         button:hover {
             filter: brightness(1.04);
         }
+        .actions-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .secondary-button {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #c8d8ed;
+            background: #f6faff;
+            color: #125ec3;
+            border-radius: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .error, .warn, .success {
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            line-height: 1.55;
+        }
         .error {
             background: #fff1f3;
-            color: #bf2b3c;
-            padding: 10px;
             border: 1px solid #f4c4cb;
-            border-radius: 8px;
-            margin-bottom: 12px;
-            font-size: 13px;
+            color: #bf2b3c;
         }
         .warn {
             background: #eef6ff;
-            color: #234f80;
-            padding: 10px;
             border: 1px solid #d2e5fb;
-            border-radius: 8px;
-            margin-bottom: 12px;
+            color: #234f80;
+        }
+        .success {
+            background: #eaf8f5;
+            border: 1px solid #b8f1dc;
+            color: #0f755f;
+        }
+        .wizard-progress {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .progress-step {
+            position: relative;
+            padding: 14px 12px 10px;
+            background: #f1f7ff;
+            border-radius: 16px;
+            border: 1px solid #dbe7f4;
+            color: #607792;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .progress-step::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            right: -12px;
+            width: 24px;
+            height: 2px;
+            background: #dbe7f4;
+            transform: translateY(-50%);
+        }
+        .progress-step:last-child::after {
+            display: none;
+        }
+        .progress-step.active,
+        .progress-step.complete {
+            background: linear-gradient(180deg, rgba(31, 122, 237, 0.18), #eef5ff);
+            border-color: #a8c9ff;
+            color: #0f4fa4;
+        }
+        .progress-step.complete::before {
+            content: "\2713";
+            display: inline-block;
+            margin-right: 6px;
+            color: #0f4fa4;
+            font-size: 12px;
+        }
+        .wizard-step {
+            display: none;
+            animation: fadeIn .24s ease;
+        }
+        .wizard-step.active {
+            display: block;
+        }
+        .departments-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 16px;
+        }
+        .departments-table th,
+        .departments-table td {
+            padding: 10px 8px;
+            border: 1px solid #e1e9f5;
+            text-align: left;
             font-size: 13px;
+        }
+        .departments-table th {
+            background: #f8fbff;
+            color: #4f6580;
+        }
+        .departments-table input {
+            margin-bottom: 0;
+        }
+        .checkbox-field {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 14px;
+            cursor: pointer;
+            font-size: 13px;
+            color: #2f4a66;
+        }
+        .checkbox-field input {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+        }
+        .small-text {
+            font-size: 12px;
+            color: #6b7f9f;
+            margin-top: -8px;
+            margin-bottom: 14px;
+        }
+        .marker {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: #eef6ff;
+            color: #125ec3;
+            font-weight: 700;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        .bottom-note {
+            margin-top: 12px;
+            font-size: 12px;
+            color: #6b7f9f;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 620px) {
+            .actions-row { grid-template-columns: 1fr; }
+            .wizard-progress { grid-template-columns: 1fr; }
+            .progress-step::after { display: none; }
         }
     </style>
 </head>
@@ -119,34 +271,386 @@
             <span class="brand-tag">CA ERP 3.0</span>
             <span class="brand-sub">Comercial Anita</span>
         </div>
-        <h1>Ingreso</h1>
-        <div class="warn">Acceso por usuario activo y contraseña del sistema.</div>
-        {% if info_message %}
-            <div class="warn">{{ info_message }}</div>
-        {% endif %}
-        {% if error_message %}
-            <div class="error">{{ error_message }}</div>
-        {% endif %}
-        <form method="post">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="{% if step == 'password_login' %}login_password{% elif step == 'password_create' %}set_password{% else %}identify{% endif %}" />
-            <label for="id_usuario">Usuario</label>
-            <input id="id_usuario" name="usuario" type="text" maxlength="20" value="{{ usuario_input|default:'' }}" {% if step != 'usuario' %}readonly{% endif %} />
-
-            {% if step == "password_login" %}
-                <label for="id_password">Contraseña</label>
-                <input id="id_password" name="password" type="password" autocomplete="current-password" />
-                <button type="submit">Entrar</button>
-            {% elif step == "password_create" %}
-                <label for="id_password_new">Nueva contraseña</label>
-                <input id="id_password_new" name="password_new" type="password" autocomplete="new-password" />
-                <label for="id_password_confirm">Confirmar contraseña</label>
-                <input id="id_password_confirm" name="password_confirm" type="password" autocomplete="new-password" />
-                <button type="submit">Guardar y entrar</button>
-            {% else %}
-                <button type="submit">Continuar</button>
+        {% if setup_mode %}
+            <h1>Configuración inicial</h1>
+            <p class="lead">Completa los datos de la empresa, el modo del sistema, los departamentos y un usuario administrador.</p>
+            {% if setup_error_message %}
+                <div class="error">{{ setup_error_message }}</div>
             {% endif %}
-        </form>
+            {% if setup_info_message %}
+                <div class="success">{{ setup_info_message }}</div>
+            {% endif %}
+            {% if setup_complete %}
+                <div class="success" style="text-align:center;">
+                    <div class="marker" style="margin:0 auto 12px;">✓</div>
+                    <strong>¡Todo listo!</strong>
+                    <p class="bottom-note">Tu sistema se ha configurado correctamente. Serás redirigido al login en unos segundos.</p>
+                </div>
+            {% else %}
+                <div class="wizard-progress" aria-label="Progreso de instalación">
+                    <div class="progress-step active" data-progress-step="1">Empresa</div>
+                    <div class="progress-step" data-progress-step="2">Sistema</div>
+                    <div class="progress-step" data-progress-step="3">Departamentos</div>
+                    <div class="progress-step" data-progress-step="4">Administrador</div>
+                </div>
+                <form id="setupWizardForm" method="post" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" name="action" id="wizardAction" value="setup_complete" />
+                    <input type="hidden" name="departments_data" id="departments_data" />
+
+                    <div class="wizard-step active" data-step="1">
+                        <div class="marker">1</div>
+                        <label for="empresa_nombre">Nombre de la empresa</label>
+                        <input id="empresa_nombre" name="empresa_nombre" type="text" maxlength="120" placeholder="Mi Empresa SRL" />
+                        <label for="empresa_direccion">Dirección</label>
+                        <input id="empresa_direccion" name="empresa_direccion" type="text" maxlength="200" placeholder="Calle Principal 123" />
+                        <label for="empresa_tel1">Teléfono 1</label>
+                        <input id="empresa_tel1" name="empresa_tel1" type="text" maxlength="40" placeholder="809-123-4567" />
+                        <label for="empresa_email">Email</label>
+                        <input id="empresa_email" name="empresa_email" type="email" maxlength="120" placeholder="contacto@empresa.com" />
+                        <label for="empresa_rnc">RNC / Cédula</label>
+                        <input id="empresa_rnc" name="empresa_rnc" type="text" maxlength="30" placeholder="402-1234567-8" />
+                        <div class="actions-row">
+                            <button type="button" class="secondary-button" disabled>Anterior</button>
+                            <button type="button" id="nextButton1" class="secondary-button">Siguiente</button>
+                        </div>
+                    </div>
+
+                    <div class="wizard-step" data-step="2">
+                        <div class="marker">2</div>
+                        <label for="ui_theme_mode">Modo visual</label>
+                        <select id="ui_theme_mode" name="ui_theme_mode">
+                            <option value="light">Claro</option>
+                            <option value="dark">Oscuro</option>
+                        </select>
+                        <label for="formato_recibo_pago">Formato de recibo de pago</label>
+                        <select id="formato_recibo_pago" name="formato_recibo_pago">
+                            <option value="a4">A4</option>
+                            <option value="80mm">80mm</option>
+                            <option value="58mm">58mm</option>
+                        </select>
+                        <label for="formato_factura">Formato de factura</label>
+                        <select id="formato_factura" name="formato_factura">
+                            <option value="a4">A4</option>
+                            <option value="80mm">80mm</option>
+                            <option value="58mm">58mm</option>
+                        </select>
+                        <label class="checkbox-field" for="habilitar_fact_stock">
+                            <input id="habilitar_fact_stock" name="habilitar_fact_stock" type="checkbox" />
+                            <span>Habilitar facturación por stock</span>
+                        </label>
+                        <p class="small-text">El modo visual se guarda en esta terminal. Los formatos de impresión se aplicarán al administrador.</p>
+                        <div class="actions-row">
+                            <button type="button" id="backButton2" class="secondary-button">Anterior</button>
+                            <button type="button" id="nextButton2" class="secondary-button">Siguiente</button>
+                        </div>
+                    </div>
+
+                    <div class="wizard-step" data-step="3">
+                        <div class="marker">3</div>
+                        <label>Departamentos</label>
+                        <table class="departments-table">
+                            <thead>
+                                <tr>
+                                    <th>CECO</th>
+                                    <th>Descripción</th>
+                                    <th style="width:72px;">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="departmentsBody">
+                                <tr>
+                                    <td><input type="text" class="dep-ceco" placeholder="100" /></td>
+                                    <td><input type="text" class="dep-descripcion" placeholder="Ventas" /></td>
+                                    <td><button type="button" class="secondary-button remove-department" disabled>Quitar</button></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <button type="button" id="addDepartmentButton" class="secondary-button">Agregar departamento</button>
+                        <p class="small-text">Agrega los departamentos y sus CECO para asignar usuarios en el sistema.</p>
+                        <div class="actions-row">
+                            <button type="button" id="backButton3" class="secondary-button">Anterior</button>
+                            <button type="button" id="nextButton3" class="secondary-button">Siguiente</button>
+                        </div>
+                    </div>
+
+                    <div class="wizard-step" data-step="4">
+                        <div class="marker">4</div>
+                        <label for="admin_usuario">Usuario administrador</label>
+                        <input id="admin_usuario" name="admin_usuario" type="text" maxlength="20" placeholder="admin" />
+                        <label for="admin_nombre">Nombre completo</label>
+                        <input id="admin_nombre" name="admin_nombre" type="text" maxlength="100" placeholder="Administrador" />
+                        <label for="admin_departamento">Departamento</label>
+                        <select id="admin_departamento" name="admin_departamento"></select>
+                        <input id="admin_departamento_ceco" name="admin_departamento_ceco" type="hidden" />
+                        <label for="admin_password">Contraseña</label>
+                        <input id="admin_password" name="admin_password" type="password" autocomplete="new-password" />
+                        <label for="admin_password_confirm">Confirmar contraseña</label>
+                        <input id="admin_password_confirm" name="admin_password_confirm" type="password" autocomplete="new-password" />
+                        <div class="actions-row">
+                            <button type="button" id="backButton4" class="secondary-button">Anterior</button>
+                            <button type="submit">Finalizar instalación</button>
+                        </div>
+                    </div>
+                </form>
+            {% endif %}
+        {% else %}
+            <h1>Ingreso</h1>
+            <p class="lead">Accede con tu usuario activo y contraseña del sistema.</p>
+            {% if info_message %}
+                <div class="warn">{{ info_message }}</div>
+            {% endif %}
+            {% if error_message %}
+                <div class="error">{{ error_message }}</div>
+            {% endif %}
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="{% if step == 'password_login' %}login_password{% elif step == 'password_create' %}set_password{% else %}identify{% endif %}" />
+                <label for="id_usuario">Usuario</label>
+                <input id="id_usuario" name="usuario" type="text" maxlength="20" value="{{ usuario_input|default:'' }}" {% if step != 'usuario' %}readonly{% endif %} />
+
+                {% if step == "password_login" %}
+                    <label for="id_password">Contraseña</label>
+                    <input id="id_password" name="password" type="password" autocomplete="current-password" />
+                    <button type="submit">Entrar</button>
+                {% elif step == "password_create" %}
+                    <label for="id_password_new">Nueva contraseña</label>
+                    <input id="id_password_new" name="password_new" type="password" autocomplete="new-password" />
+                    <label for="id_password_confirm">Confirmar contraseña</label>
+                    <input id="id_password_confirm" name="password_confirm" type="password" autocomplete="new-password" />
+                    <button type="submit">Guardar y entrar</button>
+                {% else %}
+                    <button type="submit">Continuar</button>
+                {% endif %}
+            </form>
+        {% endif %}
     </div>
+    <script>
+        (function () {
+            function setTheme(mode) {
+                try {
+                    localStorage.setItem('ui_theme_mode', mode);
+                } catch (_) {}
+            }
+
+            var themeSelect = document.querySelector('#ui_theme_mode');
+            if (themeSelect) {
+                var storedTheme = null;
+                try { storedTheme = localStorage.getItem('ui_theme_mode'); } catch (_) {}
+                if (storedTheme) {
+                    themeSelect.value = storedTheme;
+                }
+                themeSelect.addEventListener('change', function () {
+                    setTheme(themeSelect.value);
+                });
+            }
+
+            var currentStep = 1;
+            var steps = Array.from(document.querySelectorAll('.wizard-step'));
+            var progressSteps = Array.from(document.querySelectorAll('.progress-step'));
+            var nextButtons = Array.from(document.querySelectorAll('[id^="nextButton"]'));
+            var backButtons = Array.from(document.querySelectorAll('[id^="backButton"]'));
+            var form = document.querySelector('#setupWizardForm');
+            var departmentsBody = document.querySelector('#departmentsBody');
+            var departmentsDataInput = document.querySelector('#departments_data');
+
+            function updateWizard() {
+                steps.forEach(function (stepElement) {
+                    stepElement.classList.toggle('active', Number(stepElement.dataset.step) === currentStep);
+                });
+                progressSteps.forEach(function (item) {
+                    var stepIndex = Number(item.dataset.progressStep);
+                    item.classList.toggle('complete', stepIndex < currentStep);
+                    item.classList.toggle('active', stepIndex === currentStep);
+                });
+            }
+
+            function collectDepartments() {
+                return Array.from(departmentsBody.querySelectorAll('tr')).map(function (row) {
+                    return {
+                        ceco: row.querySelector('.dep-ceco').value.trim(),
+                        descripcion: row.querySelector('.dep-descripcion').value.trim(),
+                    };
+                }).filter(function (item) {
+                    return item.ceco || item.descripcion;
+                });
+            }
+
+            var adminDepartmentSelect = document.querySelector('#admin_departamento');
+            var adminDepartmentCecoInput = document.querySelector('#admin_departamento_ceco');
+
+            function renderDepartmentOptions() {
+                if (!adminDepartmentSelect) {
+                    return;
+                }
+                var departments = collectDepartments();
+                adminDepartmentSelect.innerHTML = '';
+                departments.forEach(function (dep, index) {
+                    var option = document.createElement('option');
+                    option.value = dep.descripcion || dep.ceco || String(index);
+                    option.textContent = dep.descripcion ? dep.descripcion + ' (' + dep.ceco + ')' : dep.ceco;
+                    option.dataset.ceco = dep.ceco || '';
+                    adminDepartmentSelect.appendChild(option);
+                });
+                if (!adminDepartmentSelect.options.length) {
+                    var placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = 'No hay departamentos disponibles';
+                    placeholder.disabled = true;
+                    adminDepartmentSelect.appendChild(placeholder);
+                }
+                updateAdminDepartmentHidden();
+            }
+
+            function updateAdminDepartmentHidden() {
+                if (!adminDepartmentSelect || !adminDepartmentCecoInput) {
+                    return;
+                }
+                var selected = adminDepartmentSelect.options[adminDepartmentSelect.selectedIndex];
+                if (!selected) {
+                    adminDepartmentCecoInput.value = '';
+                    return;
+                }
+                adminDepartmentCecoInput.value = selected.dataset.ceco || '';
+            }
+
+            function validateStep() {
+                if (currentStep === 1) {
+                    var name = document.querySelector('#empresa_nombre').value.trim();
+                    if (!name) { alert('Ingresa el nombre de la empresa.'); return false; }
+                }
+                if (currentStep === 3) {
+                    var departments = collectDepartments();
+                    if (!departments.length) { alert('Debes agregar al menos un departamento.'); return false; }
+                    var invalid = departments.some(function (dep) { return !dep.ceco || !dep.descripcion; });
+                    if (invalid) { alert('Cada departamento debe tener CECO y descripción.'); return false; }
+                }
+                if (currentStep === 4) {
+                    var user = document.querySelector('#admin_usuario').value.trim();
+                    var name = document.querySelector('#admin_nombre').value.trim();
+                    var department = adminDepartmentSelect ? adminDepartmentSelect.value.trim() : '';
+                    var password = document.querySelector('#admin_password').value;
+                    var confirm = document.querySelector('#admin_password_confirm').value;
+                    if (!user) { alert('Ingresa el usuario administrador.'); return false; }
+                    if (!name) { alert('Ingresa el nombre del administrador.'); return false; }
+                    if (!department) { alert('Selecciona un departamento para el administrador.'); return false; }
+                    if (password.length < 4) { alert('La contraseña debe tener al menos 4 caracteres.'); return false; }
+                    if (password !== confirm) { alert('Las contraseñas no coinciden.'); return false; }
+                }
+                return true;
+            }
+
+            function updateRemoveButtons() {
+                if (!departmentsBody) {
+                    return;
+                }
+                var removeButtons = Array.from(departmentsBody.querySelectorAll('.remove-department'));
+                removeButtons.forEach(function (button) {
+                    button.disabled = removeButtons.length <= 1;
+                    button.onclick = function () {
+                        if (removeButtons.length <= 1) {
+                            return;
+                        }
+                        button.closest('tr').remove();
+                        updateRemoveButtons();
+                        renderDepartmentOptions();
+                    };
+                });
+            }
+
+            function addDepartmentRow(ceco, descripcion) {
+                var row = document.createElement('tr');
+                row.innerHTML = '<td><input type="text" class="dep-ceco" placeholder="100" value="' + (ceco || '') + '" /></td>' +
+                                '<td><input type="text" class="dep-descripcion" placeholder="Ventas" value="' + (descripcion || '') + '" /></td>' +
+                                '<td><button type="button" class="secondary-button remove-department">Quitar</button></td>';
+                departmentsBody.appendChild(row);
+                updateRemoveButtons();
+            }
+
+            if (departmentsBody) {
+                updateRemoveButtons();
+            }
+
+            nextButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    if (!validateStep()) {
+                        return;
+                    }
+                    if (currentStep < steps.length) {
+                        currentStep += 1;
+                        updateWizard();
+                    }
+                });
+            });
+            backButtons.forEach(function (button) {
+                button.addEventListener('click', function () {
+                    if (currentStep > 1) {
+                        currentStep -= 1;
+                        updateWizard();
+                    }
+                });
+            });
+
+            var addDepartmentButton = document.querySelector('#addDepartmentButton');
+            if (addDepartmentButton) {
+                addDepartmentButton.addEventListener('click', function () {
+                    addDepartmentRow('', '');
+                    renderDepartmentOptions();
+                });
+            }
+
+            if (adminDepartmentSelect) {
+                adminDepartmentSelect.addEventListener('change', updateAdminDepartmentHidden);
+            }
+
+            if (form) {
+                form.addEventListener('submit', function (event) {
+                    if (currentStep !== steps.length) {
+                        event.preventDefault();
+                        if (validateStep()) {
+                            currentStep += 1;
+                            updateWizard();
+                        }
+                        return;
+                    }
+                    departmentsDataInput.value = JSON.stringify(collectDepartments());
+                    updateAdminDepartmentHidden();
+                    if (themeSelect) {
+                        setTheme(themeSelect.value);
+                    }
+                });
+            }
+
+            function updateWizard() {
+                steps.forEach(function (stepElement) {
+                    stepElement.classList.toggle('active', Number(stepElement.dataset.step) === currentStep);
+                });
+                progressSteps.forEach(function (item) {
+                    var stepIndex = Number(item.dataset.progressStep);
+                    item.classList.toggle('complete', stepIndex < currentStep);
+                    item.classList.toggle('active', stepIndex === currentStep);
+                });
+                if (currentStep === 4) {
+                    renderDepartmentOptions();
+                }
+            }
+
+            updateWizard();
+
+            if ({{ setup_complete|yesno:"true,false" }}) {
+                setTimeout(function () {
+                    window.location.reload();
+                }, 2800);
+            }
+        })();
+
+        (function () {
+            if (!("serviceWorker" in navigator)) {
+                return;
+            }
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("{% url 'service_worker' %}", { scope: "/" }).catch(function () {});
+            });
+        })();
+    </script>
 </body>
 </html>

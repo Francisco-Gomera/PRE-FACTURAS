@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CA ERP">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f4b9a"/>
+      <stop offset="58%" stop-color="#0f6edc"/>
+      <stop offset="100%" stop-color="#0bb1bf"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#bg)"/>
+  <path d="M24 22c-5.2 0-9 4.1-9 10s3.8 10 9 10c3 0 5.3-1 7.3-3.1l-3.2-3.1c-1.1 1.1-2.2 1.7-3.8 1.7-2.7 0-4.7-2.2-4.7-5.5s2-5.5 4.7-5.5c1.6 0 2.7.6 3.8 1.7l3.2-3.1c-2-2.1-4.3-3.1-7.3-3.1Z" fill="#fff"/>
+  <path d="M39 42V22h8.2c4.2 0 6.8 2.5 6.8 6.2 0 2.6-1.2 4.4-3.3 5.4l4 8.4h-5.6l-3.2-7H44v7Zm5-11.1h2.7c1.6 0 2.6-.9 2.6-2.4S48.3 26 46.7 26H44Z" fill="#fff"/>
+</svg>

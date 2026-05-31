@@ -5,6 +5,7 @@ import hmac
 from decimal import Decimal
 from datetime import datetime
 
+from django.core.cache import cache
 from django.db import connection, transaction
 from django.db.models import Q
 from django.http import JsonResponse
@@ -21,7 +22,13 @@ from ajustes.models import (
     FacturacionElectronicaSecuencia,
 )
 from ajustes.permissions import has_perm
+from ajustes.print_formats import get_print_format, get_print_format_label
 from ajustes.user_signatures import get_user_signature_bytes
+from core.realtime import (
+    broadcast_factura_document_status,
+    broadcast_prefactura_document_status,
+    broadcast_prefacturas_refresh,
+)
 from core.views import _base_context, _get_empresa_data, render_denied
 from prefacturas_app.models_existing import MaestroArticulo, MaestroSn
 from prefacturas_app.views import _get_auth_payload, _require_perm_json
@@ -48,6 +55,9 @@ EMISION_TIPOS = [
     ("45", "Factura Gubernamental Electronica"),
     ("47", "Factura de Exportacion Electronica"),
 ]
+
+PREFACTURA_LOCK_TTL_SECONDS = 60 * 15
+PREFACTURA_LOCK_CACHE_PREFIX = "factura.prefactura.lock"
 
 
 def _bool_post(value):
@@ -88,6 +98,105 @@ def _to_int_or_none(value):
         return int(float(raw))
     except Exception:
         return None
+
+
+def _prefactura_lock_cache_key(prefactura_id):
+    return f"{PREFACTURA_LOCK_CACHE_PREFIX}.{str(prefactura_id or '').strip()}"
+
+
+def _prefactura_lock_get(prefactura_id):
+    pref_id = str(prefactura_id or "").strip()
+    if not pref_id:
+        return None
+    key = _prefactura_lock_cache_key(pref_id)
+    lock = cache.get(key)
+    if not isinstance(lock, dict):
+        return None
+    owner_id = str(lock.get("owner_id") or "").strip()
+    touched_at = float(lock.get("touched_at") or 0)
+    if not owner_id or touched_at <= 0:
+        cache.delete(key)
+        return None
+    now_ts = timezone.now().timestamp()
+    if (now_ts - touched_at) > PREFACTURA_LOCK_TTL_SECONDS:
+        cache.delete(key)
+        return None
+    return lock
+
+
+def _prefactura_lock_set(prefactura_id, *, owner_id, usuario_id, usuario_nombre, terminal):
+    pref_id = str(prefactura_id or "").strip()
+    owner_key = str(owner_id or "").strip()
+    if not pref_id or not owner_key:
+        return None
+    now_ts = timezone.now().timestamp()
+    lock = {
+        "prefactura_id": pref_id,
+        "owner_id": owner_key,
+        "usuario_id": int(usuario_id or 0),
+        "usuario_nombre": str(usuario_nombre or "").strip(),
+        "terminal": str(terminal or "").strip(),
+        "touched_at": now_ts,
+    }
+    cache.set(_prefactura_lock_cache_key(pref_id), lock, timeout=PREFACTURA_LOCK_TTL_SECONDS)
+    return lock
+
+
+def _prefactura_lock_acquire(prefactura_id, *, owner_id, usuario_id, usuario_nombre, terminal):
+    pref_id = str(prefactura_id or "").strip()
+    owner_key = str(owner_id or "").strip()
+    if not pref_id or not owner_key:
+        return {"ok": False, "lock": None}
+
+    existing_lock = _prefactura_lock_get(pref_id)
+    if existing_lock:
+        existing_owner = str(existing_lock.get("owner_id") or "").strip()
+        if existing_owner == owner_key:
+            lock = _prefactura_lock_set(
+                pref_id,
+                owner_id=owner_key,
+                usuario_id=usuario_id,
+                usuario_nombre=usuario_nombre,
+                terminal=terminal,
+            )
+            return {"ok": True, "lock": lock}
+        return {"ok": False, "lock": existing_lock}
+
+    now_ts = timezone.now().timestamp()
+    lock = {
+        "prefactura_id": pref_id,
+        "owner_id": owner_key,
+        "usuario_id": int(usuario_id or 0),
+        "usuario_nombre": str(usuario_nombre or "").strip(),
+        "terminal": str(terminal or "").strip(),
+        "touched_at": now_ts,
+    }
+    created = cache.add(_prefactura_lock_cache_key(pref_id), lock, timeout=PREFACTURA_LOCK_TTL_SECONDS)
+    if created:
+        return {"ok": True, "lock": lock}
+
+    existing_lock = _prefactura_lock_get(pref_id)
+    if existing_lock and str(existing_lock.get("owner_id") or "").strip() == owner_key:
+        return {"ok": True, "lock": existing_lock}
+    return {"ok": False, "lock": existing_lock}
+
+
+def _prefactura_lock_release(prefactura_id, *, owner_id):
+    lock = _prefactura_lock_get(prefactura_id)
+    owner_key = str(owner_id or "").strip()
+    if not lock or not owner_key:
+        return False
+    if str(lock.get("owner_id") or "").strip() != owner_key:
+        return False
+    cache.delete(_prefactura_lock_cache_key(prefactura_id))
+    return True
+
+
+def _prefactura_lock_is_valid_for_owner(prefactura_id, owner_id):
+    lock = _prefactura_lock_get(prefactura_id)
+    if not lock:
+        return False
+    return str(lock.get("owner_id") or "").strip() == str(owner_id or "").strip()
 
 
 def _clip_str(value, max_len):
@@ -1478,6 +1587,9 @@ def facturacion_view(request):
         "financiamiento": has_perm(usuario_id, "caja", "ver_financiamiento"),
         "prefactura": has_perm(usuario_id, "prefacturas", "ver"),
     }
+    factura_print_format = get_print_format("factura")
+    ctx["factura_print_format"] = factura_print_format
+    ctx["factura_print_format_label"] = get_print_format_label(factura_print_format)
     return render(request, "factura/facturacion.html", ctx)
 
 
@@ -1501,12 +1613,28 @@ def emision_prefacturas_view(request):
 
     query = (request.GET.get("q") or "").strip()
     filtro = (request.GET.get("filtro") or "documento").strip().lower()
+    lock_owner = str(request.GET.get("lock_owner") or "").strip()
     sql = """
         SELECT TOP 80
             ID_DOC, ID_SN, NOM_SOCIO, RNC_CED, CONTACTO, ENT_FACTURA, ENT_MERCANCIA, EST_DOC,
             FECHA_CONT, FECHA_DOC, FECHA_VENC, COMENTARIO, TOTAL_DOC
         FROM CAB_PEDIDO
         WHERE UPPER(ISNULL(EST_DOC, '')) = 'ABIERTO'
+          AND NOT EXISTS (
+                SELECT 1
+                FROM CAB_FACTURA f
+                WHERE (
+                        CAST(f.ID_DOC_PV AS VARCHAR(50)) = CAST(CAB_PEDIDO.ID_DOC AS VARCHAR(50))
+                     OR (
+                            CAST(f.ID_DOC_BASE AS VARCHAR(50)) = CAST(CAB_PEDIDO.ID_DOC AS VARCHAR(50))
+                        AND UPPER(ISNULL(f.TIPO_DOC_BASE, '')) IN ('PV', 'PC')
+                     )
+                     OR (
+                            ISNULL(f.REFERENCIA, '') = CAST(CAB_PEDIDO.ID_DOC AS VARCHAR(50))
+                        AND UPPER(ISNULL(f.TIPO_DOC_BASE, '')) = 'PC'
+                     )
+                )
+          )
     """
     params = []
     if query:
@@ -1532,9 +1660,16 @@ def emision_prefacturas_view(request):
 
     results = []
     for p in pedidos:
+        pref_id = str(p[0] or "")
+        lock = _prefactura_lock_get(pref_id)
+        lock_owner_id = str((lock or {}).get("owner_id") or "").strip()
+        locked_by_me = bool(lock_owner and lock_owner_id and lock_owner_id == lock_owner)
+        locked_by_other = bool(lock and not locked_by_me)
+        lock_user = str((lock or {}).get("usuario_nombre") or "").strip()
+        lock_terminal = str((lock or {}).get("terminal") or "").strip()
         results.append(
             {
-                "id_doc": str(p[0] or ""),
+                "id_doc": pref_id,
                 "id_sn": p[1] or "",
                 "nom_socio": p[2] or "",
                 "rnc_ced": p[3] or "",
@@ -1547,9 +1682,119 @@ def emision_prefacturas_view(request):
                 "fecha_venc": _fmt_date_iso(p[10]),
                 "comentario": p[11] or "",
                 "total_doc": float(p[12]) if p[12] is not None else 0.0,
+                "locked_by_me": locked_by_me,
+                "locked_by_other": locked_by_other,
+                "lock_user": lock_user,
+                "lock_terminal": lock_terminal,
             }
         )
     return JsonResponse({"results": results})
+
+
+@require_http_methods(["GET"])
+def emision_prefacturas_status_view(request):
+    auth_payload = _require_any_factura_perm_json(request, "ver_emision", "ver_documentos")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    sql = """
+        SELECT
+            COUNT(*) AS total,
+            MAX(TRY_CAST(ID_DOC AS BIGINT)) AS max_id,
+            MAX(COALESCE(FECHA_ACT, FECHA_DOC)) AS max_fecha
+        FROM CAB_PEDIDO
+        WHERE UPPER(ISNULL(EST_DOC, '')) = 'ABIERTO'
+          AND NOT EXISTS (
+                SELECT 1
+                FROM CAB_FACTURA f
+                WHERE (
+                        CAST(f.ID_DOC_PV AS VARCHAR(50)) = CAST(CAB_PEDIDO.ID_DOC AS VARCHAR(50))
+                     OR (
+                            CAST(f.ID_DOC_BASE AS VARCHAR(50)) = CAST(CAB_PEDIDO.ID_DOC AS VARCHAR(50))
+                        AND UPPER(ISNULL(f.TIPO_DOC_BASE, '')) IN ('PV', 'PC')
+                     )
+                     OR (
+                            ISNULL(f.REFERENCIA, '') = CAST(CAB_PEDIDO.ID_DOC AS VARCHAR(50))
+                        AND UPPER(ISNULL(f.TIPO_DOC_BASE, '')) = 'PC'
+                     )
+                )
+          )
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(sql)
+        row = cursor.fetchone() or []
+    total = int(row[0] or 0)
+    max_id = int(row[1] or 0)
+    max_fecha = row[2]
+    max_fecha_text = max_fecha.isoformat() if hasattr(max_fecha, "isoformat") else str(max_fecha or "")
+    return JsonResponse({"stamp": f"{total}|{max_id}|{max_fecha_text}", "total": total})
+
+
+@require_http_methods(["POST"])
+def emision_prefactura_lock_view(request):
+    auth_payload = _require_any_factura_perm_json(request, "ver_emision", "ver_documentos")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    prefactura_id = str(payload.get("prefactura_id") or "").strip()
+    owner_id = str(payload.get("lock_owner") or "").strip()
+    action = str(payload.get("action") or "acquire").strip().lower()
+    if not prefactura_id:
+        return JsonResponse({"detail": "prefactura_id requerido"}, status=400)
+    if not owner_id:
+        return JsonResponse({"detail": "lock_owner requerido"}, status=400)
+    if action not in {"acquire", "release"}:
+        return JsonResponse({"detail": "action invalido"}, status=400)
+
+    usuario_id = _to_int((auth_payload or {}).get("usuario_id"), 0)
+    usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
+    terminal = socket.gethostname() or "FACTURA"
+
+    if action == "release":
+        changed = _prefactura_lock_release(prefactura_id, owner_id=owner_id)
+        if changed:
+            transaction.on_commit(lambda: broadcast_prefacturas_refresh(reason="prefactura-lock-released"))
+        return JsonResponse({"ok": True, "released": changed})
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT TOP 1 UPPER(ISNULL(EST_DOC, ''))
+            FROM CAB_PEDIDO
+            WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+            """,
+            [prefactura_id],
+        )
+        pref = cursor.fetchone()
+    if not pref:
+        return JsonResponse({"detail": "Prefactura no encontrada."}, status=404)
+    if str(pref[0] or "").strip() != "ABIERTO":
+        return JsonResponse({"detail": "La prefactura ya no esta abierta."}, status=409)
+
+    acquire_result = _prefactura_lock_acquire(
+        prefactura_id,
+        owner_id=owner_id,
+        usuario_id=usuario_id,
+        usuario_nombre=usuario_nombre,
+        terminal=terminal[:50],
+    )
+    if not acquire_result.get("ok"):
+        existing_lock = acquire_result.get("lock") or {}
+        return JsonResponse(
+            {
+                "detail": "La prefactura ya esta en uso en otra terminal.",
+                "lock_user": str(existing_lock.get("usuario_nombre") or "").strip(),
+                "lock_terminal": str(existing_lock.get("terminal") or "").strip(),
+            },
+            status=409,
+        )
+    transaction.on_commit(lambda: broadcast_prefacturas_refresh(reason="prefactura-lock-acquired"))
+    return JsonResponse({"ok": True, "locked_by_me": True})
 
 
 @require_http_methods(["GET"])
@@ -2124,6 +2369,7 @@ def facturacion_cancelar_factura_view(request):
     factura_id = _to_int(payload.get("factura_id"), 0)
     if factura_id <= 0:
         return JsonResponse({"detail": "factura_id requerido"}, status=400)
+    client_event_id = str(payload.get("event_id") or "").strip()
 
     usuario_id = _to_int((auth_payload or {}).get("usuario_id"), 0)
     usuario_nombre = _clip_str((auth_payload or {}).get("usuario_nombre"), 100)
@@ -2242,6 +2488,29 @@ def facturacion_cancelar_factura_view(request):
                     """,
                     [prefactura_origen],
                 )
+        if prefactura_origen:
+            transaction.on_commit(
+                lambda: broadcast_prefacturas_refresh(
+                    reason="prefactura-reopened",
+                    event_id=client_event_id,
+                )
+            )
+            transaction.on_commit(
+                lambda: broadcast_prefactura_document_status(
+                    document_id=prefactura_origen,
+                    estado="Abierto",
+                    reason="prefactura-reopened",
+                    event_id=client_event_id,
+                )
+            )
+        transaction.on_commit(
+            lambda: broadcast_factura_document_status(
+                document_id=factura_id,
+                estado="Cancelado",
+                reason="factura-cancelled",
+                event_id=client_event_id,
+            )
+        )
 
     return JsonResponse(
         {
@@ -2267,6 +2536,7 @@ def cancelar_factura_view(request):
         return JsonResponse({"detail": "JSON invalido"}, status=400)
 
     factura_id = _to_int(payload.get("factura_id"), 0)
+    client_event_id = str(payload.get("event_id") or "").strip()
     motivo = str(payload.get("motivo") or "").strip() or "Cancelacion mediante nota de credito"
     if factura_id <= 0:
         return JsonResponse({"detail": "factura_id requerido"}, status=400)
@@ -2371,7 +2641,7 @@ def cancelar_factura_view(request):
                     nota_credito_id,
                     factura[1],
                     factura_id,
-                    "FA",
+                    "FC",
                     factura[5],
                     factura[6],
                     factura[7],
@@ -2415,7 +2685,7 @@ def cancelar_factura_view(request):
                  PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS, CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PRECIO_TRAS_DESC,
                  FECHA_CONT, CEBE, CECO, PERIODO_CONT, EJERCICIO, REFERENCIA, OBSERVACION, CANT_UND, No_LINEA_BASE)
                 SELECT
-                    %s, ID_DOC_PV, No_LINEA, 'FA', %s, 'C', CLASE_ART, ID_ARTICULO,
+                    %s, ID_DOC_PV, No_LINEA, 'FC', %s, 'C', CLASE_ART, ID_ARTICULO,
                     DESCRIP_ART, -CANTIDAD, -CANT_ENT, 0, -ISNULL(CANT_DESP, CANTIDAD), MEDIDA, COSTO, PRECIO, PRECIO_BRUTO, PORC_DESC,
                     ID_IMPTO, -TOTAL_DESC, -TOTAL_COSTO, -TOTAL_PRECIO, -TOTAL_PRECIO_NETO, -TOTAL_LINEA, ID_ALMACEN, ID_VENDEDOR,
                     PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS, CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PRECIO_TRAS_DESC,
@@ -2475,6 +2745,14 @@ def cancelar_factura_view(request):
             )
         dispatch_result = _dispatch_document_if_needed(nc_doc, request, config)
 
+    transaction.on_commit(
+        lambda: broadcast_factura_document_status(
+            document_id=factura_id,
+            estado="Cancelado",
+            reason="factura-cancelled",
+            event_id=client_event_id,
+        )
+    )
     return JsonResponse(
         {
             "ok": True,
@@ -2487,9 +2765,11 @@ def cancelar_factura_view(request):
     )
 
 
-def _emitir_factura_desde_prefactura(*, request, auth_payload, prefactura_id, tipo_ecf=""):
+def _emitir_factura_desde_prefactura(*, request, auth_payload, prefactura_id, tipo_ecf="", lock_owner="", event_id=""):
     prefactura_id = str(prefactura_id or "").strip()
     tipo_ecf = str(tipo_ecf or "").strip()
+    lock_owner = str(lock_owner or "").strip()
+    client_event_id = str(event_id or "").strip()
     es_electronica = bool(tipo_ecf)
     if not prefactura_id:
         return None, JsonResponse({"detail": "prefactura_id requerido"}, status=400)
@@ -2497,172 +2777,212 @@ def _emitir_factura_desde_prefactura(*, request, auth_payload, prefactura_id, ti
         return None, JsonResponse({"detail": "tipo_ecf invalido"}, status=400)
 
     usuario_id = _to_int((auth_payload or {}).get("usuario_id"), 0)
+    usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
     terminal = socket.gethostname() or "FACTURA"
+    if not lock_owner:
+        return None, JsonResponse({"detail": "lock_owner requerido para guardar la prefactura."}, status=400)
+
+    acquire_result = _prefactura_lock_acquire(
+        prefactura_id,
+        owner_id=lock_owner,
+        usuario_id=usuario_id,
+        usuario_nombre=usuario_nombre,
+        terminal=terminal[:50],
+    )
+    if not acquire_result.get("ok"):
+        existing_lock = acquire_result.get("lock") or {}
+        return None, JsonResponse(
+            {
+                "detail": "La prefactura esta en uso en otra terminal.",
+                "lock_user": str(existing_lock.get("usuario_nombre") or "").strip(),
+                "lock_terminal": str(existing_lock.get("terminal") or "").strip(),
+            },
+            status=409,
+        )
+
     today = timezone.localdate()
     encf = ""
     doc_estado = ""
     dispatch_message = ""
     config = None
 
-    with transaction.atomic():
-        with connection.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT TOP 1 ID_DOC, ID_SN, NOM_SOCIO, RNC_CED, EST_DOC, TOTAL_DOC, FECHA_DOC
-                FROM CAB_PEDIDO
-                WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
-                """,
-                [prefactura_id],
-            )
-            pref = cursor.fetchone()
-            if not pref:
-                return None, JsonResponse({"detail": "Prefactura no encontrada."}, status=404)
-            if str(pref[4] or "").strip().upper() != "ABIERTO":
-                return None, JsonResponse({"detail": "La prefactura ya no esta abierta."}, status=400)
-            if es_electronica and tipo_ecf == "31" and not str(pref[3] or "").strip():
-                return None, JsonResponse({"detail": "La factura de credito fiscal requiere RNC/Ced. del cliente."}, status=400)
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT TOP 1 ID_DOC, ID_SN, NOM_SOCIO, RNC_CED, EST_DOC, TOTAL_DOC, FECHA_DOC
+                    FROM CAB_PEDIDO
+                    WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                    """,
+                    [prefactura_id],
+                )
+                pref = cursor.fetchone()
+                if not pref:
+                    return None, JsonResponse({"detail": "Prefactura no encontrada."}, status=404)
+                if str(pref[4] or "").strip().upper() != "ABIERTO":
+                    return None, JsonResponse({"detail": "La prefactura ya no esta abierta."}, status=400)
+                if es_electronica and tipo_ecf == "31" and not str(pref[3] or "").strip():
+                    return None, JsonResponse({"detail": "La factura de credito fiscal requiere RNC/Ced. del cliente."}, status=400)
 
-            cursor.execute(
-                """
-                SELECT TOP 1 ID_DOC, ISNULL(NCF, '')
-                FROM CAB_FACTURA
-                WHERE CAST(ID_DOC_PV AS VARCHAR(50)) = %s
-                  AND UPPER(ISNULL(CANCELADO, 'N')) <> 'Y'
-                ORDER BY TRY_CAST(ID_DOC AS BIGINT) DESC, ID_DOC DESC
-                """,
-                [prefactura_id],
-            )
-            existing = cursor.fetchone()
-            if existing:
-                return (
-                    None,
-                    JsonResponse(
-                        {
-                            "detail": "Esta prefactura ya fue facturada.",
-                            "factura_id": str(existing[0] or ""),
-                            "encf": str(existing[1] or ""),
-                            "print_url": f"/app/factura/impresion/?id_doc={str(existing[0] or '').strip()}",
-                        },
-                        status=400,
-                    ),
+                cursor.execute(
+                    """
+                    SELECT TOP 1 ID_DOC, ISNULL(NCF, '')
+                    FROM CAB_FACTURA
+                    WHERE CAST(ID_DOC_PV AS VARCHAR(50)) = %s
+                      AND UPPER(ISNULL(CANCELADO, 'N')) <> 'Y'
+                    ORDER BY TRY_CAST(ID_DOC AS BIGINT) DESC, ID_DOC DESC
+                    """,
+                    [prefactura_id],
+                )
+                existing = cursor.fetchone()
+                if existing:
+                    return (
+                        None,
+                        JsonResponse(
+                            {
+                                "detail": "Esta prefactura ya fue facturada.",
+                                "factura_id": str(existing[0] or ""),
+                                "encf": str(existing[1] or ""),
+                                "print_url": f"/app/factura/impresion/?id_doc={str(existing[0] or '').strip()}",
+                            },
+                            status=400,
+                        ),
+                    )
+
+                cursor.execute(
+                    """
+                    SELECT ISNULL(MAX(TRY_CAST(ID_DOC AS BIGINT)), 0) + 1
+                    FROM CAB_FACTURA WITH (UPDLOCK, HOLDLOCK)
+                    """
+                )
+                row = cursor.fetchone()
+                factura_id = int((row[0] or 0))
+                if factura_id <= 0:
+                    factura_id = 1
+
+                if es_electronica:
+                    try:
+                        config, encf = _ensure_ecf_sequence(tipo_ecf)
+                    except ValueError as exc:
+                        return None, _ecf_sequence_error_response(tipo_ecf, exc)
+                    id_ncf = int(tipo_ecf)
+                    tipo_desc = _tipo_descripcion(tipo_ecf)
+                else:
+                    id_ncf = None
+                    tipo_desc = "Factura"
+
+                periodo_cont = str(today.month)
+                ejercicio = int(today.year)
+
+                cursor.execute(
+                    """
+                    INSERT INTO CAB_FACTURA
+                    (ID_DOC, ID_DOC_PV, ID_DOC_BASE, TIPO_DOC_BASE, CANCELADO, IMPRESO, EST_DOC, TIPO_DOC,
+                     CONTACTO, FECHA_CONT, FECHA_DOC, FECHA_VENC, ID_SN, NOM_SOCIO, RNC_CED, ENT_FACTURA,
+                     ENT_MERCANCIA, SUBTOTAL, TOTAL_DESC, TOTAL_ITBIS, TOTAL_DOC, MON_DOC, ABONO, SALDO,
+                     COMENTARIO, ID_CONDICION, DIA, CONDICION, ID_VENDEDOR, FECHA_CREACION, ID_NCF, NCF,
+                     TIPO, PERIODO_CONT, ID_USUARIO, TOTAL_BASE, CTA_ASOCIADA, EJERCICIO, ID_GASTO, TERMINAL,
+                     ID_PRECIO, FINANCIADO, PRELIMINAR)
+                    SELECT
+                        %s, TRY_CAST(ID_DOC AS BIGINT), TRY_CAST(ID_DOC AS BIGINT), %s, 'N', 'N', 'Abierto', 'FC',
+                        CONTACTO, FECHA_CONT, FECHA_DOC, FECHA_VENC, ID_SN, NOM_SOCIO, RNC_CED, ENT_FACTURA,
+                        ENT_MERCANCIA, SUBTOTAL, TOTAL_DESC, TOTAL_ITBIS, TOTAL_DOC, ISNULL(MON_DOC, 'RD$'), 0, TOTAL_DOC,
+                        COMENTARIO, ID_CONDICION, DIA, CONDICION, ID_VENDEDOR, GETDATE(), %s, %s,
+                        %s, %s, %s, SUBTOTAL, CTA_ASOCIADA, %s, ID_GASTO, %s,
+                        ID_PRECIO, 'N', 'N'
+                    FROM CAB_PEDIDO
+                    WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                    """,
+                    [
+                        factura_id,
+                        "PV",
+                        id_ncf,
+                        encf or None,
+                        tipo_desc,
+                        periodo_cont,
+                        usuario_id,
+                        ejercicio,
+                        terminal[:50],
+                        prefactura_id,
+                    ],
                 )
 
-            cursor.execute(
-                """
-                SELECT ISNULL(MAX(TRY_CAST(ID_DOC AS BIGINT)), 0) + 1
-                FROM CAB_FACTURA WITH (UPDLOCK, HOLDLOCK)
-                """
+                cursor.execute(
+                    """
+                    INSERT INTO DET_FACTURA
+                    (ID_DOC, ID_DOC_PV, No_LINEA, CLASE_DOC_BASE, REF_DOC_BASE, ESTATUS_LINEA, CLASE_ART, ID_ARTICULO,
+                     DESCRIP_ART, CANTIDAD, CANT_ENT, CANT_PEND, CANT_DESP, MEDIDA, COSTO, PRECIO, PRECIO_BRUTO, PORC_DESC,
+                     ID_IMPTO, TOTAL_DESC, TOTAL_COSTO, TOTAL_PRECIO, TOTAL_PRECIO_NETO, TOTAL_LINEA, ID_ALMACEN, ID_VENDEDOR,
+                     PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS, CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PRECIO_TRAS_DESC,
+                     FECHA_CONT, CEBE, CECO, PERIODO_CONT, EJERCICIO, REFERENCIA, OBSERVACION, CANT_UND, No_LINEA_BASE)
+                    SELECT
+                        %s, TRY_CAST(ID_DOC AS BIGINT), No_LINEA, 'PV', TRY_CAST(ID_DOC AS BIGINT), 'C', CLASE_ART, ID_ARTICULO,
+                        DESCRIP_ART, CANTIDAD, CANTIDAD, 0, CANTIDAD, MEDIDA, COSTO, PRECIO, PRECIO_BRUTO, PORC_DESC,
+                        ID_IMPTO, TOTAL_DESC, TOTAL_COSTO, TOTAL_PRECIO, TOTAL_PRECIO_NETO, TOTAL_LINEA, ID_ALMACEN, ID_VENDEDOR,
+                        PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS, CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PRECIO_TRAS_DESC,
+                        FECHA_CONT, CEBE, CECO, %s, %s, REFERENCIA, OBSERVACION, CANT_UND, No_LINEA
+                    FROM DET_PEDIDO
+                    WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                    """,
+                    [factura_id, periodo_cont, ejercicio, prefactura_id],
+                )
+
+                cursor.execute(
+                    """
+                    UPDATE CAB_PEDIDO
+                    SET EST_DOC = 'Cerrado',
+                        FECHA_ACT = CONVERT(VARCHAR(30), GETDATE(), 121)
+                    WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
+                    """,
+                    [prefactura_id],
+                )
+
+            transaction.on_commit(
+                lambda: broadcast_prefacturas_refresh(
+                    reason="prefactura-invoiced",
+                    event_id=client_event_id,
+                )
             )
-            row = cursor.fetchone()
-            factura_id = int((row[0] or 0))
-            if factura_id <= 0:
-                factura_id = 1
+            transaction.on_commit(
+                lambda: broadcast_prefactura_document_status(
+                    document_id=prefactura_id,
+                    estado="Cerrado",
+                    reason="prefactura-invoiced",
+                    event_id=client_event_id,
+                )
+            )
 
             if es_electronica:
-                try:
-                    config, encf = _ensure_ecf_sequence(tipo_ecf)
-                except ValueError as exc:
-                    return None, _ecf_sequence_error_response(tipo_ecf, exc)
-                id_ncf = int(tipo_ecf)
-                tipo_desc = _tipo_descripcion(tipo_ecf)
-            else:
-                id_ncf = None
-                tipo_desc = "Factura"
-
-            periodo_cont = str(today.month)
-            ejercicio = int(today.year)
-
-            cursor.execute(
-                """
-                INSERT INTO CAB_FACTURA
-                (ID_DOC, ID_DOC_PV, ID_DOC_BASE, TIPO_DOC_BASE, CANCELADO, IMPRESO, EST_DOC, TIPO_DOC,
-                 CONTACTO, FECHA_CONT, FECHA_DOC, FECHA_VENC, ID_SN, NOM_SOCIO, RNC_CED, ENT_FACTURA,
-                 ENT_MERCANCIA, SUBTOTAL, TOTAL_DESC, TOTAL_ITBIS, TOTAL_DOC, MON_DOC, ABONO, SALDO,
-                 COMENTARIO, ID_CONDICION, DIA, CONDICION, ID_VENDEDOR, FECHA_CREACION, ID_NCF, NCF,
-                 TIPO, PERIODO_CONT, ID_USUARIO, TOTAL_BASE, CTA_ASOCIADA, EJERCICIO, ID_GASTO, TERMINAL,
-                 ID_PRECIO, FINANCIADO, PRELIMINAR)
-                SELECT
-                    %s, TRY_CAST(ID_DOC AS BIGINT), TRY_CAST(ID_DOC AS BIGINT), %s, 'N', 'N', 'Abierto', 'FA',
-                    CONTACTO, FECHA_CONT, FECHA_DOC, FECHA_VENC, ID_SN, NOM_SOCIO, RNC_CED, ENT_FACTURA,
-                    ENT_MERCANCIA, SUBTOTAL, TOTAL_DESC, TOTAL_ITBIS, TOTAL_DOC, ISNULL(MON_DOC, 'RD$'), 0, TOTAL_DOC,
-                    COMENTARIO, ID_CONDICION, DIA, CONDICION, ID_VENDEDOR, GETDATE(), %s, %s,
-                    %s, %s, %s, SUBTOTAL, CTA_ASOCIADA, %s, ID_GASTO, %s,
-                    ID_PRECIO, 'N', 'N'
-                FROM CAB_PEDIDO
-                WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
-                """,
-                [
-                    factura_id,
-                    "PV",
-                    id_ncf,
-                    encf or None,
-                    tipo_desc,
-                    periodo_cont,
-                    usuario_id,
-                    ejercicio,
-                    terminal[:50],
-                    prefactura_id,
-                ],
-            )
-
-            cursor.execute(
-                """
-                INSERT INTO DET_FACTURA
-                (ID_DOC, ID_DOC_PV, No_LINEA, CLASE_DOC_BASE, REF_DOC_BASE, ESTATUS_LINEA, CLASE_ART, ID_ARTICULO,
-                 DESCRIP_ART, CANTIDAD, CANT_ENT, CANT_PEND, CANT_DESP, MEDIDA, COSTO, PRECIO, PRECIO_BRUTO, PORC_DESC,
-                 ID_IMPTO, TOTAL_DESC, TOTAL_COSTO, TOTAL_PRECIO, TOTAL_PRECIO_NETO, TOTAL_LINEA, ID_ALMACEN, ID_VENDEDOR,
-                 PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS, CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PRECIO_TRAS_DESC,
-                 FECHA_CONT, CEBE, CECO, PERIODO_CONT, EJERCICIO, REFERENCIA, OBSERVACION, CANT_UND, No_LINEA_BASE)
-                SELECT
-                    %s, TRY_CAST(ID_DOC AS BIGINT), No_LINEA, 'PV', TRY_CAST(ID_DOC AS BIGINT), 'C', CLASE_ART, ID_ARTICULO,
-                    DESCRIP_ART, CANTIDAD, CANTIDAD, 0, CANTIDAD, MEDIDA, COSTO, PRECIO, PRECIO_BRUTO, PORC_DESC,
-                    ID_IMPTO, TOTAL_DESC, TOTAL_COSTO, TOTAL_PRECIO, TOTAL_PRECIO_NETO, TOTAL_LINEA, ID_ALMACEN, ID_VENDEDOR,
-                    PORC_COM, CTA_INGRESO, CTA_GASTOS, CTA_COSTOS, CTA_INV, CTA_IMPTO, CTA_DEV_VENTA, PRECIO_TRAS_DESC,
-                    FECHA_CONT, CEBE, CECO, %s, %s, REFERENCIA, OBSERVACION, CANT_UND, No_LINEA
-                FROM DET_PEDIDO
-                WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
-                """,
-                [factura_id, periodo_cont, ejercicio, prefactura_id],
-            )
-
-            cursor.execute(
-                """
-                UPDATE CAB_PEDIDO
-                SET EST_DOC = 'Cerrado',
-                    FECHA_ACT = CONVERT(VARCHAR(30), GETDATE(), 121)
-                WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
-                """,
-                [prefactura_id],
-            )
-
-        if es_electronica:
-            doc_estado = "REGISTRADO" if encf else ("PENDIENTE_XML" if config and config.habilitado else "FACTURA_GENERADA")
-            doc, created = FacturacionElectronicaDocumento.objects.update_or_create(
-                id_doc=factura_id,
-                defaults={
-                    "tipo_ecf": tipo_ecf,
-                    "encf": encf or None,
-                    "estado": doc_estado,
-                    "cliente_rnc": str(pref[3] or "").strip() or None,
-                    "cliente_nombre": str(pref[2] or "").strip() or None,
-                    "fecha_doc": pref[6],
-                    "monto_total": Decimal(pref[5] or 0),
-                    "observaciones": f"Factura emitida desde prefactura {prefactura_id}",
-                },
-            )
-            FacturacionElectronicaEvento.objects.create(
-                documento=doc,
-                tipo_evento="FACTURA_EMITIDA",
-                detalle=f"Factura {factura_id} generada desde prefactura {prefactura_id}.",
-            )
-            if encf and created:
+                doc_estado = "REGISTRADO" if encf else ("PENDIENTE_XML" if config and config.habilitado else "FACTURA_GENERADA")
+                doc, created = FacturacionElectronicaDocumento.objects.update_or_create(
+                    id_doc=factura_id,
+                    defaults={
+                        "tipo_ecf": tipo_ecf,
+                        "encf": encf or None,
+                        "estado": doc_estado,
+                        "cliente_rnc": str(pref[3] or "").strip() or None,
+                        "cliente_nombre": str(pref[2] or "").strip() or None,
+                        "fecha_doc": pref[6],
+                        "monto_total": Decimal(pref[5] or 0),
+                        "observaciones": f"Factura emitida desde prefactura {prefactura_id}",
+                    },
+                )
                 FacturacionElectronicaEvento.objects.create(
                     documento=doc,
-                    tipo_evento="ENCF_ASIGNADO",
-                    detalle=f"e-NCF asignado: {encf}",
+                    tipo_evento="FACTURA_EMITIDA",
+                    detalle=f"Factura {factura_id} generada desde prefactura {prefactura_id}.",
                 )
-            dispatch_result = _dispatch_document_if_needed(doc, request, config)
-            dispatch_message = dispatch_result.message
+                if encf and created:
+                    FacturacionElectronicaEvento.objects.create(
+                        documento=doc,
+                        tipo_evento="ENCF_ASIGNADO",
+                        detalle=f"e-NCF asignado: {encf}",
+                    )
+                dispatch_result = _dispatch_document_if_needed(doc, request, config)
+                dispatch_message = dispatch_result.message
+    finally:
+        _prefactura_lock_release(prefactura_id, owner_id=lock_owner)
 
     result = {
         "ok": True,
@@ -2679,6 +2999,8 @@ def _emitir_factura_desde_prefactura(*, request, auth_payload, prefactura_id, ti
 
 def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
     prefactura_id = str(payload.get("prefactura_id") or "").strip()
+    client_event_id = str(payload.get("event_id") or "").strip()
+    lock_owner = str(payload.get("lock_owner") or "").strip()
     factura_id_payload = _to_int(payload.get("factura_id"), 0)
     id_sn = _clip_str(payload.get("id_sn"), 12).strip()
     nom_socio = _clip_str(payload.get("nom_socio"), 100).strip()
@@ -2689,7 +3011,6 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
         return None, JsonResponse({"detail": "Nombre del cliente requerido."}, status=400)
     if not isinstance(detalles, list):
         return None, JsonResponse({"detail": "detalles invalido"}, status=400)
-
     detalles = [
         detalle
         for detalle in detalles
@@ -2712,7 +3033,30 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
     impuesto = _to_decimal(payload.get("impuesto"))
     total_doc = _to_decimal(payload.get("total_doc"))
     usuario_id = _to_int_or_none((auth_payload or {}).get("usuario_id")) or 0
+    usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
     terminal = (socket.gethostname() or "FACTURA")[:50]
+    if prefactura_id and not lock_owner:
+        return None, JsonResponse({"detail": "lock_owner requerido para guardar la prefactura."}, status=400)
+    lock_acquired = False
+    if prefactura_id:
+        acquire_result = _prefactura_lock_acquire(
+            prefactura_id,
+            owner_id=lock_owner,
+            usuario_id=usuario_id,
+            usuario_nombre=usuario_nombre,
+            terminal=terminal,
+        )
+        if not acquire_result.get("ok"):
+            existing_lock = acquire_result.get("lock") or {}
+            return None, JsonResponse(
+                {
+                    "detail": "La prefactura esta en uso en otra terminal.",
+                    "lock_user": str(existing_lock.get("usuario_nombre") or "").strip(),
+                    "lock_terminal": str(existing_lock.get("terminal") or "").strip(),
+                },
+                status=409,
+            )
+        lock_acquired = True
     periodo_cont = str(fecha_doc.month)
     ejercicio = int(fecha_doc.year)
     manual_id_ncf = 2
@@ -2750,6 +3094,10 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
             "referencia",
             "stock",
             "bloqueado",
+            "um_inv",
+            "alm_dft",
+            "ceco",
+            "cta_aum_stock",
         )
         for articulo in articulos:
             articulo_id = str(articulo.get("id_articulo") or "").strip()
@@ -2759,6 +3107,10 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
             stock_items[articulo_id] = {
                 "descrip_art": str(articulo.get("descrip_art") or "").strip(),
                 "stock": _to_decimal(articulo.get("stock"), Decimal("0")),
+                "uom": str(articulo.get("um_inv") or "").strip(),
+                "alm_dft": _stringify_doc(articulo.get("alm_dft")),
+                "ceco": str(articulo.get("ceco") or "").strip(),
+                "cta_aum_stock": str(articulo.get("cta_aum_stock") or "").strip(),
             }
             if str(articulo.get("bloqueado") or "").strip().upper() in {"Y", "S", "1"}:
                 blocked_items.append(
@@ -2779,20 +3131,37 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
     empresa["logo_src"] = _build_inline_image_src(empresa.get("logo_b64"), empresa.get("logo_tipo"))
     if empresa.get("habilitar_fact_stock"):
         stock_errors = []
+        stock_request_items = []
         for articulo_id, cantidad_solicitada in requested_qty_by_articulo.items():
             articulo_stock = stock_items.get(articulo_id) or {}
             cantidad_disponible = _to_decimal(articulo_stock.get("stock"), Decimal("0"))
             if cantidad_solicitada > cantidad_disponible:
                 descripcion = str(articulo_stock.get("descrip_art") or "").strip()
                 etiqueta = f"{articulo_id} - {descripcion}".strip(" -")
+                cantidad_faltante = cantidad_solicitada - cantidad_disponible
                 stock_errors.append(
                     f"- {etiqueta} | seleccionado: {_format_decimal_display(cantidad_solicitada)} | disponible: {_format_decimal_display(cantidad_disponible)}"
+                )
+                stock_request_items.append(
+                    {
+                        "articulo_id": articulo_id,
+                        "descripcion": descripcion,
+                        "cantidad_solicitada": _format_decimal_display(cantidad_solicitada),
+                        "cantidad_disponible": _format_decimal_display(cantidad_disponible),
+                        "cantidad_faltante": _format_decimal_display(cantidad_faltante),
+                        "uom": str(articulo_stock.get("uom") or "").strip(),
+                        "alm_dft": _stringify_doc(articulo_stock.get("alm_dft")),
+                        "ceco": str(articulo_stock.get("ceco") or "").strip(),
+                        "cta_aum_stock": str(articulo_stock.get("cta_aum_stock") or "").strip(),
+                    }
                 )
         if stock_errors:
             return None, JsonResponse(
                 {
                     "detail": "No hay inventario suficiente para facturar:\n"
-                    + "\n".join(stock_errors)
+                    + "\n".join(stock_errors),
+                    "allow_request_existence": True,
+                    "stock_request_items": stock_request_items,
                 },
                 status=400,
             )
@@ -2946,7 +3315,7 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
                         CANCELADO = 'N',
                         IMPRESO = 'N',
                         EST_DOC = 'Abierto',
-                        TIPO_DOC = 'FA',
+                        TIPO_DOC = 'FC',
                         CONTACTO = %s,
                         FECHA_CONT = %s,
                         FECHA_DOC = %s,
@@ -3042,7 +3411,7 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
                      TIPO, PERIODO_CONT, ID_USUARIO, TOTAL_BASE, CTA_ASOCIADA, EJERCICIO, ID_GASTO, TERMINAL,
                      ID_PRECIO, FINANCIADO, PRELIMINAR)
                     VALUES
-                    (%s, %s, %s, %s, 'N', 'N', 'Abierto', 'FA',
+                    (%s, %s, %s, %s, 'N', 'N', 'Abierto', 'FC',
                      %s, %s, %s, %s, %s, %s, %s, %s,
                      %s, %s, %s, %s, %s, %s, 0, %s,
                      %s, %s, %s, %s, %s, GETDATE(), %s, NULL,
@@ -3166,11 +3535,22 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
                 ],
             )
 
+            mov_doc_columns = _load_table_columns(cursor, "MOV_DOC")
+            mov_doc_identity_columns = (
+                _load_identity_columns(cursor, "MOV_DOC") if mov_doc_columns else set()
+            )
+
             if factura_id_payload > 0:
                 cursor.execute(
                     "DELETE FROM DET_FACTURA WHERE TRY_CAST(ID_DOC AS BIGINT) = %s",
                     [factura_id],
                 )
+
+            tarjetero_columns = _load_table_columns(cursor, "TARJETERO")
+            tarjetero_identity_columns = (
+                _load_identity_columns(cursor, "TARJETERO") if tarjetero_columns else set()
+            )
+            id_vendedor_selected = _to_int_or_none(payload.get("id_vendedor")) or -1
 
             for index, detalle in enumerate(detalles, start=1):
                 id_articulo = _clip_str(detalle.get("id_articulo"), 20).strip()
@@ -3263,6 +3643,48 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
                     ],
                 )
 
+                if tarjetero_columns:
+                    cantidad_neg = -cantidad
+                    total_costo_t = cantidad_neg
+                    costo_t = Decimal("1")
+                    total_precio_t = total_costo_t * precio
+                    tarj_values = {}
+                    _assign_existing_values(tarj_values, tarjetero_columns, "FC", "TIPO_DOC", "TD", "CLASE_DOC", "TIPO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, factura_id, "ID_DOC", "NO_DOC", "NO", "DOCUMENTO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, cab_tipo_doc_base, "TIPO_DOC_BASE")
+                    _assign_existing_values(tarj_values, tarjetero_columns, cab_id_doc_base, "ID_DOC_BASE")
+                    _assign_existing_values(tarj_values, tarjetero_columns, cab_referencia, "REFERENCIA1")
+                    _assign_existing_values(tarj_values, tarjetero_columns, id_sn, "ID_SN", "ID_CLIENTE")
+                    _assign_existing_values(tarj_values, tarjetero_columns, nom_socio, "NOM_SN", "NOM_SOCIO", "NOMBRE_SN")
+                    _assign_existing_values(tarj_values, tarjetero_columns, _clip_str("11020101", 20), "CTA_ASOCIADA")
+                    _assign_existing_values(tarj_values, tarjetero_columns, id_articulo, "ID_ARTICULO", "ARTICULO", "COD_ART")
+                    _assign_existing_values(tarj_values, tarjetero_columns, descrip_art, "DESCRIP_ART", "DESCRIPCION", "DESCRIP")
+                    _assign_existing_values(tarj_values, tarjetero_columns, cantidad_neg, "CANTIDAD", "CANT")
+                    _assign_existing_values(tarj_values, tarjetero_columns, total_costo_t, "TOTAL_COSTO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, costo_t, "COSTO", "COSTO_UNIT", "COSTO_UNITARIO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, precio, "PRECIO", "PRECIO_UNIT", "PRECIO_UNITARIO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, total_precio_t, "TOTAL_PRECIO", "TOTAL_NETO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, "No", "LOTE")
+                    _assign_existing_values(tarj_values, tarjetero_columns, fecha_cont, "FECHA_CONT", "F_CONT")
+                    _assign_existing_values(tarj_values, tarjetero_columns, fecha_venc, "FECHA_VENC", "F_VENC")
+                    _assign_existing_values(tarj_values, tarjetero_columns, fecha_doc, "FECHA_DOC", "F_DOC")
+                    _assign_existing_values(tarj_values, tarjetero_columns, "RD$", "MONEDA", "MON_DOC")
+                    _assign_existing_values(tarj_values, tarjetero_columns, timezone.localdate(), "FECHA_CREACION")
+                    _assign_existing_values(tarj_values, tarjetero_columns, int(fecha_cont.month), "PERIODO_CONT")
+                    _assign_existing_values(tarj_values, tarjetero_columns, int(fecha_cont.year), "EJERCICIO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, 1, "ID_ALMACEN", "ALM", "ALMACEN")
+                    _assign_existing_values(tarj_values, tarjetero_columns, id_vendedor_selected, "ID_VENDEDOR", "VENDEDOR")
+                    _assign_existing_values(tarj_values, tarjetero_columns, usuario_id, "ID_USUARIO", "USUARIO_ID")
+                    _assign_existing_values(tarj_values, tarjetero_columns, _clip_str("41010101", 20), "CTA_INGRESO")
+                    _assign_existing_values(tarj_values, tarjetero_columns, _clip_str("21020301", 20), "CTA_IMPTO_VT", "CTA_IMPTO")
+                    _insert_dynamic_row(
+                        cursor,
+                        "TARJETERO",
+                        tarjetero_columns,
+                        tarj_values,
+                        skip_columns=tarjetero_identity_columns,
+                    )
+
                 _update_existing_columns_where(
                     cursor,
                     "DET_FACTURA",
@@ -3290,16 +3712,75 @@ def _emitir_factura_manual_desde_payload(*, request, auth_payload, payload):
                     [prefactura_id],
                 )
 
-    return (
-        {
-            "ok": True,
-            "factura_id": factura_id,
-            "updated": factura_id_payload > 0,
-            "prefactura_id": prefactura_id,
-            "print_url": f"/app/factura/impresion/?id_doc={factura_id}",
-        },
-        None,
-    )
+            if mov_doc_columns:
+                mov_values = {}
+                _assign_existing_values(mov_values, mov_doc_columns, "FC", "TIPO_DOC", "TD", "CLASE_DOC", "TIPO")
+                _assign_existing_values(mov_values, mov_doc_columns, factura_id, "ID_DOC", "NO_DOC", "NO", "DOCUMENTO")
+                _assign_existing_values(mov_values, mov_doc_columns, id_sn, "ID_SN", "ID_CLIENTE")
+                _assign_existing_values(mov_values, mov_doc_columns, nom_socio, "NOM_SN", "NOM_SOCIO", "NOMBRE_SN")
+                _assign_existing_values(mov_values, mov_doc_columns, _clip_str(payload.get("rnc_ced"), 13), "RNC_CED", "RNC")
+                _assign_existing_values(mov_values, mov_doc_columns, fecha_cont, "FECHA_CONT", "F_CONT")
+                _assign_existing_values(mov_values, mov_doc_columns, fecha_venc, "FECHA_VENC", "F_VENC")
+                _assign_existing_values(mov_values, mov_doc_columns, fecha_doc, "FECHA_DOC", "F_DOC")
+                _assign_existing_values(mov_values, mov_doc_columns, cab_tipo_doc_base, "CLASE_DOC_BASE", "TIPO_DOC_BASE")
+                _assign_existing_values(mov_values, mov_doc_columns, cab_referencia, "REF_DOC_BASE", "DOC_BASE", "ID_DOC_BASE", "REFERENCIA")
+                _assign_existing_values(mov_values, mov_doc_columns, cab_referencia, "REFERENCIA", "REFERENCIA1")
+                _assign_existing_values(mov_values, mov_doc_columns, subtotal, "TOTAL_BASE", "BASE")
+                _assign_existing_values(mov_values, mov_doc_columns, "Abierto", "EST_DOC", "ESTATUS", "ESTADO")
+                _assign_existing_values(mov_values, mov_doc_columns, total_doc, "TOTAL_DOC", "TOTAL", "MONTO", "IMPORTE", "VALOR")
+                _assign_existing_values(mov_values, mov_doc_columns, subtotal, "SUBTOTAL")
+                _assign_existing_values(mov_values, mov_doc_columns, total_desc, "TOTAL_DESC", "DESCUENTO")
+                _assign_existing_values(mov_values, mov_doc_columns, _clip_str("RD$", 50), "MON_DOC", "MONEDA")
+                _assign_existing_values(mov_values, mov_doc_columns, total_doc, "SALDO")
+                _assign_existing_values(mov_values, mov_doc_columns, _clip_str("11020101", 20), "CTA_ASOCIADA")
+                _assign_existing_values(mov_values, mov_doc_columns, "-1", "NO_RECIBO", "ID_RECIBO")
+                _assign_existing_values(mov_values, mov_doc_columns, datetime(1900, 1, 1), "FECHA_REC", "FECHA_RECIBO")
+                _assign_existing_values(mov_values, mov_doc_columns, no_ed, "NO_ED", "ID_ED")
+                _assign_existing_values(mov_values, mov_doc_columns, int(fecha_cont.month), "PERIODO_CONT")
+                _assign_existing_values(mov_values, mov_doc_columns, int(fecha_cont.year), "EJERCICIO")
+                _assign_existing_values(mov_values, mov_doc_columns, usuario_id, "ID_USUARIO", "USUARIO_ID")
+                _assign_existing_values(mov_values, mov_doc_columns, id_vendedor_selected, "ID_VENDEDOR", "VENDEDOR")
+                _assign_existing_values(mov_values, mov_doc_columns, _to_int_or_none(payload.get("id_condicion")), "ID_CONDICION", "CONDICION_ID")
+                _assign_existing_values(mov_values, mov_doc_columns, _clip_str(payload.get("condicion"), 15), "CONDICION")
+                _assign_existing_values(mov_values, mov_doc_columns, _to_int_or_none(payload.get("dia")), "DIA")
+                _assign_existing_values(mov_values, mov_doc_columns, "N", "CANCELADO", "ANULADO")
+                _assign_existing_values(mov_values, mov_doc_columns, terminal, "TERMINAL")
+                _assign_existing_values(mov_values, mov_doc_columns, _clip_str(payload.get("comentario"), 500) or "Factura", "COMENTARIO", "OBSERVACION", "NOTA")
+                _insert_dynamic_row(
+                    cursor,
+                    "MOV_DOC",
+                    mov_doc_columns,
+                    mov_values,
+                    skip_columns=mov_doc_identity_columns,
+                )
+        if prefactura_id:
+            transaction.on_commit(
+                lambda: broadcast_prefacturas_refresh(
+                    reason="prefactura-invoiced",
+                    event_id=client_event_id,
+                )
+            )
+            transaction.on_commit(
+                lambda: broadcast_prefactura_document_status(
+                    document_id=prefactura_id,
+                    estado="Cerrado",
+                    reason="prefactura-invoiced",
+                    event_id=client_event_id,
+                )
+            )
+            if lock_owner:
+                transaction.on_commit(lambda: _prefactura_lock_release(prefactura_id, owner_id=lock_owner))
+
+        return (
+            {
+                "ok": True,
+                "factura_id": factura_id,
+                "updated": factura_id_payload > 0,
+                "prefactura_id": prefactura_id,
+                "print_url": f"/app/factura/impresion/?id_doc={factura_id}",
+            },
+            None,
+        )
 
 
 @require_http_methods(["POST"])
@@ -3325,6 +3806,8 @@ def emitir_factura_manual_view(request):
             auth_payload=auth_payload,
             prefactura_id=payload.get("prefactura_id"),
             tipo_ecf="",
+            lock_owner=payload.get("lock_owner"),
+            event_id=payload.get("event_id"),
         )
     if error:
         return error
@@ -3347,6 +3830,8 @@ def emitir_factura_view(request):
         auth_payload=auth_payload,
         prefactura_id=payload.get("prefactura_id"),
         tipo_ecf=payload.get("tipo_ecf") or "32",
+        lock_owner=payload.get("lock_owner"),
+        event_id=payload.get("event_id"),
     )
     if error:
         return error
@@ -3368,6 +3853,7 @@ def factura_print_view(request):
         copies = 1
     copies = max(1, min(copies, 20))
     autoprint = str(request.GET.get("autoprint") or "").strip().lower() in {"1", "true", "yes", "si"}
+    mobile_print = str(request.GET.get("mobile_print") or "").strip().lower() in {"1", "true", "yes", "si"}
 
     empresa = _get_empresa_data()
     empresa["logo_src"] = _build_inline_image_src(empresa.get("logo_b64"), empresa.get("logo_tipo"))
@@ -3437,7 +3923,7 @@ def factura_print_view(request):
             cursor.execute(
                 """
                 SELECT No_LINEA, ID_ARTICULO, DESCRIP_ART, CANTIDAD, MEDIDA, PRECIO,
-                       PORC_DESC, TOTAL_ITBIS, TOTAL_LINEA
+                       PORC_DESC, TOTAL_DESC, TOTAL_ITBIS, TOTAL_LINEA
                 FROM DET_FACTURA
                 WHERE CAST(ID_DOC AS VARCHAR(50)) = %s
                 ORDER BY No_LINEA, ID_DETALLE
@@ -3454,8 +3940,9 @@ def factura_print_view(request):
                         "medida": str(d[4] or ""),
                         "precio": Decimal(d[5] or 0),
                         "porc_desc": Decimal(d[6] or 0),
-                        "total_itbis": Decimal(d[7] or 0),
-                        "total_linea": Decimal(d[8] or 0),
+                        "total_desc": Decimal(d[7] or 0),
+                        "total_itbis": Decimal(d[8] or 0),
+                        "total_linea": Decimal(d[9] or 0),
                     }
                 )
 
@@ -3503,6 +3990,8 @@ def factura_print_view(request):
             "fecha_impresion": timezone.localtime(),
             "copies_range": range(copies),
             "autoprint": autoprint,
+            "mobile_print": mobile_print,
+            "formato_impresion": get_print_format("factura"),
             "doc_label": doc_label,
             "doc_numero_label": doc_numero_label,
             "detalle_label": detalle_label,

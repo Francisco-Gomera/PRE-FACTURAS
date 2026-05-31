@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+﻿{% extends "core/base.html" %}
 {% load static %}
 
 {% block head_extra %}
@@ -595,6 +595,160 @@
       grid-template-columns: 1fr;
     }
   }
+
+  @media (max-width: 768px) {
+    .facturacion-manual-page.app {
+      max-width: 100%;
+    }
+
+    #facturacion_panel .card {
+      padding: 8px;
+      border-radius: 14px;
+    }
+
+    #facturacion_panel .header-grid {
+      grid-template-columns: 1fr !important;
+      gap: 8px;
+    }
+
+    .facturacion-top-layout {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    #facturacion_panel .form-grid {
+      grid-template-columns: 1fr !important;
+      gap: 10px;
+      width: 100%;
+    }
+
+    #facturacion_panel label {
+      margin-top: 0;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    #facturacion_panel input,
+    #facturacion_panel select,
+    #facturacion_panel textarea,
+    #facturacion_panel .btn-client {
+      height: 34px;
+      font-size: 14px;
+      border-radius: 10px;
+      padding: 4px 10px;
+    }
+
+    #facturacion_panel textarea {
+      min-height: 88px;
+      height: 88px;
+    }
+
+    .facturacion-shortcuts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      padding: 0;
+    }
+
+    .facturacion-shortcuts h4 {
+      grid-column: 1 / -1;
+      margin-bottom: 2px;
+    }
+
+    .facturacion-shortcut-btn {
+      min-height: 38px;
+      height: auto;
+      padding: 8px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+
+    .facturacion-picker-card {
+      gap: 6px;
+    }
+
+    .facturacion-picker-selected {
+      text-align: left;
+      font-size: 12px;
+    }
+
+    .facturacion-pref-search {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .facturacion-pref-search .btn-small {
+      width: 100%;
+      min-width: 0;
+      height: 34px;
+    }
+
+    .facturacion-pref-grid-shell {
+      min-height: 180px;
+      max-height: 180px;
+    }
+
+    .detail-head {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .detail-head .tab {
+      flex: 1 1 calc(50% - 6px);
+      text-align: center;
+      padding: 8px 10px;
+    }
+
+    .toolbar {
+      width: 100%;
+      margin-left: 0;
+      justify-content: stretch;
+    }
+
+    .toolbar .btn-small {
+      width: 100%;
+      min-width: 0;
+      height: 34px;
+    }
+
+    #facturacion_tab_detalle .grid-shell,
+    .facturacion-pref-grid-shell {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    #facturacion_tab_detalle .grid-shell table {
+      min-width: 940px;
+    }
+
+    #facturacion_panel .bottom-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    #facturacion_panel .totals-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    #facturacion_panel .actions-bar {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    #facturacion_panel .actions-bar .spacer {
+      display: none;
+    }
+
+    #facturacion_panel .actions-bar button {
+      width: 100%;
+      min-width: 0;
+      height: 44px;
+      font-size: 15px;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -789,6 +943,7 @@
     </div>
     <div id="facturacion_alert_message" class="app-alert-body"></div>
     <div class="app-alert-actions">
+      <button id="btn_facturacion_alert_action" type="button" class="app-alert-secondary" style="display:none;"></button>
       <button id="btn_facturacion_alert_ok" type="button" class="app-alert-ok">Aceptar</button>
     </div>
   </div>
@@ -820,20 +975,22 @@
     </div>
     <div class="win-body facturacion-print-body">
       <p class="facturacion-print-copy">
-        Revisa la cantidad de hojas antes de continuar. La factura se abrira lista para imprimir en hojas A4 separadas.
+        Formato configurado: <strong>{{ factura_print_format_label|default:"A4" }}</strong>. Revisa la cantidad de copias antes de continuar.
       </p>
       <div class="facturacion-print-layout">
         <div class="facturacion-print-editor">
-          <label for="facturacion_print_copies">Cantidad de hojas A4</label>
+          <label for="facturacion_print_copies">Cantidad de copias</label>
           <input id="facturacion_print_copies" type="number" min="1" max="20" step="1" value="2" inputmode="numeric" />
-          <small>La configuracion inicial viene en 2 hojas para mantener el mismo flujo de cuentas por cobrar.</small>
+          <small>El tamano de papel se toma de Ajustes > Parametros.</small>
         </div>
         <div class="facturacion-print-meta">
           <h4>Resumen</h4>
           <ul>
             <li><span>Factura</span><strong id="facturacion_print_documento">-</strong></li>
-            <li><span>Total hojas</span><strong id="facturacion_print_total_hojas">2</strong></li>
+            <li><span>Formato</span><strong>{{ factura_print_format_label|default:"A4" }}</strong></li>
+            <li><span>Copias a imprimir</span><strong id="facturacion_print_total_hojas">2</strong></li>
             <li><span>Total copias</span><strong id="facturacion_print_total_copias">2</strong></li>
+            <li><span>Impresora</span><strong id="facturacion_print_printer">Dialogo del navegador (selecciona la impresora al imprimir)</strong></li>
           </ul>
         </div>
       </div>
@@ -987,6 +1144,9 @@
 <script>
   window.facturacionManualConfig = {
     prefListUrl: "{% url 'factura:emision_prefacturas' %}",
+    prefListStatusUrl: "{% url 'factura:emision_prefacturas_status' %}",
+    prefLockUrl: "{% url 'factura:emision_prefactura_lock' %}",
+    prefSocketUrl: "/ws/prefacturas/",
     prefDetailUrl: "{% url 'factura:emision_prefactura_detalle' %}",
     emitirFacturaManualUrl: "{% url 'factura:emitir_factura_manual' %}",
     cancelarFacturaManualUrl: "{% url 'factura:facturacion_cancelar_factura' %}",
@@ -998,6 +1158,7 @@
     unidadMedidaBuscarUrl: "{% url 'factura:facturacion_unidad_medida_buscar' %}",
     proyectosBuscarUrl: "{% url 'factura:facturacion_proyectos_buscar' %}",
     cebesBuscarUrl: "{% url 'factura:facturacion_cebes_buscar' %}",
+    requestExistenciaUrl: "{% url 'inventario:solicitudes_existencia_crear' %}",
     shortcutUrls: {
       cuentas_por_cobrar: "{% url 'caja:cuentas_por_cobrar' %}",
       financiamiento: "{% url 'caja:financiamiento' %}?nuevo=1",
@@ -1009,9 +1170,13 @@
       prefactura: {{ facturacion_shortcuts.prefactura|yesno:"true,false" }},
     },
     serverToday: "{{ server_today_iso|default:''|escapejs }}",
+    printFormat: "{{ factura_print_format|default:'a4'|escapejs }}",
+    printFormatLabel: "{{ factura_print_format_label|default:'A4'|escapejs }}",
     csrfToken: "{{ csrf_token }}",
     usuarioNombre: "{{ auth_payload.usuario_nombre|escapejs }}",
   };
 </script>
-<script src="{% static 'factura/facturacion_manual.js' %}?v=20260328e"></script>
+<script src="{% static 'factura/facturacion_manual.js' %}?v=20260520a"></script>
 {% endblock %}
+
+

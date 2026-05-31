@@ -1,6 +1,14 @@
 import base64
+import json
+from pathlib import Path
+
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from django.conf import settings
+from django.http import HttpResponse, JsonResponse
 from django.db import connection
 from django.shortcuts import redirect, render
+from django.views.decorators.http import require_GET, require_POST
 
 from ajustes.permissions import ensure_admin_role, has_perm
 
@@ -89,8 +97,10 @@ def _base_context(request, *, page_title, active_nav):
         "cartas": has_perm(usuario_id, "cartas", "ver"),
         "factura": has_perm(usuario_id, "factura", "ver"),
         "caja": has_perm(usuario_id, "caja", "ver"),
+        "chat_interno": has_perm(usuario_id, "chat_interno", "ver"),
         "ajustes": has_perm(usuario_id, "ajustes", "ver"),
     }
+    stock_request_notifications_enabled = has_perm(usuario_id, "inventario", "ver_entrada_articulos")
     empresa = _get_empresa_data()
     return {
         "auth_payload": auth_payload,
@@ -99,6 +109,7 @@ def _base_context(request, *, page_title, active_nav):
         "page_title": page_title,
         "active_nav": active_nav,
         "visible_modules": visible_modules,
+        "stock_request_notifications_enabled": stock_request_notifications_enabled,
     }
 
 
@@ -115,3 +126,57 @@ def dashboard_view(request):
     if not ctx:
         return redirect("login")
     return render(request, "core/dashboard.html", ctx)
+
+
+def _require_authenticated_ajax(request):
+    if not _get_auth_payload(request):
+        return JsonResponse({"detail": "Sesion no valida."}, status=401)
+    if request.headers.get("X-Requested-With") != "XMLHttpRequest":
+        return JsonResponse({"detail": "Solicitud no permitida."}, status=400)
+    return None
+
+
+def _read_qz_file(path_setting):
+    path = Path(path_setting)
+    if not path.exists():
+        raise FileNotFoundError(str(path))
+    return path.read_bytes()
+
+
+@require_GET
+def qz_certificate_view(request):
+    denied = _require_authenticated_ajax(request)
+    if denied:
+        return denied
+    try:
+        certificate = _read_qz_file(settings.QZ_CERTIFICATE_PATH).decode("utf-8")
+    except FileNotFoundError:
+        return JsonResponse({"detail": "No se encontro el certificado de QZ Tray."}, status=503)
+    return HttpResponse(certificate, content_type="text/plain; charset=utf-8")
+
+
+@require_POST
+def qz_sign_view(request):
+    denied = _require_authenticated_ajax(request)
+    if denied:
+        return denied
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "Solicitud de firma invalida."}, status=400)
+    request_data = str(payload.get("request") or "")
+    if not request_data:
+        return JsonResponse({"detail": "No hay datos para firmar."}, status=400)
+    try:
+        private_key = serialization.load_pem_private_key(
+            _read_qz_file(settings.QZ_PRIVATE_KEY_PATH),
+            password=None,
+        )
+    except FileNotFoundError:
+        return JsonResponse({"detail": "No se encontro la llave privada de QZ Tray."}, status=503)
+    signature = private_key.sign(
+        request_data.encode("utf-8"),
+        padding.PKCS1v15(),
+        hashes.SHA512(),
+    )
+    return HttpResponse(base64.b64encode(signature).decode("ascii"), content_type="text/plain; charset=utf-8")

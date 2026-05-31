@@ -1,4 +1,4 @@
-{% extends "core/base.html" %}
+﻿{% extends "core/base.html" %}
 
 {% block head_extra %}
 <style>
@@ -859,6 +859,13 @@
     filter: none;
   }
 
+  #cxc_panel.cxc-state-viewing #btn_cxc_grabar:not(:disabled) {
+    background: linear-gradient(180deg, var(--cxc-active-blue-top), var(--cxc-active-blue-bottom));
+    color: #ffffff;
+    border-color: var(--cxc-active-blue-border);
+    box-shadow: 0 8px 16px var(--cxc-active-blue-shadow);
+  }
+
   .cxc-action.is-muted {
     background: #f4f7fc;
     color: #8ea0bb;
@@ -1057,7 +1064,7 @@
   }
 
   .cxc-print-modal {
-    width: min(560px, 94vw);
+    width: min(640px, 94vw);
   }
 
   .cxc-print-body {
@@ -1170,11 +1177,22 @@
     gap: 6px;
   }
 
+  .cxc-print-summary-printer {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(94px, auto) minmax(0, 1fr);
+    align-items: center;
+    column-gap: 14px;
+  }
+
   .cxc-print-summary strong {
     font-size: 15px;
     color: #103b68;
     line-height: 1.2;
-    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .cxc-print-summary-printer strong {
+    text-align: right;
   }
 
   .cxc-print-note {
@@ -1665,8 +1683,13 @@
     }
 
     .cxc-print-layout,
-    .cxc-print-summary {
+    .cxc-print-summary,
+    .cxc-print-summary-printer {
       grid-template-columns: 1fr;
+    }
+
+    .cxc-print-summary-printer strong {
+      text-align: left;
     }
 
     .cxc-print-actions .cxc-action {
@@ -1872,8 +1895,8 @@
                 </div>
 
                 <div class="cxc-importe-row">
-                  <span class="cxc-importe-icon" aria-hidden="true">✓</span>
-                  <button id="btn_cxc_importe_total" type="button" class="cxc-importe-icon" title="Cargar total al importe actual">✓</button>
+                  <span class="cxc-importe-icon" aria-hidden="true">âœ“</span>
+                  <button id="btn_cxc_importe_total" type="button" class="cxc-importe-icon" title="Cargar total al importe actual">âœ“</button>
                   <label class="cxc-importe-label" for="cxc_importe_pago">Importe</label>
                   <input id="cxc_importe_pago" class="cxc-importe-input" type="number" min="0" step="0.01" value="0.00" inputmode="decimal" autocomplete="off" />
                 </div>
@@ -2054,6 +2077,10 @@
   <button id="btn_cxc_cobros_context_print" type="button">Imprimir</button>
 </div>
 
+<div id="cxc_detalle_context_menu" class="cxc-context-menu" aria-hidden="true">
+  <button id="btn_cxc_detalle_context_print_origin" type="button">Ver factura de origen</button>
+</div>
+
 <div id="cxc_estado_context_menu" class="cxc-context-menu" aria-hidden="true">
   <button id="btn_cxc_estado_context_cancel" type="button">Cancelar</button>
 </div>
@@ -2066,23 +2093,23 @@
     </div>
     <div class="win-body cxc-print-body">
       <p class="cxc-print-copy">
-        Revisa la cantidad de hojas y la configuracion del recibo antes de abrir el cuadro de impresion del navegador.
+        Formato configurado: <strong>{{ cxc_print_format_label|default:"A4" }}</strong>. Revisa la cantidad de copias antes de abrir el cuadro de impresion del navegador.
       </p>
 
       <div class="cxc-print-layout">
         <div class="cxc-print-editor">
-          <label for="cxc_print_modal_copies">Cantidad de hojas A4</label>
+          <label for="cxc_print_modal_copies">Cantidad de copias</label>
           <input id="cxc_print_modal_copies" type="number" min="1" max="20" step="1" value="2" inputmode="numeric" />
-          <small>Cada hoja incluye un recibo completo. El valor predeterminado es 2 hojas.</small>
+          <small>El tamano de papel se toma de Ajustes > Parametros.</small>
         </div>
 
         <div class="cxc-print-meta">
           <h4>Configuracion del formato</h4>
           <ul>
-            <li><span>Formato</span><strong>210 mm x 148.5 mm</strong></li>
-            <li><span>Orientacion</span><strong>Horizontal</strong></li>
-            <li><span>Tamano del recibo</span><strong>Hoja completa</strong></li>
-            <li><span>Posicion</span><strong>Ajustado al formato</strong></li>
+            <li><span>Formato</span><strong>{{ cxc_print_format_label|default:"A4" }}</strong></li>
+            <li><span>Orientacion</span><strong>Vertical</strong></li>
+            <li><span>Tamano del recibo</span><strong>{% if cxc_print_format == "a4" %}Hoja completa{% else %}Ticket{% endif %}</strong></li>
+            <li><span>Posicion</span><strong>Ajustado a la hoja</strong></li>
           </ul>
         </div>
       </div>
@@ -2093,17 +2120,21 @@
           <strong id="cxc_print_modal_recibo">-</strong>
         </div>
         <div>
-          <span>Total de hojas</span>
+          <span>Copias a imprimir</span>
           <strong id="cxc_print_modal_total_hojas">2</strong>
         </div>
         <div>
           <span>Total de recibos</span>
           <strong id="cxc_print_modal_total_recibos">2</strong>
         </div>
+        <div class="cxc-print-summary-printer">
+          <span>Impresora</span>
+          <strong id="cxc_print_modal_printer">Dialogo del navegador (selecciona la impresora al imprimir)</strong>
+        </div>
       </div>
 
       <div class="cxc-print-note">
-        Al continuar, se abrira la impresion del navegador. En moviles se abrira directamente el PDF del recibo para que uses las opciones del visor del navegador o del telefono.
+        Si no hay impresora predeterminada para esta terminal, se abrira el dialogo del navegador para elegirla al imprimir.
       </div>
 
       <div class="cxc-print-actions">
@@ -2253,10 +2284,10 @@
     <div class="win-body">
       <div class="search-row">
         <label for="cxc_buscar_input">Buscar</label>
-        <input id="cxc_buscar_input" type="text" placeholder="No. recibo, cliente o RNC/Ced." />
+        <input id="cxc_buscar_input" type="text" placeholder="No. recibo, nombre o RNC/Ced." />
         <select id="cxc_buscar_filter">
-          <option value="recibo" selected>No. recibo</option>
-          <option value="cliente">Cliente</option>
+          <option value="recibo">No. recibo</option>
+          <option value="cliente" selected>Nombre</option>
           <option value="rnc">RNC/Ced.</option>
         </select>
       </div>
@@ -2349,12 +2380,18 @@
     const cxcDetalleReciboUrl = "{% url 'caja:cuentas_por_cobrar_detalle' %}";
     const cxcCobrosAnterioresUrl = "{% url 'caja:cuentas_por_cobrar_cobros_anteriores' %}";
     const cxcGuardarUrl = "{% url 'caja:cuentas_por_cobrar_guardar' %}";
+    const cxcMedioPagoUrl = "{% url 'caja:cuentas_por_cobrar_medio_pago' %}";
+    const cxcCorregirMontoUrl = "{% url 'caja:cuentas_por_cobrar_corregir_monto' %}";
     const cxcMarcarImpresoUrl = "{% url 'caja:cuentas_por_cobrar_marcar_impreso' %}";
     const cxcCancelarUrl = "{% url 'caja:cuentas_por_cobrar_cancelar' %}";
+    const cxcSocketUrl = "/ws/cxc/";
     const cxcPrintDataUrl = "{% url 'caja:cuentas_por_cobrar_print_data' %}";
     const cxcPdfUrl = "{% url 'caja:cuentas_por_cobrar_pdf' %}";
+    const cxcFacturaPrintUrl = "{% url 'factura:factura_impresion' %}";
     const cxcCatalogoCuentasUrl = "{% url 'caja:catalogo_cuentas_detalle' %}";
     const cxcCatalogoCuentasFinancUrl = "{% url 'caja:catalogo_cuentas_financ' %}";
+    const cxcPrintFormat = "{{ cxc_print_format|default:'a4'|escapejs }}";
+    const cxcPrintFormatLabel = "{{ cxc_print_format_label|default:'A4'|escapejs }}";
     const cxcShortcutUrls = {
       financiamiento: "{% url 'caja:financiamiento' %}?nuevo=1",
       factura: "{% url 'factura:facturacion' %}",
@@ -2367,6 +2404,9 @@
       imprimir: {{ cxc_permissions.imprimir|yesno:"true,false" }},
       cancelar: {{ cxc_permissions.cancelar|yesno:"true,false" }},
       cerrar_cuenta: {{ cxc_permissions.cerrar_cuenta|yesno:"true,false" }},
+      modificar_medio_pago: {{ cxc_permissions.modificar_medio_pago|yesno:"true,false" }},
+      corregir_monto_pago: {{ cxc_permissions.corregir_monto_pago|yesno:"true,false" }},
+      modificar_fechas_pago: {{ cxc_permissions.modificar_fechas_pago|yesno:"true,false" }},
     };
     const cxcShortcutPermissions = {
       financiamiento: {{ cxc_shortcuts.financiamiento|yesno:"true,false" }},
@@ -2394,6 +2434,8 @@
     const btnCxcMobileReceiptCancel = document.getElementById("btn_cxc_mobile_receipt_cancel");
     const cxcCobrosContextMenu = document.getElementById("cxc_cobros_context_menu");
     const btnCxcCobrosContextPrint = document.getElementById("btn_cxc_cobros_context_print");
+    const cxcDetalleContextMenu = document.getElementById("cxc_detalle_context_menu");
+    const btnCxcDetalleContextPrintOrigin = document.getElementById("btn_cxc_detalle_context_print_origin");
     const cxcEstadoContextMenu = document.getElementById("cxc_estado_context_menu");
     const btnCxcEstadoContextCancel = document.getElementById("btn_cxc_estado_context_cancel");
     const btnCxcNuevo = document.getElementById("btn_cxc_nuevo");
@@ -2409,6 +2451,7 @@
     const printModalRecibo = document.getElementById("cxc_print_modal_recibo");
     const printModalTotalHojas = document.getElementById("cxc_print_modal_total_hojas");
     const printModalTotalRecibos = document.getElementById("cxc_print_modal_total_recibos");
+    const printModalPrinter = document.getElementById("cxc_print_modal_printer");
     const alertModalBackdrop = document.getElementById("cxc_alert_modal_backdrop");
     const btnCloseAlertModal = document.getElementById("btn_close_cxc_alert_modal");
     const btnCxcAlertModalOk = document.getElementById("btn_cxc_alert_modal_ok");
@@ -2469,6 +2512,7 @@
     const fieldFechaCont = document.getElementById("cxc_fecha_cont");
     const fieldFechaVenc = document.getElementById("cxc_fecha_venc");
     const fieldFechaAplic = document.getElementById("cxc_fecha_aplic");
+    const cxcPaymentDateFields = [fieldFechaCont, fieldFechaVenc, fieldFechaAplic];
     const fieldEstado = document.getElementById("cxc_estado");
     const fieldTerminalCliente = document.getElementById("cxc_terminal_cliente");
     const fieldMetodo = document.getElementById("cxc_metodo");
@@ -2528,6 +2572,7 @@
 
     let cxcClienteSeleccionado = false;
     let cxcDocumentoSeleccionado = false;
+    let cxcPendingScrollToDetailRequested = false;
     let cxcReadOnlyReceipt = false;
     let cxcCloseMode = false;
     let cxcCloseModeSourceRows = [];
@@ -2537,7 +2582,11 @@
     let cxcLoadedSummary = null;
     let cxcSelectedCobroAnteriorKey = "";
     let cxcSelectedCobroAnterior = null;
+    let cxcSelectedDetalleRowIndex = -1;
+    let cxcSelectedDetalleRow = null;
     let cxcLoadedPaymentAmounts = { Efectivo: 0, Transferencia: 0 };
+    let cxcOriginalPaymentAmounts = { Efectivo: 0, Transferencia: 0 };
+    let cxcOriginalDetailPayments = [];
     let cxcPrintPendingReciboId = "";
     let cxcPrintPendingReciboLabel = "";
     let cxcResetAfterPrintModal = false;
@@ -2567,6 +2616,11 @@
     let cxcLastMobileLayoutContext = null;
     let cxcPendingAutofocusRequested = false;
     let cxcPendingAutofocusIndex = -1;
+    let cxcStatusSocket = null;
+    let cxcStatusSocketReconnectTimer = null;
+    let cxcPendingLocalEventId = "";
+    const cxcRecentLocalReceiptEvents = new Map();
+    const CXC_LOCAL_EVENT_TTL_MS = 12000;
     const __nativeAlert = window.alert ? window.alert.bind(window) : null;
     const __nativeConfirm = window.confirm ? window.confirm.bind(window) : null;
 
@@ -2900,6 +2954,14 @@
       cxcCobrosContextMenu.style.top = "-9999px";
     }
 
+    function hideDetalleContextMenu() {
+      if (!cxcDetalleContextMenu) return;
+      cxcDetalleContextMenu.classList.remove("open");
+      cxcDetalleContextMenu.setAttribute("aria-hidden", "true");
+      cxcDetalleContextMenu.style.left = "-9999px";
+      cxcDetalleContextMenu.style.top = "-9999px";
+    }
+
     function hideEstadoContextMenu() {
       if (!cxcEstadoContextMenu) return;
       cxcEstadoContextMenu.classList.remove("open");
@@ -2935,6 +2997,20 @@
       }
     }
 
+    async function syncCxcPrintModalPrinter() {
+      if (!printModalPrinter) return;
+      printModalPrinter.textContent = "Verificando...";
+      try {
+        if (window.CALocalPrint && typeof window.CALocalPrint.getPrintTarget === "function") {
+          const target = await window.CALocalPrint.getPrintTarget("cxc");
+          printModalPrinter.textContent = target.label || "Dialogo del navegador (selecciona la impresora al imprimir)";
+          return;
+        }
+      } catch (error) {
+        // Keep the browser dialog fallback visible when preferences are unavailable.
+      }
+      printModalPrinter.textContent = "Dialogo del navegador (selecciona la impresora al imprimir)";
+    }
     function openCxcPrintModal(reciboId, reciboLabel = "") {
       if (!hasCxcPermission("imprimir")) {
         window.alert("No tienes permiso para imprimir recibos de cuentas por cobrar.");
@@ -2950,6 +3026,7 @@
         fieldCxcPrintModalCopies.value = "2";
       }
       syncCxcPrintModalSummary();
+      void syncCxcPrintModalPrinter();
       printModalBackdrop.classList.add("open");
       printModalBackdrop.setAttribute("aria-hidden", "false");
       lockPageScroll();
@@ -3026,6 +3103,133 @@
     window.alert = __customAlert;
     globalThis.alert = __customAlert;
 
+    function createCxcClientEventId() {
+      if (window.crypto?.randomUUID) {
+        return window.crypto.randomUUID();
+      }
+      return `cxc-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function pruneRecentLocalCxcEvents() {
+      const now = Date.now();
+      Array.from(cxcRecentLocalReceiptEvents.entries()).forEach(([key, expiresAt]) => {
+        if (!expiresAt || expiresAt <= now) {
+          cxcRecentLocalReceiptEvents.delete(key);
+        }
+      });
+    }
+
+    function rememberRecentLocalCxcReceipt(reciboId) {
+      const normalizedId = String(reciboId || "").trim();
+      if (!normalizedId) {
+        return;
+      }
+      pruneRecentLocalCxcEvents();
+      cxcRecentLocalReceiptEvents.set(normalizedId, Date.now() + CXC_LOCAL_EVENT_TTL_MS);
+    }
+
+    function shouldIgnoreRecentLocalCxcReceipt(reciboId) {
+      const normalizedId = String(reciboId || "").trim();
+      if (!normalizedId) {
+        return false;
+      }
+      pruneRecentLocalCxcEvents();
+      return cxcRecentLocalReceiptEvents.has(normalizedId);
+    }
+
+    function resolveCxcSocketUrl() {
+      const rawUrl = String(cxcSocketUrl || "").trim();
+      if (!rawUrl) return "";
+      if (/^wss?:\/\//i.test(rawUrl)) {
+        return rawUrl;
+      }
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${window.location.host}${rawUrl}`;
+    }
+
+    function clearCxcSocketReconnect() {
+      if (!cxcStatusSocketReconnectTimer) return;
+      window.clearTimeout(cxcStatusSocketReconnectTimer);
+      cxcStatusSocketReconnectTimer = null;
+    }
+
+    function scheduleCxcSocketReconnect() {
+      if (cxcStatusSocketReconnectTimer) return;
+      cxcStatusSocketReconnectTimer = window.setTimeout(() => {
+        cxcStatusSocketReconnectTimer = null;
+        connectCxcStatusSocket();
+      }, 3000);
+    }
+
+    async function handleExternalCxcDocumentStatus(data) {
+      const documentId = String(data?.document_id || "").trim();
+      const isApplyingPayments = !cxcReadOnlyReceipt && cxcClienteSeleccionado;
+      if (!isApplyingPayments) {
+        return;
+      }
+      if (!documentId || documentId !== String(cxcCurrentReciboId || "").trim()) {
+        return;
+      }
+      await loadCxcRecibo(documentId);
+      const reciboLabel = String(fieldNo?.value || data?.no_recibo || documentId).trim() || documentId;
+      const estado = String(data?.estado || "").trim();
+      const estadoSuffix = estado ? ` y ahora esta ${estado}` : "";
+      await showCxcAlert(`El recibo ${reciboLabel} cambio en otra terminal${estadoSuffix}. La pantalla se actualizo automaticamente.`);
+    }
+
+    function connectCxcStatusSocket() {
+      const socketUrl = resolveCxcSocketUrl();
+      if (!socketUrl || !("WebSocket" in window)) {
+        return;
+      }
+      if (cxcStatusSocket && (cxcStatusSocket.readyState === WebSocket.OPEN || cxcStatusSocket.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      clearCxcSocketReconnect();
+      try {
+        cxcStatusSocket = new WebSocket(socketUrl);
+      } catch (error) {
+        scheduleCxcSocketReconnect();
+        return;
+      }
+
+      cxcStatusSocket.addEventListener("open", () => {
+        clearCxcSocketReconnect();
+      });
+
+      cxcStatusSocket.addEventListener("message", async (event) => {
+        let data = null;
+        try {
+          data = JSON.parse(event.data);
+        } catch (error) {
+          return;
+        }
+        if (!data || data.type !== "cxc.document_status") {
+          return;
+        }
+        const incomingEventId = String(data.event_id || "").trim();
+        if (incomingEventId && incomingEventId === cxcPendingLocalEventId) {
+          cxcPendingLocalEventId = "";
+          return;
+        }
+        if (shouldIgnoreRecentLocalCxcReceipt(data.document_id || "")) {
+          return;
+        }
+        await handleExternalCxcDocumentStatus(data);
+      });
+
+      cxcStatusSocket.addEventListener("close", () => {
+        cxcStatusSocket = null;
+        scheduleCxcSocketReconnect();
+      });
+
+      cxcStatusSocket.addEventListener("error", () => {
+        if (cxcStatusSocket && cxcStatusSocket.readyState !== WebSocket.CLOSED) {
+          cxcStatusSocket.close();
+        }
+      });
+    }
+
     function selectCobroAnteriorRow(rowData) {
       cxcSelectedCobroAnterior = rowData || null;
       cxcSelectedCobroAnteriorKey = getCobroAnteriorKey(rowData);
@@ -3046,6 +3250,47 @@
       cxcCobrosContextMenu.style.top = `${Math.max(8, top)}px`;
       cxcCobrosContextMenu.classList.add("open");
       cxcCobrosContextMenu.setAttribute("aria-hidden", "false");
+    }
+
+    function selectDetalleRowByIndex(idx) {
+      if (!Number.isInteger(idx) || idx < 0 || idx >= cxcPendingRows.length) {
+        cxcSelectedDetalleRowIndex = -1;
+        cxcSelectedDetalleRow = null;
+        return;
+      }
+      cxcSelectedDetalleRowIndex = idx;
+      cxcSelectedDetalleRow = cxcPendingRows[idx] || null;
+    }
+
+    function showDetalleContextMenu(event, idx) {
+      if (!cxcDetalleContextMenu || !cxcShortcutPermissions?.factura) return;
+      selectDetalleRowByIndex(idx);
+      if (!cxcSelectedDetalleRow || !String(cxcSelectedDetalleRow.no_doc || "").trim()) {
+        return;
+      }
+      const menuWidth = 186;
+      const menuHeight = 44;
+      const left = Math.min(event.clientX, window.innerWidth - menuWidth - 8);
+      const top = Math.min(event.clientY, window.innerHeight - menuHeight - 8);
+      cxcDetalleContextMenu.style.left = `${Math.max(8, left)}px`;
+      cxcDetalleContextMenu.style.top = `${Math.max(8, top)}px`;
+      cxcDetalleContextMenu.classList.add("open");
+      cxcDetalleContextMenu.setAttribute("aria-hidden", "false");
+    }
+
+    function openFacturaOrigenPrint(rowData) {
+      const facturaId = String(rowData?.no_doc || "").trim();
+      if (!cxcShortcutPermissions?.factura) {
+        window.alert("No tienes permiso para ver la factura de origen.");
+        return;
+      }
+      if (!facturaId) {
+        window.alert("No se pudo identificar la factura de origen.");
+        return;
+      }
+      const targetUrl = new URL(cxcFacturaPrintUrl, window.location.origin);
+      targetUrl.searchParams.set("id_doc", facturaId);
+      window.open(targetUrl.toString(), "_blank");
     }
 
     function showEstadoContextMenu(event) {
@@ -3085,6 +3330,7 @@
       const receiptNumber = String(documento.no_recibo || "").trim();
       const documentTitle = receiptNumber ? `Recibo de ingreso ${receiptNumber}` : "Recibo de ingreso";
       const logoSrc = buildImageSrc(empresa.logo_b64, empresa.logo_tipo);
+      const usuarioFirmaSrc = buildImageSrc(printData.usuario_firma_b64, "");
       const comentarioHtml = escapeHtml(documento.comentario || "").replace(/\n/g, "<br>");
       const isCancelledReceipt = String(documento.estado || "").trim().toUpperCase() === "CANCELADO";
       const metodoPagoHtml = metodosPago.map((item) => `
@@ -3093,6 +3339,52 @@
           <strong>${fmtMoney(item.amount)}</strong>
         </div>
       `).join("");
+      const paginateReceiptDetail = (rows, firstCapacity = 11, summaryCapacity = 9) => {
+        const detailRows = Array.isArray(rows) ? rows.slice() : [];
+        if (!detailRows.length) {
+          return [{ detalle: [], continued: false, showSummary: true }];
+        }
+        if (detailRows.length <= summaryCapacity) {
+          return [{ detalle: detailRows, continued: false, showSummary: true }];
+        }
+        if (detailRows.length <= firstCapacity) {
+          return [{ detalle: detailRows, continued: false, showSummary: false }];
+        }
+        const pages = [];
+        const firstPageRows = detailRows.slice(0, firstCapacity);
+        const remainingRows = detailRows.slice(firstCapacity);
+
+        pages.push({
+          detalle: firstPageRows,
+          continued: false,
+          showSummary: false,
+        });
+
+        if (remainingRows.length <= summaryCapacity) {
+          pages.push({
+            detalle: remainingRows,
+            continued: true,
+            showSummary: true,
+          });
+          return pages;
+        }
+
+        const headRows = remainingRows.slice(0, -summaryCapacity);
+        const tailRows = remainingRows.slice(-summaryCapacity);
+        for (let start = 0; start < headRows.length; start += firstCapacity) {
+          pages.push({
+            detalle: headRows.slice(start, start + firstCapacity),
+            continued: true,
+            showSummary: false,
+          });
+        }
+        pages.push({
+          detalle: tailRows,
+          continued: true,
+          showSummary: true,
+        });
+        return pages.filter((page) => (page.detalle && page.detalle.length) || page.showSummary);
+      };
       const balanceFacturasMap = new Map();
       detalle.forEach((item) => {
         const noFactura = String(item.no_factura || "").trim();
@@ -3124,22 +3416,24 @@
       `;
       }).join("");
 
-      const rowsHtml = detalle.map((item) => `
-        <tr>
-          <td>${escapeHtml(item.td || "")}</td>
-          <td>${escapeHtml(item.no_factura || "")}</td>
-          <td style="text-align:center;">${escapeHtml(item.no_cuota || "")}</td>
-          <td>${escapeHtml(item.fecha_cont || "")}</td>
-          <td>${escapeHtml(item.fecha_venc || "")}</td>
-          <td class="num">${fmtMoney(item.balance_fact)}</td>
-          <td class="num">${fmtMoney(item.mora)}</td>
-          <td class="num">${fmtMoney(item.descuento)}</td>
-          <td class="num">${fmtMoney(item.monto_aplicado)}</td>
-          <td class="num">${fmtMoney(item.balance_pendiente)}</td>
-        </tr>
-      `).join("");
-
-      const receiptInnerHtml = `
+      const pagedDetail = paginateReceiptDetail(detalle);
+      const totalPagesPerCopy = pagedDetail.length || 1;
+      const buildReceiptInnerHtml = (page, pageIndex) => {
+        const rowsHtml = (Array.isArray(page?.detalle) ? page.detalle : []).map((item) => `
+          <tr>
+            <td>${escapeHtml(item.td || "")}</td>
+            <td>${escapeHtml(item.no_factura || "")}</td>
+            <td style="text-align:center;">${escapeHtml(item.no_cuota || "")}</td>
+            <td>${escapeHtml(item.fecha_cont || "")}</td>
+            <td>${escapeHtml(item.fecha_venc || "")}</td>
+            <td class="num">${fmtMoney(item.balance_fact)}</td>
+            <td class="num">${fmtMoney(item.mora)}</td>
+            <td class="num">${fmtMoney(item.descuento)}</td>
+            <td class="num">${fmtMoney(item.monto_aplicado)}</td>
+            <td class="num">${fmtMoney(item.balance_pendiente)}</td>
+          </tr>
+        `).join("");
+        return `
         <div class="receipt">
           <div class="header">
             <div class="logo-box">
@@ -3155,8 +3449,9 @@
             </div>
           </div>
 
-          <div class="title">RECIBO DE INGRESO</div>
+          <div class="title">RECIBO DE INGRESO${page?.continued ? " (CONT.)" : ""}</div>
 
+          ${!page?.continued ? `
           <div class="info-grid">
             <div class="info-block">
               <div class="info-row"><strong>Hemos recibido de</strong><span>:</span><span>${escapeHtml(cliente.nombre || "")}</span></div>
@@ -3174,6 +3469,7 @@
               <div class="info-row"><strong>Tasa pago</strong><span>:</span><span>${fmtMoney(documento.tasa_pago || 1)}</span></div>
             </div>
           </div>
+          ` : ""}
 
           <table class="receipt-table">
             <colgroup>
@@ -3207,6 +3503,7 @@
             </tbody>
           </table>
 
+          ${page?.showSummary ? `
           <div class="comment-payment">
             <div class="comment-box">
               <strong>Comentario:</strong><br />
@@ -3220,7 +3517,7 @@
           <div class="totals-grid">
             <div class="balance-stack">
               <div class="paid-balance-box">
-                <div class="paid-balance-title">Balance de Fact. pagadas</div>
+                <div class="paid-balance-title">Balance pendiente por factura en el Recibo</div>
                 ${balanceFacturasHtml || `<div class="paid-balance-empty">Sin facturas aplicadas.</div>`}
               </div>
               <div class="balance-box">Balance Total del Cliente: RD$ ${fmtMoney(printData.balance_rd)}</div>
@@ -3237,7 +3534,8 @@
           <div class="end-line">Fin del documento</div>
 
           <div class="signatures">
-            <div class="signature-box">
+            <div class="signature-box signature-box-realizado">
+              ${usuarioFirmaSrc ? `<img class="signature-overlay" src="${usuarioFirmaSrc}" alt="Firma registrada" />` : ""}
               <div class="signature-line"></div>
               <div>${escapeHtml(printData.usuario_nombre || "")}</div>
               <div>Realizado por</div>
@@ -3250,18 +3548,24 @@
           </div>
 
           <div class="footer-meta">
-            <div>Page 1 of 1</div>
-            <div class="center">Registrado por: ${escapeHtml(printData.usuario_nombre || "")}</div>
+            <div>Page ${pageIndex + 1} of ${totalPagesPerCopy}</div>
+            <div class="center">Impreso por: ${escapeHtml(printData.impreso_por_nombre || "")}</div>
             <div class="right">${escapeHtml(printData.impreso_fecha || "")} ${escapeHtml(printData.impreso_hora || "")}</div>
           </div>
+          ` : `
+          <div class="continuation-note">Continua en la siguiente hoja...</div>
+          `}
         </div>
       `;
+      };
 
-      const pagesHtml = Array.from({ length: copies }, () => `
-        <section class="print-sheet">
-          ${receiptInnerHtml}
-        </section>
-      `).join("");
+      const pagesHtml = Array.from({ length: copies }, () => (
+        pagedDetail.map((page, pageIndex) => `
+          <section class="print-sheet">
+            ${buildReceiptInnerHtml(page, pageIndex)}
+          </section>
+        `).join("")
+      )).join("");
       const standaloneConfig = JSON.stringify({
         noRecibo: receiptNumber,
         reciboId: String(options?.reciboId || receiptNumber || ""),
@@ -3446,6 +3750,32 @@
           <\/script>
       ` : "";
 
+      const normalizedPrintFormat = ["80mm", "58mm"].includes(cxcPrintFormat) ? cxcPrintFormat : "a4";
+      const pageSizeCss = normalizedPrintFormat === "80mm" ? "80mm 297mm" : normalizedPrintFormat === "58mm" ? "58mm 297mm" : "A4 portrait";
+      const pageWidthCss = normalizedPrintFormat === "80mm" ? "80mm" : normalizedPrintFormat === "58mm" ? "58mm" : "210mm";
+      const pageMinHeightCss = normalizedPrintFormat === "a4" ? "297mm" : "auto";
+      const sheetPaddingCss = normalizedPrintFormat === "80mm" ? "2mm" : normalizedPrintFormat === "58mm" ? "1.5mm" : "7mm 10mm 6mm 8mm";
+      const receiptWidthCss = normalizedPrintFormat === "80mm" ? "76mm" : normalizedPrintFormat === "58mm" ? "55mm" : "188mm";
+      const receiptHeightCss = normalizedPrintFormat === "a4" ? "140mm" : "auto";
+      const receiptMaxHeightCss = normalizedPrintFormat === "a4" ? "140mm" : "none";
+      const ticketCss = normalizedPrintFormat === "a4" ? "" : `
+            .receipt { padding: 0; }
+            .header, .info-grid, .totals-grid, .comment-payment, .audit-row { display: block; }
+            .logo-box { justify-content: center; margin-bottom: 1mm; }
+            .logo-box img { max-width: ${normalizedPrintFormat === "80mm" ? "32mm" : "24mm"}; max-height: ${normalizedPrintFormat === "80mm" ? "20mm" : "16mm"}; }
+            .company-name, .company-line, .company-rnc, .sector-badge, .cancelled-badge, .title, .continuation-note { text-align: center; }
+            .company-name { font-size: ${normalizedPrintFormat === "80mm" ? "9pt" : "7.5pt"}; }
+            .company-line, .company-rnc, .info-block, .receipt-table, .totals-table, .payment-table, .comment-box, .balance-box, .total-amount, .audit-row { font-size: ${normalizedPrintFormat === "80mm" ? "7pt" : "6.2pt"}; line-height: 1.15; }
+            .title { margin: 1.5mm 0; font-size: ${normalizedPrintFormat === "80mm" ? "9pt" : "7.5pt"}; letter-spacing: 0.6pt; }
+            .receipt-table th, .receipt-table td { padding: 0.55mm 0.3mm; }
+            .info-right .info-row { justify-content: start; }
+            .signature-row { gap: 2mm; }
+            .signature-box { min-height: 10mm; }
+            .signature-space { min-height: 5mm; }
+            .signature-space img { max-width: ${normalizedPrintFormat === "80mm" ? "28mm" : "20mm"}; max-height: 8mm; }
+            .footer-row { display: block; text-align: center; }
+      `;
+
       return `
         <!DOCTYPE html>
         <html lang="es">
@@ -3455,15 +3785,15 @@
           <title>${escapeHtml(documentTitle)}</title>
           <style>
             @page {
-              size: 210mm 148.5mm;
+              size: ${pageSizeCss};
               margin: 0;
             }
 
             html, body {
               margin: 0;
               padding: 0;
-              width: 210mm;
-              height: 148.5mm;
+              width: ${pageWidthCss};
+              min-height: ${pageMinHeightCss};
               background: #ffffff;
               color: #000000;
               font-family: Arial, Helvetica, sans-serif;
@@ -3488,9 +3818,9 @@
             }
 
             .print-sheet {
-              width: 210mm;
-              height: 148.5mm;
-              padding: 6mm 14mm 0 6mm;
+              width: ${pageWidthCss};
+              min-height: ${pageMinHeightCss};
+              padding: ${sheetPaddingCss};
               page-break-after: always;
               break-after: page;
               overflow: hidden;
@@ -3502,20 +3832,31 @@
             }
 
             .receipt {
-              width: 190mm;
+              width: ${receiptWidthCss};
               max-width: 100%;
-              height: 140mm;
-              padding: 2.8mm 1.8mm 1.4mm 1.2mm;
+              min-height: ${receiptHeightCss};
+              max-height: ${receiptMaxHeightCss};
+              padding: 2.2mm 1.8mm 1.6mm 1.4mm;
               margin: 0 auto 0 0;
               display: flex;
               flex-direction: column;
               overflow: hidden;
             }
+            ${ticketCss}
+
+            .continuation-note {
+              margin-top: 3mm;
+              padding-top: 2mm;
+              text-align: right;
+              font-size: 7pt;
+              font-weight: 700;
+              color: #475569;
+            }
 
             .header {
               display: grid;
               grid-template-columns: 48mm minmax(0, 1fr);
-              gap: 4mm;
+              gap: 2.8mm;
               align-items: start;
             }
 
@@ -3526,8 +3867,8 @@
             }
 
             .logo-box img {
-              max-width: 40mm;
-              max-height: 40mm;
+              max-width: 44mm;
+              max-height: 44mm;
               object-fit: contain;
             }
 
@@ -3537,20 +3878,20 @@
 
             .company-name {
               margin: 0;
-              font-size: 11.4pt;
+              font-size: 12.5pt;
               color: #001c9c;
               font-weight: 800;
               text-transform: uppercase;
             }
 
             .company-line {
-              font-size: 7.7pt;
-              line-height: 1.14;
+              font-size: 7.9pt;
+              line-height: 1.12;
             }
 
             .company-rnc {
               margin-top: 0.5mm;
-              font-size: 8.1pt;
+              font-size: 8.2pt;
               font-weight: 800;
             }
 
@@ -3566,7 +3907,7 @@
             .cancelled-badge {
               margin-top: 0.7mm;
               text-align: right;
-              font-size: 11.4pt;
+              font-size: 12pt;
               font-weight: 900;
               color: #c31212;
               text-transform: uppercase;
@@ -3574,9 +3915,9 @@
             }
 
             .title {
-              margin: 1.8mm 0 1.6mm;
+              margin: calc(2.2mm - 30px) 0 1.8mm;
               text-align: center;
-              font-size: 12pt;
+              font-size: 14pt;
               font-weight: 800;
               letter-spacing: 2.3pt;
             }
@@ -3589,8 +3930,8 @@
             }
 
             .info-block {
-              font-size: 8.1pt;
-              line-height: 1.2;
+              font-size: 8.3pt;
+              line-height: 1.18;
             }
 
             .info-row {
@@ -3614,11 +3955,11 @@
               margin-top: 1.8mm;
               border-collapse: collapse;
               table-layout: fixed;
-              font-size: 6.4pt;
+              font-size: 8.6pt;
             }
 
             .receipt-table thead th {
-              padding: 0.75mm 0.45mm;
+              padding: 0.8mm 0.55mm;
               border-top: 1px solid #000;
               border-bottom: 1px solid #000;
               text-align: left;
@@ -3630,9 +3971,9 @@
             }
 
             .receipt-table tbody td {
-              padding: 0.8mm 0.45mm;
+              padding: 0.6mm 0.4mm;
               border-bottom: 1px solid #d7d7d7;
-              font-size: 7pt;
+              font-size: 9pt;
               white-space: normal;
               overflow-wrap: anywhere;
               word-break: break-word;
@@ -3648,7 +3989,7 @@
               margin-top: 1.8mm;
               display: grid;
               grid-template-columns: minmax(0, 1fr) 44mm;
-              gap: 8mm;
+              gap: 7mm;
               align-items: start;
             }
 
@@ -3663,8 +4004,8 @@
             }
 
             .payment-summary {
-              font-size: 7.5pt;
-              padding-top: 1.2mm;
+              font-size: 7.4pt;
+              padding-top: 0.6mm;
             }
 
             .payment-line {
@@ -3675,7 +4016,7 @@
             }
 
             .totals-grid {
-              margin-top: 2mm;
+              margin-top: 1.8mm;
               display: grid;
               grid-template-columns: minmax(0, 1fr) 54mm;
               gap: 7mm;
@@ -3691,7 +4032,7 @@
               padding: 1.1mm 1.5mm;
               border: 1px solid #000;
               font-size: 8pt;
-              line-height: 1.2;
+              line-height: 1.16;
             }
 
             .paid-balance-title {
@@ -3716,14 +4057,14 @@
             }
 
             .balance-box {
-              font-size: 8.3pt;
+              font-size: 8.4pt;
               font-weight: 800;
             }
 
             .total-box {
               justify-self: end;
               width: 100%;
-              font-size: 8.3pt;
+              font-size: 8.4pt;
               font-weight: 800;
               text-align: right;
             }
@@ -3736,7 +4077,7 @@
             }
 
             .total-amount {
-              min-width: 25mm;
+              min-width: 29mm;
               border-top: 1px solid #000;
               border-bottom: 1px solid #000;
               text-align: right;
@@ -3744,7 +4085,7 @@
             }
 
             .end-line {
-              margin: 3mm auto 0;
+              margin: 2.5mm auto 0;
               width: 82%;
               text-align: center;
               font-size: 7.2pt;
@@ -3769,8 +4110,8 @@
             }
 
             .signatures {
-              margin-top: auto;
-              padding-top: 8mm;
+              margin-top: calc(2.5mm + 24px);
+              padding-top: 4mm;
               display: grid;
               grid-template-columns: 1fr 1fr;
               gap: 16mm;
@@ -3779,25 +4120,41 @@
 
             .signature-box {
               text-align: center;
-              font-size: 7.2pt;
+              font-size: 7.3pt;
+            }
+
+            .signature-box-realizado {
+              position: relative;
+            }
+
+            .signature-overlay {
+              position: absolute;
+              left: 50%;
+              bottom: 5mm;
+              transform: translateX(-50%);
+              max-width: 42mm;
+              max-height: 18mm;
+              object-fit: contain;
+              z-index: 3;
+              pointer-events: none;
             }
 
             .signature-line {
-              width: 40mm;
+              width: 48mm;
               margin: 0 auto 1mm;
               border-top: 1px solid #000;
               height: 0;
             }
 
             .footer-meta {
-              margin-top: 2mm;
+              margin-top: 1.8mm;
               padding-top: 0.8mm;
               border-top: 1px solid #000;
               display: grid;
               grid-template-columns: 1fr 1fr 1fr;
               gap: 3mm;
               align-items: center;
-              font-size: 6.2pt;
+              font-size: 5.8pt;
             }
 
             .footer-meta .center {
@@ -3827,7 +4184,7 @@
                 position: sticky;
                 top: 0;
                 z-index: 20;
-                max-width: 210mm;
+                max-width: ${pageWidthCss};
                 margin: 0 auto 12px;
                 padding: 12px;
                 border: 1px solid #cbd5e1;
@@ -3889,8 +4246,8 @@
             @media print {
               html,
               body {
-                width: 210mm;
-                height: 148.5mm;
+                width: ${pageWidthCss};
+                min-height: ${pageMinHeightCss};
                 background: #ffffff;
               }
 
@@ -3941,6 +4298,7 @@
       const normalizedCopies = normalizeCxcPrintCopies(copyCount);
       const markPrinted = async () => {
         try {
+          rememberRecentLocalCxcReceipt(reciboId);
           await fetch(cxcMarcarImpresoUrl, {
             method: "POST",
             headers: {
@@ -3984,6 +4342,21 @@
         }
         const data = await res.json();
         const html = buildCxcReceiptHtml(data.print_data || {}, normalizedCopies);
+        if (window.CALocalPrint) {
+          try {
+            const printedByAgent = await window.CALocalPrint.printHtml("cxc", html, {
+              title: `Recibo ${reciboId}`,
+              waitSeconds: 5,
+            });
+            if (printedByAgent) {
+              void markPrinted();
+              return;
+            }
+          } catch (error) {
+            window.alert(error.message || "No se pudo imprimir con el agente local.");
+            return;
+          }
+        }
 
         const printFrame = document.createElement("iframe");
         printFrame.setAttribute("aria-hidden", "true");
@@ -4054,6 +4427,19 @@
         control.disabled = !enabled;
         control.readOnly = isFixedReadonly || !enabled;
       });
+      if (controls === headerControls) {
+        syncCxcPaymentDatePermissions(enabled);
+      }
+    }
+
+    function syncCxcPaymentDatePermissions(headerEnabled) {
+      const canModifyDates = Boolean(headerEnabled) && hasCxcPermission("modificar_fechas_pago");
+      cxcPaymentDateFields.forEach((field) => {
+        if (!field) return;
+        field.disabled = !canModifyDates;
+        field.readOnly = !canModifyDates;
+        field.title = canModifyDates ? "" : "No tienes permiso para modificar estas fechas.";
+      });
     }
 
     function markCardDisabled(card, disabled) {
@@ -4083,12 +4469,93 @@
       fieldImportePago.select();
     }
 
+    function isCxcMobileViewport() {
+      try {
+        return window.matchMedia("(max-width: 768px)").matches;
+      } catch (error) {
+        return window.innerWidth <= 768;
+      }
+    }
+
+    function scrollCxcPaymentSectionIntoView() {
+      if (!isCxcMobileViewport()) return;
+      const tabButton = topTabset?.querySelector('[data-target="cxc_tab_medio_pago"]');
+      const paymentPanel = document.getElementById("cxc_tab_medio_pago");
+      const target = paymentPanel || tabButton || topTabset;
+      if (!target) return;
+      const mainScroller = document.querySelector(".main");
+      const mainStyle = mainScroller ? window.getComputedStyle(mainScroller) : null;
+      const canUseMainScroller = Boolean(
+        mainScroller &&
+        typeof mainScroller.scrollTo === "function" &&
+        mainScroller.scrollHeight > mainScroller.clientHeight + 8 &&
+        (mainStyle?.overflowY === "auto" || mainStyle?.overflowY === "scroll")
+      );
+      if (canUseMainScroller) {
+        const panelRect = target.getBoundingClientRect();
+        const scrollerRect = mainScroller.getBoundingClientRect();
+        const targetTop = mainScroller.scrollTop + (panelRect.top - scrollerRect.top) - 12;
+        mainScroller.scrollTo({
+          top: Math.max(0, targetTop),
+          behavior: "smooth",
+        });
+        return;
+      }
+      const targetRect = target.getBoundingClientRect();
+      const absoluteTop = window.pageYOffset + targetRect.top - 12;
+      window.scrollTo({
+        top: Math.max(0, absoluteTop),
+        behavior: "smooth",
+      });
+    }
+
+    function scrollCxcDetailSectionIntoView() {
+      if (!isCxcMobileViewport()) return;
+      const target = cxcBodyCard || document.getElementById("cxc_detail_panels");
+      if (!target) return;
+      const mainScroller = document.querySelector(".main");
+      const mainStyle = mainScroller ? window.getComputedStyle(mainScroller) : null;
+      const canUseMainScroller = Boolean(
+        mainScroller &&
+        typeof mainScroller.scrollTo === "function" &&
+        mainScroller.scrollHeight > mainScroller.clientHeight + 8 &&
+        (mainStyle?.overflowY === "auto" || mainStyle?.overflowY === "scroll")
+      );
+      if (canUseMainScroller) {
+        const targetRect = target.getBoundingClientRect();
+        const scrollerRect = mainScroller.getBoundingClientRect();
+        const targetTop = mainScroller.scrollTop + (targetRect.top - scrollerRect.top) - 10;
+        mainScroller.scrollTo({
+          top: Math.max(0, targetTop),
+          behavior: "smooth",
+        });
+        return;
+      }
+      const targetRect = target.getBoundingClientRect();
+      const absoluteTop = window.pageYOffset + targetRect.top - 10;
+      window.scrollTo({
+        top: Math.max(0, absoluteTop),
+        behavior: "smooth",
+      });
+    }
+
     function openCxcPaymentMethodTab(method = getConfiguredCxcDefaultPaymentMethod(), focusImporte = false) {
       if (topTabset) {
         activateTabset(topTabset, "cxc_tab_medio_pago");
       }
       fieldMetodo.value = method === "Transferencia" ? "Transferencia" : "Efectivo";
       syncPaymentMethodButtons();
+      if (isCxcMobileViewport()) {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            scrollCxcPaymentSectionIntoView();
+            if (focusImporte) {
+              setTimeout(focusCxcImporteField, 220);
+            }
+          });
+        });
+        return;
+      }
       if (focusImporte) {
         setTimeout(focusCxcImporteField, 0);
       }
@@ -4137,6 +4604,101 @@
         fieldImportePago.value = fmtEditableAmount(cxcLoadedPaymentAmounts[current] || 0);
       }
       fieldTotalPago.value = fmtMoney((cxcLoadedPaymentAmounts.Efectivo || 0) + (cxcLoadedPaymentAmounts.Transferencia || 0));
+      syncCxcLoadedPaymentEditState();
+    }
+
+    function getCxcOriginalPaymentTotal() {
+      return Math.max(Number(cxcOriginalPaymentAmounts.Efectivo || 0), 0)
+        + Math.max(Number(cxcOriginalPaymentAmounts.Transferencia || 0), 0);
+    }
+
+    function canEditCxcLoadedPaymentMethods() {
+      return Boolean(
+        cxcReadOnlyReceipt
+        && hasCxcPermission("modificar_medio_pago")
+        && String(cxcCurrentReciboId || "").trim()
+        && String(fieldEstado?.value || "").trim().toUpperCase() !== "CANCELADO"
+        && getCxcOriginalPaymentTotal() > 0.0001
+      );
+    }
+
+    function canCorrectCxcPaymentAmounts() {
+      return Boolean(
+        cxcReadOnlyReceipt
+        && hasCxcPermission("corregir_monto_pago")
+        && String(cxcCurrentReciboId || "").trim()
+        && String(fieldEstado?.value || "").trim().toUpperCase() === "ABIERTO"
+      );
+    }
+
+    function cxcPaymentMethodChanged() {
+      return !amountsMatch(cxcLoadedPaymentAmounts.Efectivo, cxcOriginalPaymentAmounts.Efectivo)
+        || !amountsMatch(cxcLoadedPaymentAmounts.Transferencia, cxcOriginalPaymentAmounts.Transferencia);
+    }
+
+    function cxcPaymentMethodTotalIsValid() {
+      const totalAsignado = Math.max(Number(cxcLoadedPaymentAmounts.Efectivo || 0), 0)
+        + Math.max(Number(cxcLoadedPaymentAmounts.Transferencia || 0), 0);
+      return amountsMatch(totalAsignado, getCxcOriginalPaymentTotal());
+    }
+
+    function cxcPaymentAmountCorrectionChanged() {
+      if (!canCorrectCxcPaymentAmounts()) return false;
+      return cxcPendingRows.some((row, idx) => {
+        return !amountsMatch(row?.pago_abono || 0, cxcOriginalDetailPayments[idx] || 0);
+      });
+    }
+
+    function getCxcCorrectedCashTotal() {
+      const totalPago = cxcPendingRows.reduce((sum, row) => sum + Math.max(Number(row?.pago_abono || 0), 0), 0);
+      const totalMora = cxcPendingRows.reduce((sum, row) => sum + Math.max(Number(row?.cargo || 0), 0), 0);
+      const totalRet = cxcPendingRows.reduce((sum, row) => sum + Math.max(Number(row?.total_ret || 0), 0), 0);
+      return totalPago > 0.0001 ? Math.max(totalPago + totalMora - totalRet, 0) : 0;
+    }
+
+    function syncCxcCorrectionPaymentMethods() {
+      if (!canCorrectCxcPaymentAmounts() || !cxcPaymentAmountCorrectionChanged()) return;
+      const correctedTotal = getCxcCorrectedCashTotal();
+      const originalTotal = getCxcOriginalPaymentTotal();
+      if (correctedTotal <= 0.0001) {
+        cxcLoadedPaymentAmounts.Efectivo = 0;
+        cxcLoadedPaymentAmounts.Transferencia = 0;
+      } else if (originalTotal > 0.0001 && cxcOriginalPaymentAmounts.Transferencia > 0.0001 && cxcOriginalPaymentAmounts.Efectivo > 0.0001) {
+        const transferenciaRatio = Math.max(Number(cxcOriginalPaymentAmounts.Transferencia || 0), 0) / originalTotal;
+        cxcLoadedPaymentAmounts.Transferencia = Math.round((correctedTotal * transferenciaRatio) * 100) / 100;
+        cxcLoadedPaymentAmounts.Efectivo = Math.max(Math.round((correctedTotal - cxcLoadedPaymentAmounts.Transferencia) * 100) / 100, 0);
+      } else if (Math.max(Number(cxcOriginalPaymentAmounts.Transferencia || 0), 0) > 0.0001) {
+        cxcLoadedPaymentAmounts.Efectivo = 0;
+        cxcLoadedPaymentAmounts.Transferencia = correctedTotal;
+      } else {
+        cxcLoadedPaymentAmounts.Efectivo = correctedTotal;
+        cxcLoadedPaymentAmounts.Transferencia = 0;
+      }
+    }
+
+    function syncCxcLoadedPaymentEditState() {
+      const canEdit = canEditCxcLoadedPaymentMethods();
+      const dirty = canEdit && cxcPaymentMethodChanged();
+      const correctionDirty = cxcPaymentAmountCorrectionChanged();
+      const validTotal = correctionDirty
+        ? amountsMatch(
+            Math.max(Number(cxcLoadedPaymentAmounts.Efectivo || 0), 0) + Math.max(Number(cxcLoadedPaymentAmounts.Transferencia || 0), 0),
+            getCxcCorrectedCashTotal()
+          )
+        : canEdit && cxcPaymentMethodTotalIsValid();
+      if (cxcReadOnlyReceipt && fieldImportePago) {
+        fieldImportePago.disabled = !(canEdit || correctionDirty);
+        fieldImportePago.readOnly = !(canEdit || correctionDirty);
+      }
+      if (cxcReadOnlyReceipt && btnCxcImporteTotal) {
+        btnCxcImporteTotal.disabled = !(canEdit || correctionDirty);
+      }
+      if (cxcReadOnlyReceipt && btnCxcGrabar) {
+        btnCxcGrabar.disabled = !((dirty || correctionDirty) && validTotal);
+        btnCxcGrabar.title = dirty && !validTotal
+          ? "La suma de efectivo y transferencia debe conservar el monto original."
+          : "";
+      }
     }
 
     function syncCxcPaymentAmountsForDocumentTotal(documentTotal) {
@@ -4229,7 +4791,7 @@
     }
 
     function syncCxcTotals(rows = cxcPendingRows) {
-      if (cxcReadOnlyReceipt && cxcLoadedSummary) {
+      if (cxcReadOnlyReceipt && cxcLoadedSummary && !canCorrectCxcPaymentAmounts()) {
         const totalDoc = Number(cxcLoadedSummary.total_doc || 0);
         const totalCargo = Number(cxcLoadedSummary.total_mora || 0);
         const totalDesc = Number(cxcLoadedSummary.desc_avance || 0);
@@ -4281,7 +4843,12 @@
       fieldMontoPagar.value = fmtMoney(montoPagar);
       syncCxcAutoComentario(rows);
       setCxcMedioPagoIndicator(totalPago > 0.0001);
-      syncCxcPaymentAmountsForDocumentTotal(montoPagar);
+      if (cxcReadOnlyReceipt && canCorrectCxcPaymentAmounts()) {
+        syncCxcCorrectionPaymentMethods();
+        syncPaymentMethodButtons({ preserveImporteInput: document.activeElement === fieldImportePago });
+      } else {
+        syncCxcPaymentAmountsForDocumentTotal(montoPagar);
+      }
     }
 
     function getCxcFacturaGroups() {
@@ -4587,6 +5154,18 @@
       const normalizedPago = Math.max(Math.min(desired, maxAllowed), 0);
       row.pago_abono = normalizedPago;
       syncCxcDiscountState(row);
+    }
+
+    function updatePagoAbonoCorrectionForRow(idx, rawValue) {
+      const row = cxcPendingRows[idx];
+      if (!row) return;
+      const desired = Math.max(parseAmount(rawValue), 0);
+      const rowBalance = getCxcRowBalance(row);
+      const currentDesc = Math.max(Number(row.desc_avance || 0), 0);
+      const maxAllowed = Math.max(rowBalance - currentDesc, 0);
+      row.pago_abono = Math.min(desired, maxAllowed);
+      row.balance_pend = Math.max(rowBalance - row.pago_abono - currentDesc, 0);
+      row.selected = row.pago_abono > 0.0001 || currentDesc > 0.0001;
     }
 
     function updateDescAvanceForRow(idx, rawValue) {
@@ -4955,7 +5534,8 @@
         });
       }
       const facturaGroups = getCxcFacturaGroups();
-      const detailReadOnly = cxcReadOnlyReceipt || cxcCloseMode;
+      const allowPaymentCorrection = canCorrectCxcPaymentAmounts();
+      const detailReadOnly = (cxcReadOnlyReceipt && !allowPaymentCorrection) || cxcCloseMode;
       const useMobileRowEditor = isCxcMobileLayoutContext() && !cxcReadOnlyReceipt;
 
       cxcDetalleBody.innerHTML = cxcPendingRows.map((row, idx) => `
@@ -4974,13 +5554,13 @@
           <td>${escapeHtml(row.dias || 0)}</td>
           <td>${fmtMoney(row.cargo)}</td>
           <td>${fmtMoney(row.porc_desc)}</td>
-          <td class="${detailReadOnly || useMobileRowEditor ? "" : "cxc-desc-cell"}">${detailReadOnly || useMobileRowEditor
+          <td class="${cxcReadOnlyReceipt || cxcCloseMode || useMobileRowEditor ? "" : "cxc-desc-cell"}">${cxcReadOnlyReceipt || cxcCloseMode || useMobileRowEditor
             ? fmtMoney(row.desc_avance)
             : `<input type="number" step="0.01" min="0" class="cxc-desc-input" data-idx="${idx}" value="${fmtEditableAmount(row.desc_avance || 0)}" ${isCxcDetailInputDisabled(row, idx, facturaGroups) ? "disabled" : ""} />`
           }</td>
           <td class="${detailReadOnly || useMobileRowEditor ? "" : "cxc-pago-cell"}">${detailReadOnly || useMobileRowEditor
             ? fmtMoney(row.pago_abono)
-            : `<input type="number" step="0.01" min="0" class="cxc-pago-input" data-idx="${idx}" value="${Number(row.pago_abono || 0).toFixed(2)}" ${isCxcDetailInputDisabled(row, idx, facturaGroups) ? "disabled" : ""} />`
+            : `<input type="number" step="0.01" min="0" class="cxc-pago-input" data-idx="${idx}" value="${Number(row.pago_abono || 0).toFixed(2)}" ${allowPaymentCorrection ? "" : (isCxcDetailInputDisabled(row, idx, facturaGroups) ? "disabled" : "")} />`
           }</td>
           <td>${fmtMoney(row.balance_pend)}</td>
         </tr>
@@ -5063,11 +5643,13 @@
       cxcPendingAutofocusRequested = true;
       cxcPendingAutofocusIndex = -1;
       if (!hasCxcPermission("nuevo")) {
+        cxcPendingScrollToDetailRequested = false;
         renderCxcDetalleRows([]);
         window.alert("No tienes permiso para crear nuevos pagos en cuentas por cobrar.");
         return;
       }
       if (!idSn) {
+        cxcPendingScrollToDetailRequested = false;
         renderCxcDetalleRows([]);
         return;
       }
@@ -5078,15 +5660,25 @@
           headers: { "X-Requested-With": "XMLHttpRequest" },
         });
         if (!res.ok) {
+          cxcPendingScrollToDetailRequested = false;
           renderCxcDetalleRows([]);
           window.alert("No se pudieron cargar las facturas pendientes del cliente.");
           return;
         }
         const data = await res.json();
         renderCxcDetalleRows(data.results || []);
+        if (cxcPendingScrollToDetailRequested && isCxcMobileViewport()) {
+          cxcPendingScrollToDetailRequested = false;
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              scrollCxcDetailSectionIntoView();
+            });
+          });
+        }
       } catch (error) {
         renderCxcDetalleRows([]);
         window.alert("Error de conexion cargando las facturas pendientes.");
+        cxcPendingScrollToDetailRequested = false;
       }
     }
 
@@ -5222,6 +5814,9 @@
       }
       const payload = buildCxcSavePayload();
       if (!payload) return;
+      const clientEventId = createCxcClientEventId();
+      payload.event_id = clientEventId;
+      cxcPendingLocalEventId = clientEventId;
 
       btnCxcGrabar.disabled = true;
       try {
@@ -5237,10 +5832,12 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+          cxcPendingLocalEventId = "";
           window.alert(data.detail || "No se pudo grabar el recibo.");
           return;
         }
         if (data.recibo_id) {
+          rememberRecentLocalCxcReceipt(data.recibo_id);
           cxcCurrentReciboId = String(data.recibo_id || "");
           if (!fieldNo.value && data.no_recibo) {
             fieldNo.value = String(data.no_recibo);
@@ -5257,6 +5854,7 @@
           window.alert("El recibo se grabo, pero no se pudo recargar automaticamente.");
         }
       } catch (error) {
+        cxcPendingLocalEventId = "";
         window.alert("Error de conexion grabando el recibo.");
       } finally {
         if (!cxcReadOnlyReceipt) {
@@ -5265,7 +5863,119 @@
       }
     }
 
+    async function saveCxcPaymentMethodChanges() {
+      if (!canEditCxcLoadedPaymentMethods()) {
+        window.alert("No tienes permiso para modificar el medio de pago de este recibo.");
+        return;
+      }
+      if (!cxcPaymentMethodChanged()) {
+        return;
+      }
+      if (!cxcPaymentMethodTotalIsValid()) {
+        window.alert("La suma de efectivo y transferencia debe ser igual al monto original a pagar.");
+        return;
+      }
+
+      const clientEventId = createCxcClientEventId();
+      cxcPendingLocalEventId = clientEventId;
+      btnCxcGrabar.disabled = true;
+      try {
+        const res = await fetch(cxcMedioPagoUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            recibo_id: cxcCurrentReciboId,
+            efectivo: Math.max(Number(cxcLoadedPaymentAmounts.Efectivo || 0), 0),
+            transferencia: Math.max(Number(cxcLoadedPaymentAmounts.Transferencia || 0), 0),
+            event_id: clientEventId,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          cxcPendingLocalEventId = "";
+          window.alert(data.detail || "No se pudo actualizar el medio de pago.");
+          syncCxcLoadedPaymentEditState();
+          return;
+        }
+        rememberRecentLocalCxcReceipt(data.recibo_id || cxcCurrentReciboId);
+        await loadCxcRecibo(data.recibo_id || cxcCurrentReciboId);
+        window.alert("El medio de pago se actualizo correctamente.");
+      } catch (error) {
+        cxcPendingLocalEventId = "";
+        window.alert("Error de conexion actualizando el medio de pago.");
+        syncCxcLoadedPaymentEditState();
+      }
+    }
+
+    async function saveCxcPaymentAmountCorrection() {
+      if (!canCorrectCxcPaymentAmounts()) {
+        window.alert("No tienes permiso para corregir el monto pagado de este recibo.");
+        return;
+      }
+      if (!cxcPaymentAmountCorrectionChanged()) {
+        return;
+      }
+      const correctedTotal = getCxcCorrectedCashTotal();
+      if (correctedTotal <= 0.0001) {
+        window.alert("El recibo debe conservar un monto pagado mayor a 0.");
+        return;
+      }
+      const assignedTotal = Math.max(Number(cxcLoadedPaymentAmounts.Efectivo || 0), 0)
+        + Math.max(Number(cxcLoadedPaymentAmounts.Transferencia || 0), 0);
+      if (!amountsMatch(assignedTotal, correctedTotal)) {
+        window.alert("La suma de efectivo y transferencia debe coincidir con el nuevo monto a pagar.");
+        return;
+      }
+
+      const clientEventId = createCxcClientEventId();
+      cxcPendingLocalEventId = clientEventId;
+      btnCxcGrabar.disabled = true;
+      try {
+        const res = await fetch(cxcCorregirMontoUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            recibo_id: cxcCurrentReciboId,
+            efectivo: Math.max(Number(cxcLoadedPaymentAmounts.Efectivo || 0), 0),
+            transferencia: Math.max(Number(cxcLoadedPaymentAmounts.Transferencia || 0), 0),
+            event_id: clientEventId,
+            detail: cxcPendingRows.map((row) => ({
+              linea: row.linea || "",
+              no_doc: row.no_doc || "",
+              no_cuota: row.no_cuota || "",
+              pago_abono: Number(row.pago_abono || 0),
+            })),
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          cxcPendingLocalEventId = "";
+          window.alert(data.detail || "No se pudo corregir el monto pagado.");
+          syncCxcLoadedPaymentEditState();
+          return;
+        }
+        rememberRecentLocalCxcReceipt(data.recibo_id || cxcCurrentReciboId);
+        await loadCxcRecibo(data.recibo_id || cxcCurrentReciboId);
+        window.alert("El monto pagado se corrigio correctamente.");
+      } catch (error) {
+        cxcPendingLocalEventId = "";
+        window.alert("Error de conexion corrigiendo el monto pagado.");
+        syncCxcLoadedPaymentEditState();
+      }
+    }
+
     function resetCxcValues() {
+      cxcPendingScrollToDetailRequested = false;
       cxcReadOnlyReceipt = false;
       cxcCloseMode = false;
       cxcCloseModeSourceRows = [];
@@ -5310,6 +6020,8 @@
       fieldMontoPagar.value = ".00";
       fieldImportePago.value = "0.00";
       cxcLoadedPaymentAmounts = { Efectivo: 0, Transferencia: 0 };
+      cxcOriginalPaymentAmounts = { Efectivo: 0, Transferencia: 0 };
+      cxcOriginalDetailPayments = [];
       if (fieldCxcPrintModalCopies) {
         fieldCxcPrintModalCopies.value = "2";
       }
@@ -5429,6 +6141,31 @@
       return true;
     }
 
+    function hydrateCxcReceiptFromShortcut() {
+      let params;
+      try {
+        params = new URLSearchParams(window.location.search || "");
+      } catch (error) {
+        return false;
+      }
+      const sharedRecord = String(params.get("shared_record") || "").trim().toLowerCase();
+      const reciboId = String(params.get("recibo_id") || "").trim();
+      if (sharedRecord !== "cxc" || !reciboId) {
+        return false;
+      }
+      setCxcInitialState();
+      loadCxcRecibo(reciboId, { scrollToDetail: true });
+      if (window.history && typeof window.history.replaceState === "function") {
+        const cleanedParams = new URLSearchParams(params.toString());
+        cleanedParams.delete("shared_record");
+        cleanedParams.delete("recibo_id");
+        const cleanQuery = cleanedParams.toString();
+        const cleanUrl = `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}${window.location.hash || ""}`;
+        window.history.replaceState({}, document.title, cleanUrl);
+      }
+      return true;
+    }
+
     function setCxcNewState(setTodayDates = true) {
       if (!hasCxcPermission("nuevo")) {
         window.alert("No tienes permiso para crear nuevos pagos en cuentas por cobrar.");
@@ -5501,6 +6238,11 @@
         Efectivo: Number(header.efectivo || 0),
         Transferencia: Number(header.transferencia || 0),
       };
+      cxcOriginalPaymentAmounts = {
+        Efectivo: Number(header.efectivo || 0),
+        Transferencia: Number(header.transferencia || 0),
+      };
+      cxcOriginalDetailPayments = (Array.isArray(record.detail) ? record.detail : []).map((row) => Number(row?.pago_abono || 0));
 
       setControlsInteractive(headerControls, false);
       syncCxcShortcutButtonsEnabled();
@@ -5530,6 +6272,7 @@
       cxcClienteSeleccionado = true;
       cxcDocumentoSeleccionado = true;
       syncPaymentMethodButtons();
+      syncCxcLoadedPaymentEditState();
       renderCxcDetalleRows(Array.isArray(record.detail) ? record.detail : []);
       loadCxcCobrosAnteriores(header.cliente || "");
       syncCxcMobileReceiptActions();
@@ -5560,7 +6303,7 @@
       buscarModalBackdrop.setAttribute("aria-hidden", "false");
       lockPageScroll();
       buscarSearchInput.value = "";
-      buscarSearchFilter.value = "recibo";
+      buscarSearchFilter.value = "cliente";
       buscarRecibos();
       buscarSearchInput.focus();
     }
@@ -5612,7 +6355,7 @@
       }
     }
 
-    async function loadCxcRecibo(reciboId) {
+    async function loadCxcRecibo(reciboId, options = {}) {
       if (!reciboId) {
         window.alert("No se pudo identificar el recibo seleccionado.");
         return null;
@@ -5629,6 +6372,13 @@
         resetCxcValues();
         setCxcConsultState(data.record || {});
         closeBuscarModal();
+        if (options?.scrollToDetail && isCxcMobileViewport()) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              scrollCxcDetailSectionIntoView();
+            });
+          });
+        }
         return data.record || null;
       } catch (error) {
         window.alert("Error de conexion cargando el recibo.");
@@ -5648,6 +6398,9 @@
       }
 
       try {
+        const clientEventId = createCxcClientEventId();
+        cxcPendingLocalEventId = clientEventId;
+        rememberRecentLocalCxcReceipt(reciboId);
         const res = await fetch(cxcCancelarUrl, {
           method: "POST",
           headers: {
@@ -5659,13 +6412,16 @@
           body: JSON.stringify({
             recibo_id: reciboId,
             terminal_cliente: getCurrentCxcTerminalName(true),
+            event_id: clientEventId,
           }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+          cxcPendingLocalEventId = "";
           window.alert(data.detail || "No se pudo cancelar el recibo.");
           return false;
         }
+        rememberRecentLocalCxcReceipt(reciboId);
         await loadCxcRecibo(reciboId);
         if (buscarModalBackdrop?.classList.contains("open")) {
           buscarRecibos();
@@ -5673,6 +6429,7 @@
         window.alert(`El recibo ${safeLabel} fue cancelado correctamente.`);
         return true;
       } catch (error) {
+        cxcPendingLocalEventId = "";
         window.alert("Error de conexion cancelando el recibo.");
         return false;
       }
@@ -5838,6 +6595,7 @@
         cxcClienteSeleccionado = true;
         cxcDocumentoSeleccionado = false;
         updateCxcDependentAvailability();
+        cxcPendingScrollToDetailRequested = isCxcMobileViewport();
       }
       closeClienteModal();
       loadCxcPendientes(data.id_sn || "");
@@ -5874,12 +6632,19 @@
     });
 
     btnCxcImporteTotal?.addEventListener("click", () => {
-      if (btnCxcImporteTotal.disabled || cxcReadOnlyReceipt || fieldImportePago.disabled) return;
+      if (
+        btnCxcImporteTotal.disabled
+        || (cxcReadOnlyReceipt && !canEditCxcLoadedPaymentMethods() && !cxcPaymentAmountCorrectionChanged())
+        || fieldImportePago.disabled
+      ) return;
       assignFullCxcPaymentToCurrentMethod();
     });
 
     fieldImportePago?.addEventListener("input", () => {
-      if (cxcReadOnlyReceipt || fieldImportePago.disabled) return;
+      if (
+        (cxcReadOnlyReceipt && !canEditCxcLoadedPaymentMethods() && !cxcPaymentAmountCorrectionChanged())
+        || fieldImportePago.disabled
+      ) return;
       const current = (fieldMetodo.value || "Efectivo").trim() === "Transferencia" ? "Transferencia" : "Efectivo";
       cxcLoadedPaymentAmounts[current] = Math.max(parseAmount(fieldImportePago.value), 0);
       syncPaymentMethodButtons({ preserveImporteInput: true });
@@ -5904,11 +6669,13 @@
 
     fieldCxcPrintModalCopies?.addEventListener("input", () => {
       syncCxcPrintModalSummary();
+      void syncCxcPrintModalPrinter();
     });
 
     fieldCxcPrintModalCopies?.addEventListener("blur", () => {
       fieldCxcPrintModalCopies.value = String(getCxcPrintCopies());
       syncCxcPrintModalSummary();
+      void syncCxcPrintModalPrinter();
     });
 
     fieldCxcPrintModalCopies?.addEventListener("keydown", (event) => {
@@ -5948,7 +6715,11 @@
     });
     btnCxcGrabar.addEventListener("click", () => {
       if (cxcReadOnlyReceipt) {
-        window.alert("Los recibos ya registrados solo se pueden consultar. No se permite grabarlos nuevamente.");
+        if (cxcPaymentAmountCorrectionChanged()) {
+          saveCxcPaymentAmountCorrection();
+        } else {
+          saveCxcPaymentMethodChanges();
+        }
         return;
       }
       saveCxcReceipt();
@@ -6104,7 +6875,7 @@
       const row = event.target.closest("tr.click-row");
       if (!row) return;
       const data = JSON.parse(decodeURIComponent(row.dataset.row));
-      loadCxcRecibo(data.recibo_id || data.no_recibo || "");
+      loadCxcRecibo(data.recibo_id || data.no_recibo || "", { scrollToDetail: true });
     });
 
     cxcCobrosAnterioresBody.addEventListener("click", (event) => {
@@ -6128,9 +6899,20 @@
       const row = event.target.closest("tr.cxc-history-row");
       if (!row) return;
       event.preventDefault();
+      hideDetalleContextMenu();
       hideEstadoContextMenu();
       const data = JSON.parse(decodeURIComponent(row.dataset.row || "%7B%7D"));
       showCobrosContextMenu(event, data);
+    });
+
+    cxcDetalleBody.addEventListener("contextmenu", (event) => {
+      const row = event.target.closest("tr[data-cxc-row-idx]");
+      if (!row) return;
+      event.preventDefault();
+      hideCobrosContextMenu();
+      hideEstadoContextMenu();
+      const idx = Number.parseInt(row.dataset.cxcRowIdx || "-1", 10);
+      showDetalleContextMenu(event, idx);
     });
 
     btnCxcCobrosContextPrint?.addEventListener("click", () => {
@@ -6141,6 +6923,12 @@
         return;
       }
       openCxcPrintModal(reciboId, cxcSelectedCobroAnterior?.no_recibo || reciboId);
+    });
+
+    btnCxcDetalleContextPrintOrigin?.addEventListener("click", () => {
+      const rowData = cxcSelectedDetalleRow;
+      hideDetalleContextMenu();
+      openFacturaOrigenPrint(rowData);
     });
 
     btnCxcMobileHistoryPrint?.addEventListener("click", () => {
@@ -6298,7 +7086,16 @@
     });
 
     cxcDetalleBody.addEventListener("change", (event) => {
-      if (cxcReadOnlyReceipt) return;
+      if (cxcReadOnlyReceipt && !canCorrectCxcPaymentAmounts()) return;
+      if (cxcReadOnlyReceipt && canCorrectCxcPaymentAmounts()) {
+        if (!event.target.classList.contains("cxc-pago-input")) return;
+        const idx = Number.parseInt(event.target.dataset.idx || "-1", 10);
+        if (!Number.isInteger(idx) || idx < 0) return;
+        updatePagoAbonoCorrectionForRow(idx, event.target.value);
+        event.target.value = Number(cxcPendingRows[idx].pago_abono || 0).toFixed(2);
+        renderCxcDetalleRows(cxcPendingRows);
+        return;
+      }
       if (event.target.classList.contains("cxc-row-check")) {
         const idx = Number.parseInt(event.target.dataset.idx || "-1", 10);
         if (Number.isInteger(idx) && idx >= 0 && cxcPendingRows[idx]) {
@@ -6324,7 +7121,19 @@
     });
 
     cxcDetalleBody.addEventListener("input", (event) => {
-      if (cxcReadOnlyReceipt) return;
+      if (cxcReadOnlyReceipt && !canCorrectCxcPaymentAmounts()) return;
+      if (cxcReadOnlyReceipt && canCorrectCxcPaymentAmounts()) {
+        if (!event.target.classList.contains("cxc-pago-input")) return;
+        const idx = Number.parseInt(event.target.dataset.idx || "-1", 10);
+        if (!Number.isInteger(idx) || idx < 0) return;
+        updatePagoAbonoCorrectionForRow(idx, event.target.value);
+        const row = event.target.closest("tr");
+        if (row?.lastElementChild) {
+          row.lastElementChild.textContent = fmtMoney(cxcPendingRows[idx].balance_pend);
+        }
+        syncCxcTotals();
+        return;
+      }
       if (event.target.classList.contains("cxc-desc-input")) {
         const idx = Number.parseInt(event.target.dataset.idx || "-1", 10);
         if (!Number.isInteger(idx) || idx < 0) return;
@@ -6380,16 +7189,38 @@
     });
 
     document.addEventListener("click", (event) => {
-      if (cxcCobrosContextMenu?.contains(event.target) || cxcEstadoContextMenu?.contains(event.target)) return;
+      if (
+        cxcCobrosContextMenu?.contains(event.target)
+        || cxcDetalleContextMenu?.contains(event.target)
+        || cxcEstadoContextMenu?.contains(event.target)
+      ) return;
       hideCobrosContextMenu();
+      hideDetalleContextMenu();
       hideEstadoContextMenu();
     });
+
+    connectCxcStatusSocket();
 
     window.addEventListener("resize", syncCxcResponsiveDetailLayout);
     syncCxcResponsiveDetailLayout();
 
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        connectCxcStatusSocket();
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      clearCxcSocketReconnect();
+      if (cxcStatusSocket) {
+        cxcStatusSocket.close();
+        cxcStatusSocket = null;
+      }
+    });
+
     document.addEventListener("scroll", () => {
       hideCobrosContextMenu();
+      hideDetalleContextMenu();
       hideEstadoContextMenu();
     }, true);
 
@@ -6404,6 +7235,7 @@
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         hideCobrosContextMenu();
+        hideDetalleContextMenu();
         hideEstadoContextMenu();
         if (cxcConfirmOpen) {
           closeCxcConfirmModal(false);
@@ -6464,13 +7296,21 @@
     if (btnCxcCobrosContextPrint) {
       btnCxcCobrosContextPrint.disabled = !hasCxcPermission("imprimir");
     }
+    if (btnCxcDetalleContextPrintOrigin) {
+      btnCxcDetalleContextPrintOrigin.disabled = !cxcShortcutPermissions?.factura;
+    }
     if (btnCxcEstadoContextCancel) {
       btnCxcEstadoContextCancel.disabled = !hasCxcPermission("cancelar");
     }
     syncCxcTerminalFieldWithStorage(true);
     setCxcInitialState();
-    hydrateCxcClientFromShortcut();
+    if (!hydrateCxcReceiptFromShortcut()) {
+      hydrateCxcClientFromShortcut();
+    }
     syncCxcViewportLayout();
   });
 </script>
 {% endblock %}
+
+
+

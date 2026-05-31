@@ -124,6 +124,55 @@ class UsuarioCajaPreferencia(models.Model):
         ordering = ["id_usuario"]
 
 
+class ImpresoraConfig(models.Model):
+    TIPO_CUENTAS_COBRAR = "cxc"
+    TIPO_FACTURA = "factura"
+    TIPO_FINANCIAMIENTO = "financiamiento"
+    TIPO_CHOICES = [
+        (TIPO_CUENTAS_COBRAR, "Cuentas por Cobrar"),
+        (TIPO_FACTURA, "Factura"),
+        (TIPO_FINANCIAMIENTO, "Financiamiento"),
+    ]
+
+    id_config = models.AutoField(db_column="ID_CONFIG", primary_key=True)
+    tipo_documento = models.CharField(db_column="TIPO_DOCUMENTO", max_length=40, unique=True, choices=TIPO_CHOICES)
+    nombre_impresora = models.CharField(db_column="NOMBRE_IMPRESORA", max_length=255, blank=True, null=True)
+    predeterminada = models.BooleanField(db_column="PREDETERMINADA", default=False)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "AJUSTE_IMPRESORA_CONFIG"
+        ordering = ["tipo_documento"]
+
+
+class FormatoImpresionConfig(models.Model):
+    DOCUMENTO_RECIBO_PAGO = "recibo_pago"
+    DOCUMENTO_FACTURA = "factura"
+    DOCUMENTO_CHOICES = [
+        (DOCUMENTO_RECIBO_PAGO, "Recibo de pago"),
+        (DOCUMENTO_FACTURA, "Factura"),
+    ]
+    FORMATO_80MM = "80mm"
+    FORMATO_58MM = "58mm"
+    FORMATO_A4 = "a4"
+    FORMATO_CHOICES = [
+        (FORMATO_A4, "A4"),
+        (FORMATO_80MM, "80mm"),
+        (FORMATO_58MM, "58mm"),
+    ]
+
+    id_config = models.AutoField(db_column="ID_CONFIG", primary_key=True)
+    documento = models.CharField(db_column="DOCUMENTO", max_length=40, unique=True, choices=DOCUMENTO_CHOICES)
+    formato = models.CharField(db_column="FORMATO", max_length=10, choices=FORMATO_CHOICES, default=FORMATO_A4)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "AJUSTE_FORMATO_IMPRESION"
+        ordering = ["documento"]
+
+
 class FacturacionElectronicaConfig(models.Model):
     id_config = models.AutoField(db_column="ID_CONFIG", primary_key=True)
     habilitado = models.BooleanField(db_column="HABILITADO", default=False)

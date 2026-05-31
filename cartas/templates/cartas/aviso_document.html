@@ -61,7 +61,7 @@
     }
 
     .carta-title {
-      margin: 4mm 0 6mm;
+      margin: calc(4mm - 60px) 0 6mm;
       text-align: center;
       color: #d60000;
       font-size: 26pt;
@@ -70,6 +70,7 @@
     }
 
     .carta-intro {
+      margin-top: 60px;
       margin-bottom: 5mm;
     }
 
@@ -116,6 +117,13 @@
       gap: 26px;
       font-weight: 700;
       font-size: 11pt;
+    }
+
+    .legal-clause {
+      margin-top: 4mm;
+      font-size: 9.5pt;
+      line-height: 1.35;
+      text-align: justify;
     }
 
     .carta-sign {
@@ -227,6 +235,10 @@
     <div class="carta-totals">
       <div>Balance en Atraso --> {{ total_saldo_fmt }}</div>
       <div>Total Mora --> {{ total_mora_fmt }}</div>
+    </div>
+
+    <div class="legal-clause">
+      El cliente reconoce y acepta que ${escapeHtml(empresaNombreFinal || "la empresa")} podrá consultar, compartir y reportar su información crediticia ante las sociedades de información crediticia, conforme a la normativa vigente. En caso de incumplimiento de sus obligaciones de pago reflejadas en el presente estado de cuenta, dicha información podrá ser reportada, en apego a las disposiciones legales aplicables.
     </div>
 
     <footer class="carta-sign">

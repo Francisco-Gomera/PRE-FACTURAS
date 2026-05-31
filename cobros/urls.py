@@ -1,6 +1,16 @@
 from django.urls import path
 
-from .views import acuerdos_view, alertas_print_view, alertas_view, estado_cuenta_print_view, estado_cuenta_view, index
+from .views import (
+    acuerdos_view,
+    alertas_print_view,
+    alertas_view,
+    cartas_enviadas_view,
+    estado_cuenta_print_view,
+    estado_cuenta_view,
+    financiamientos_atraso_aviso_view,
+    financiamientos_atraso_view,
+    index,
+)
 
 app_name = "cobros"
 
@@ -9,6 +19,9 @@ urlpatterns = [
     path("acuerdos/", acuerdos_view, name="acuerdos"),
     path("alertas/", alertas_view, name="alertas"),
     path("alertas/impresion/", alertas_print_view, name="alertas_impresion"),
+    path("cartas-enviadas/", cartas_enviadas_view, name="cartas_enviadas"),
     path("estado-cuenta/", estado_cuenta_view, name="estado_cuenta"),
     path("estado-cuenta/impresion/", estado_cuenta_print_view, name="estado_cuenta_impresion"),
+    path("financiamientos-atraso/", financiamientos_atraso_view, name="financiamientos_atraso"),
+    path("financiamientos-atraso/aviso/", financiamientos_atraso_aviso_view, name="financiamientos_atraso_aviso"),
 ]

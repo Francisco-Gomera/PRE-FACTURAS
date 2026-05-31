@@ -1,7 +1,6 @@
 from pathlib import Path
 
 from django.conf import settings
-from django.contrib.auth.hashers import check_password, make_password
 from django.core import signing
 from django.db import connection
 from django.db import transaction
@@ -10,7 +9,9 @@ from django.http import JsonResponse, HttpResponse
 from django.shortcuts import redirect, render
 from django.utils import timezone
 
-from ajustes.permissions import has_perm
+from ajustes.permissions import has_perm, ensure_admin_role
+from ajustes.models import SegUsuarioRol
+from core.realtime import broadcast_prefacturas_refresh, broadcast_prefactura_document_status
 from django.views.decorators.http import require_http_methods
 from datetime import datetime, time
 from functools import lru_cache
@@ -21,10 +22,11 @@ import uuid
 from decimal import Decimal
 
 from .models import EtiquetaFormatoUsuario
-from .models_existing import DetPedido, MaestroSn, MaestroArticulo
+from .models_existing import DetPedido, MaestroSn, MaestroArticulo, Usuario
 
 AUTH_COOKIE_NAME = "prefacturas_auth_v2"
 LEGACY_AUTH_COOKIE_NAMES = ["prefacturas_auth"]
+DELPHI_CLAVE_KEY = bytes([0x50, 0x53, 0x46, 0xE7, 0x42, 0x24, 0xBF, 0x44])
 
 def _perm_denied_json():
     return JsonResponse({"detail": "Acceso denegado."}, status=403)
@@ -74,6 +76,19 @@ def _pick_existing_table_column(columns, *candidates):
     return None
 
 
+def _table_column_is_identity(table_name, column_name):
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT COLUMNPROPERTY(OBJECT_ID(%s), %s, 'IsIdentity')",
+                [table_name, column_name],
+            )
+            row = cursor.fetchone()
+        return bool(row and int(row[0] or 0) == 1)
+    except Exception:
+        return False
+
+
 def _get_open_ed_balance(id_sn):
     id_sn = str(id_sn or "").strip()
     if not id_sn:
@@ -87,21 +102,7 @@ def _get_open_ed_balance(id_sn):
     det_client_col = _pick_existing_table_column(det_columns, "ID_SN", "CLIENTE", "COD_CLIENTE")
     det_debito_col = _pick_existing_table_column(det_columns, "DEBITO", "DEBE")
     det_credito_col = _pick_existing_table_column(det_columns, "CREDITO", "HABER")
-    cab_status_col = _pick_existing_table_column(cab_columns, "ESTATUS", "EST_DOC", "ESTADO")
-    if not det_client_col or not det_debito_col or not det_credito_col or not cab_status_col:
-        return 0.0
-
-    det_id_col = _pick_existing_table_column(det_columns, "ID_DOC", "ID_ED")
-    cab_id_col = _pick_existing_table_column(cab_columns, "ID_DOC", "ID_ED")
-    det_no_col = _pick_existing_table_column(det_columns, "NO_DOC", "NO_ED")
-    cab_no_col = _pick_existing_table_column(cab_columns, "NO_DOC", "NO_ED")
-
-    join_parts = []
-    if det_id_col and cab_id_col:
-        join_parts.append(f"CAST(c.[{cab_id_col}] AS NVARCHAR(255)) = CAST(d.[{det_id_col}] AS NVARCHAR(255))")
-    if det_no_col and cab_no_col:
-        join_parts.append(f"CAST(c.[{cab_no_col}] AS NVARCHAR(255)) = CAST(d.[{det_no_col}] AS NVARCHAR(255))")
-    if not join_parts:
+    if not det_client_col or not det_debito_col or not det_credito_col:
         return 0.0
 
     with connection.cursor() as cursor:
@@ -112,12 +113,6 @@ def _get_open_ed_balance(id_sn):
                 COALESCE(SUM(COALESCE(d.[{det_credito_col}], 0)), 0)
             FROM DET_ED d
             WHERE d.[{det_client_col}] = %s
-              AND EXISTS (
-                  SELECT 1
-                  FROM CAB_ED c
-                  WHERE ({' OR '.join(join_parts)})
-                    AND UPPER(LTRIM(RTRIM(COALESCE(CAST(c.[{cab_status_col}] AS NVARCHAR(255)), '')))) = 'ABIERTO'
-              )
             """,
             [id_sn],
         )
@@ -180,14 +175,46 @@ def _get_auth_payload(request):
     if not token:
         return None
     try:
-        return signing.loads(token, max_age=60 * 60 * 12)
+        return signing.loads(token, max_age=getattr(settings, "AUTH_COOKIE_MAX_AGE", 60 * 60 * 24 * 365 * 5))
     except signing.BadSignature:
         return None
 
 
+def _delphi_clave_transform(value):
+    raw = str(value or "")
+    if not raw:
+        return ""
+    try:
+        data = raw.encode("cp1252")
+    except UnicodeEncodeError:
+        data = raw.encode("latin-1")
+    transformed = bytes(
+        byte ^ DELPHI_CLAVE_KEY[index % len(DELPHI_CLAVE_KEY)]
+        for index, byte in enumerate(data)
+    )
+    try:
+        return transformed.decode("cp1252")
+    except UnicodeDecodeError:
+        return transformed.decode("latin-1")
+
+
+def _delphi_clave_matches(password_value, clave_value):
+    try:
+        return _delphi_clave_transform(clave_value) == str(password_value or "")
+    except Exception:
+        return False
+
+
+def _encode_delphi_clave(password_value):
+    try:
+        return _delphi_clave_transform(password_value)
+    except Exception:
+        return ""
+
+
 def _get_usuario_activo(usuario_input):
     query = """
-        SELECT TOP 1 ID_USUARIO, ISNULL(NOMBRE, USUARIO) AS NOMBRE, USUARIO, ISNULL([PASSWORD], '')
+        SELECT TOP 1 ID_USUARIO, ISNULL(NOMBRE, USUARIO) AS NOMBRE, USUARIO, ISNULL([CLAVE], '')
         FROM USUARIO
         WHERE USUARIO = %s
           AND UPPER(ISNULL(ESTADO, '')) = 'ACTIVO'
@@ -201,8 +228,112 @@ def _get_usuario_activo(usuario_input):
         "usuario_id": int(row[0]),
         "usuario_nombre": row[1],
         "usuario_login": row[2],
-        "password_hash": str(row[3] or "").strip(),
+        "clave": str(row[3] or ""),
     }
+
+
+def _has_any_usuario():
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT TOP 1 1 FROM USUARIO")
+            return bool(cursor.fetchone())
+    except Exception:
+        return False
+
+
+def _upsert_empresa(empresa_data):
+    empresa_columns = set(_load_table_columns_cached("EMPRESA"))
+    if not empresa_columns:
+        return
+
+    mapping = [
+        ("NOMBRE", empresa_data.get("nombre", "")),
+        ("DIR_EMP", empresa_data.get("direccion", "")),
+        ("TEL1", empresa_data.get("tel1", "")),
+        ("TEL2", empresa_data.get("tel2", "")),
+        ("EMAIL", empresa_data.get("email", "")),
+        ("RNC_CED", empresa_data.get("rnc", "")),
+        ("HABILITAR_FACT_STOCK", 1 if empresa_data.get("habilitar_fact_stock") else 0),
+    ]
+    valid_columns = [(col, value) for col, value in mapping if col in empresa_columns]
+    if not valid_columns:
+        return
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT TOP 1 ID_EMPRESA FROM EMPRESA")
+        row = cursor.fetchone()
+        if row:
+            set_clause = ", ".join(f"[{col}] = %s" for col, _ in valid_columns)
+            params = [value for _, value in valid_columns] + [row[0]]
+            cursor.execute(f"UPDATE EMPRESA SET {set_clause} WHERE ID_EMPRESA = %s", params)
+        else:
+            cols = ", ".join(f"[{col}]" for col, _ in valid_columns)
+            placeholders = ", ".join(["%s"] * len(valid_columns))
+            params = [value for _, value in valid_columns]
+            cursor.execute(f"INSERT INTO EMPRESA ({cols}) VALUES ({placeholders})", params)
+
+
+def _insert_departamentos(departamentos):
+    dept_columns = set(_load_table_columns_cached("DEPARTAMENTO"))
+    if not dept_columns:
+        return
+
+    ceco_col = _pick_existing_table_column(dept_columns, "CECO", "CENTRO_COSTO", "ID_DEPTO", "DEPARTAMENTO", "CODIGO")
+    descripcion_col = _pick_existing_table_column(dept_columns, "DESCRIPCION", "DESCRIP", "NOMBRE", "NOM_DEPTO")
+    id_col = _pick_existing_table_column(dept_columns, "ID_CODIGO", "ID_DEPTO", "ID_DEPARTAMENTO")
+    if not ceco_col or not descripcion_col:
+        return
+
+    id_is_identity = True
+    if id_col:
+        id_is_identity = _table_column_is_identity("DEPARTAMENTO", id_col)
+
+    next_id = None
+    if id_col and not id_is_identity:
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT COALESCE(MAX([{id_col}]), 0) + 1 FROM DEPARTAMENTO")
+            next_id = cursor.fetchone()[0] or 1
+
+    with connection.cursor() as cursor:
+        for dep in departamentos:
+            ceco = str(dep.get("ceco") or "").strip()
+            descripcion = str(dep.get("descripcion") or "").strip()
+            if not ceco and not descripcion:
+                continue
+
+            if id_col and not id_is_identity:
+                cursor.execute(
+                    f"INSERT INTO DEPARTAMENTO ([{id_col}], [{ceco_col}], [{descripcion_col}]) VALUES (%s, %s, %s)",
+                    [next_id, ceco, descripcion],
+                )
+                next_id += 1
+            else:
+                cursor.execute(
+                    f"INSERT INTO DEPARTAMENTO ([{ceco_col}], [{descripcion_col}]) VALUES (%s, %s)",
+                    [ceco, descripcion],
+                )
+
+
+def _save_usuario_formato_preferencia(usuario_id, formatos):
+    if not usuario_id or not isinstance(formatos, dict):
+        return
+    try:
+        EtiquetaFormatoUsuario.objects.update_or_create(
+            id_usuario=usuario_id,
+            defaults={"formato_json": json.dumps(formatos, ensure_ascii=False)},
+        )
+    except Exception:
+        pass
+
+
+def _assign_admin_role_to_user(usuario_id):
+    try:
+        admin_role = ensure_admin_role()
+        if not admin_role:
+            return
+        SegUsuarioRol.objects.get_or_create(id_usuario=usuario_id, rol=admin_role)
+    except Exception:
+        pass
 
 
 def _build_login_response(payload):
@@ -216,6 +347,7 @@ def _build_login_response(payload):
                 "usuario_login": payload["usuario_login"],
             }
         ),
+        max_age=getattr(settings, "AUTH_COOKIE_MAX_AGE", 60 * 60 * 24 * 365 * 5),
         httponly=True,
         samesite="Lax",
     )
@@ -229,67 +361,179 @@ def login_view(request):
 
     error_message = None
     info_message = None
-    step = "usuario"
+    setup_error_message = None
+    setup_info_message = None
+    setup_complete = False
     usuario_input = ""
+    setup_mode = not _has_any_usuario()
+    step = "setup" if setup_mode else "usuario"
+
     if request.method == "POST":
         action = (request.POST.get("action") or "identify").strip().lower()
         usuario_input = (request.POST.get("usuario") or "").strip()
-        if not usuario_input:
-            error_message = "Debes ingresar un usuario."
-        else:
-            payload = _get_usuario_activo(usuario_input)
-            if not payload:
-                error_message = "Usuario no encontrado o inactivo."
-            elif action == "identify":
-                if payload["password_hash"]:
-                    step = "password_login"
-                    info_message = "Usuario encontrado. Ingresa tu contraseña."
-                else:
-                    step = "password_create"
-                    info_message = "Este usuario no tiene contraseña. Crea una nueva."
-            elif action == "login_password":
-                step = "password_login"
-                password_value = request.POST.get("password") or ""
-                if not password_value:
-                    error_message = "Debes ingresar la contraseña."
-                else:
-                    ok_password = False
-                    try:
-                        ok_password = bool(payload["password_hash"]) and check_password(
-                            password_value, payload["password_hash"]
-                        )
-                    except Exception:
-                        ok_password = False
-                    if ok_password:
-                        return _build_login_response(payload)
-                    error_message = "Contraseña incorrecta."
-            elif action == "set_password":
-                step = "password_create"
-                if payload["password_hash"]:
-                    step = "password_login"
-                    info_message = "Este usuario ya tiene contraseña. Ingresa la contraseña actual."
-                else:
-                    password_new = request.POST.get("password_new") or ""
-                    password_confirm = request.POST.get("password_confirm") or ""
-                    if len(password_new) < 4:
-                        error_message = "La contraseña debe tener al menos 4 caracteres."
-                    elif password_new != password_confirm:
-                        error_message = "Las contraseñas no coinciden."
-                    else:
-                        password_hash = make_password(password_new)
-                        with connection.cursor() as cursor:
-                            cursor.execute(
-                                """
-                                UPDATE USUARIO
-                                SET [PASSWORD] = %s
-                                WHERE ID_USUARIO = %s
-                                """,
-                                [password_hash, int(payload["usuario_id"])],
-                            )
-                        payload["password_hash"] = password_hash
-                        return _build_login_response(payload)
+
+        if setup_mode and action == "setup_complete":
+            empresa_nombre = (request.POST.get("empresa_nombre") or "").strip()
+            empresa_direccion = (request.POST.get("empresa_direccion") or "").strip()
+            empresa_tel1 = (request.POST.get("empresa_tel1") or "").strip()
+            empresa_tel2 = (request.POST.get("empresa_tel2") or "").strip()
+            empresa_email = (request.POST.get("empresa_email") or "").strip()
+            empresa_rnc = (request.POST.get("empresa_rnc") or "").strip()
+            ui_theme_mode = (request.POST.get("ui_theme_mode") or "light").strip()
+            formato_recibo_pago = (request.POST.get("formato_recibo_pago") or "a4").strip()
+            formato_factura = (request.POST.get("formato_factura") or "a4").strip()
+            habilitar_fact_stock = bool(request.POST.get("habilitar_fact_stock"))
+            departments_json = request.POST.get("departments_data") or "[]"
+            admin_usuario = (request.POST.get("admin_usuario") or "").strip()
+            admin_nombre = (request.POST.get("admin_nombre") or "").strip()
+            admin_password = request.POST.get("admin_password") or ""
+            admin_password_confirm = request.POST.get("admin_password_confirm") or ""
+            admin_departamento = (request.POST.get("admin_departamento") or "").strip()
+            admin_departamento_ceco = (request.POST.get("admin_departamento_ceco") or "").strip()
+
+            if not empresa_nombre:
+                setup_error_message = "Debes ingresar el nombre de la empresa."
+            elif not admin_usuario:
+                setup_error_message = "Debes ingresar el usuario administrador."
+            elif not admin_nombre:
+                setup_error_message = "Debes ingresar el nombre del administrador."
+            elif not admin_departamento:
+                setup_error_message = "Debes seleccionar un departamento para el administrador."
+            elif len(admin_password) < 4:
+                setup_error_message = "La contraseña del administrador debe tener al menos 4 caracteres."
+            elif len(admin_password) > 12:
+                setup_error_message = "La contraseña no puede tener mas de 12 caracteres."
+            elif admin_password != admin_password_confirm:
+                setup_error_message = "Las contraseñas no coinciden."
             else:
-                error_message = "Accion no valida."
+                try:
+                    departments = json.loads(departments_json)
+                    if not isinstance(departments, list) or not departments:
+                        raise ValueError("Debe ingresar al menos un departamento.")
+                except Exception:
+                    departments = []
+                    setup_error_message = "Los datos de departamentos no son válidos."
+
+            if not setup_error_message:
+                if not departments:
+                    setup_error_message = "Debe ingresar al menos un departamento."
+
+            if not setup_error_message:
+                try:
+                    with transaction.atomic():
+                        _upsert_empresa(
+                            {
+                                "nombre": empresa_nombre,
+                                "direccion": empresa_direccion,
+                                "tel1": empresa_tel1,
+                                "tel2": empresa_tel2,
+                                "email": empresa_email,
+                                "rnc": empresa_rnc,
+                                "habilitar_fact_stock": habilitar_fact_stock,
+                            }
+                        )
+                        _insert_departamentos(departments)
+
+                        encoded_password = _encode_delphi_clave(admin_password)
+                        if not encoded_password:
+                            raise ValueError("La contraseña contiene caracteres no permitidos.")
+
+                        departamento_ceco = admin_departamento_ceco or str(departments[0].get("ceco") or "").strip()
+                        departamento_depto = admin_departamento or str(departments[0].get("descripcion") or "").strip()
+                        user = Usuario(
+                            usuario=admin_usuario,
+                            nombre=admin_nombre,
+                            estado="ACTIVO",
+                            ceco=departamento_ceco or None,
+                            depto=departamento_depto or None,
+                            nivel="Administrador",
+                            porc_desc=Decimal("0.00"),
+                            conectado="N",
+                            id_empresa=1,
+                            cambiar_clave="N",
+                            id_caja=1,
+                            pos="N",
+                            preliminar="N",
+                            terminal="",
+                        )
+                        user.clave = encoded_password
+                        user.clave_nueva = encoded_password
+                        user.save()
+                        _save_usuario_formato_preferencia(
+                            user.id_usuario,
+                            {
+                                "recibo_pago": formato_recibo_pago,
+                                "factura": formato_factura,
+                            },
+                        )
+                        _assign_admin_role_to_user(user.id_usuario)
+                        setup_complete = True
+                        setup_info_message = "¡Configuración inicial completada! Redirigiendo al login..."
+                except ValueError as exc:
+                    setup_error_message = str(exc)
+                except Exception:
+                    setup_error_message = "No fue posible guardar la configuración inicial. Intenta de nuevo."
+
+            step = "setup"
+        elif setup_mode:
+            step = "setup"
+        else:
+            if not usuario_input:
+                error_message = "Debes ingresar un usuario."
+            else:
+                payload = _get_usuario_activo(usuario_input)
+                if not payload:
+                    error_message = "Usuario no encontrado o inactivo."
+                elif action == "identify":
+                    if payload["clave"]:
+                        step = "password_login"
+                        info_message = "Usuario encontrado. Ingresa tu contraseña."
+                    else:
+                        step = "password_create"
+                        info_message = "Este usuario no tiene contraseña. Crea una nueva."
+                elif action == "login_password":
+                    step = "password_login"
+                    password_value = request.POST.get("password") or ""
+                    if not password_value:
+                        error_message = "Debes ingresar la contraseña."
+                    else:
+                        ok_password = bool(payload["clave"]) and _delphi_clave_matches(password_value, payload["clave"])
+                        if ok_password:
+                            return _build_login_response(payload)
+                        error_message = "Contraseña incorrecta."
+                elif action == "set_password":
+                    step = "password_create"
+                    if payload["clave"]:
+                        step = "password_login"
+                        info_message = "Este usuario ya tiene contraseña. Ingresa la contraseña actual."
+                    else:
+                        password_new = request.POST.get("password_new") or ""
+                        password_confirm = request.POST.get("password_confirm") or ""
+                        if len(password_new) < 4:
+                            error_message = "La contraseña debe tener al menos 4 caracteres."
+                        elif len(password_new) > 12:
+                            error_message = "La contraseña no puede tener mas de 12 caracteres."
+                        elif password_new != password_confirm:
+                            error_message = "Las contraseñas no coinciden."
+                        else:
+                            clave_codificada = _encode_delphi_clave(password_new)
+                            if not clave_codificada:
+                                error_message = "La contraseña contiene caracteres no permitidos."
+                            else:
+                                with connection.cursor() as cursor:
+                                    cursor.execute(
+                                        """
+                                        UPDATE USUARIO
+                                        SET [CLAVE] = %s,
+                                            [CLAVE_NUEVA] = %s
+                                        WHERE ID_USUARIO = %s
+                                        """,
+                                        [clave_codificada, clave_codificada, int(payload["usuario_id"])],
+                                    )
+                                payload["clave"] = clave_codificada
+                                return _build_login_response(payload)
+                else:
+                    error_message = "Accion no valida."
 
     return render(
         request,
@@ -299,6 +543,10 @@ def login_view(request):
             "info_message": info_message,
             "step": step,
             "usuario_input": usuario_input,
+            "setup_mode": setup_mode,
+            "setup_error_message": setup_error_message,
+            "setup_info_message": setup_info_message,
+            "setup_complete": setup_complete,
         },
     )
 
@@ -365,20 +613,19 @@ def cambiar_password_view(request):
     except Exception:
         return JsonResponse({"detail": "JSON invalido"}, status=400)
 
-    password_actual = str(payload.get("password_actual") or "")
     password_nueva = str(payload.get("password_nueva") or "")
     password_confirm = str(payload.get("password_confirm") or "")
-    if not password_actual:
-        return JsonResponse({"detail": "La contraseña actual es obligatoria."}, status=400)
     if len(password_nueva) < 4:
         return JsonResponse({"detail": "La nueva contraseña debe tener al menos 4 caracteres."}, status=400)
+    if len(password_nueva) > 12:
+        return JsonResponse({"detail": "La nueva contraseña no puede tener mas de 12 caracteres."}, status=400)
     if password_nueva != password_confirm:
         return JsonResponse({"detail": "La confirmación no coincide."}, status=400)
 
     with connection.cursor() as cursor:
         cursor.execute(
             """
-            SELECT TOP 1 ISNULL([PASSWORD], '')
+            SELECT TOP 1 ID_USUARIO
             FROM USUARIO
             WHERE ID_USUARIO = %s
               AND UPPER(ISNULL(ESTADO, '')) = 'ACTIVO'
@@ -388,21 +635,18 @@ def cambiar_password_view(request):
         row = cursor.fetchone()
         if not row:
             return JsonResponse({"detail": "Usuario no encontrado o inactivo."}, status=404)
-        current_hash = str(row[0] or "").strip()
-        try:
-            valid_current = bool(current_hash) and check_password(password_actual, current_hash)
-        except Exception:
-            valid_current = False
-        if not valid_current:
-            return JsonResponse({"detail": "La contraseña actual es incorrecta."}, status=400)
+        clave_nueva = _encode_delphi_clave(password_nueva)
+        if not clave_nueva:
+            return JsonResponse({"detail": "La nueva contraseña contiene caracteres no permitidos."}, status=400)
 
         cursor.execute(
             """
             UPDATE USUARIO
-            SET [PASSWORD] = %s
+            SET [CLAVE] = %s,
+                [CLAVE_NUEVA] = %s
             WHERE ID_USUARIO = %s
             """,
-            [make_password(password_nueva), int(auth_payload["usuario_id"])],
+            [clave_nueva, clave_nueva, int(auth_payload["usuario_id"])],
         )
 
     return JsonResponse({"ok": True})
@@ -1204,6 +1448,7 @@ def actualizar_prefactura_view(request):
         return JsonResponse({"detail": "JSON invalido"}, status=400)
 
     id_doc = str(payload.get("id_doc") or "").strip()
+    client_event_id = str(payload.get("event_id") or "").strip()
     if not id_doc:
         return JsonResponse({"detail": "id_doc requerido"}, status=400)
 
@@ -1527,6 +1772,17 @@ def actualizar_prefactura_view(request):
                 [str(payload.get("comentario_linea") or ""), id_doc],
             )
 
+    transaction.on_commit(
+        lambda: broadcast_prefacturas_refresh(reason="prefactura-updated", event_id=client_event_id)
+    )
+    transaction.on_commit(
+        lambda: broadcast_prefactura_document_status(
+            document_id=id_doc,
+            estado=est_doc,
+            reason="prefactura-updated",
+            event_id=client_event_id,
+        )
+    )
     return JsonResponse({"ok": True, "id_doc": id_doc})
 
 
@@ -1543,6 +1799,7 @@ def crear_prefactura_view(request):
     except Exception:
         return JsonResponse({"detail": "JSON invalido"}, status=400)
 
+    client_event_id = str(payload.get("event_id") or "").strip()
     id_sn = str(payload.get("id_sn") or "").strip()
     nom_socio = str(payload.get("nom_socio") or "").strip()
     if not id_sn:
@@ -1798,6 +2055,17 @@ def crear_prefactura_view(request):
                 [str(payload.get("comentario_linea") or ""), str(new_id_doc)],
             )
 
+    transaction.on_commit(
+        lambda: broadcast_prefacturas_refresh(reason="prefactura-created", event_id=client_event_id)
+    )
+    transaction.on_commit(
+        lambda: broadcast_prefactura_document_status(
+            document_id=str(new_id_doc),
+            estado=est_doc,
+            reason="prefactura-created",
+            event_id=client_event_id,
+        )
+    )
     return JsonResponse({"ok": True, "id_doc": str(new_id_doc), "fecha_act": now.strftime("%Y-%m-%d")})
 
 
@@ -1813,6 +2081,7 @@ def actualizar_estado_prefactura_view(request):
         return JsonResponse({"detail": "JSON invalido"}, status=400)
 
     id_doc = str(payload.get("id_doc") or "").strip()
+    client_event_id = str(payload.get("event_id") or "").strip()
     est_doc_raw = str(payload.get("est_doc") or "").strip()
     est_map = {
         "abierto": "Abierto",
@@ -1844,6 +2113,17 @@ def actualizar_estado_prefactura_view(request):
     if updated <= 0:
         return JsonResponse({"detail": "Pre-factura no encontrada"}, status=404)
 
+    transaction.on_commit(
+        lambda: broadcast_prefacturas_refresh(reason="prefactura-status-updated", event_id=client_event_id)
+    )
+    transaction.on_commit(
+        lambda: broadcast_prefactura_document_status(
+            document_id=id_doc,
+            estado=est_doc,
+            reason="prefactura-status-updated",
+            event_id=client_event_id,
+        )
+    )
     return JsonResponse({"ok": True, "id_doc": id_doc, "est_doc": est_doc})
 
 
@@ -2277,7 +2557,7 @@ def detalle_cliente_view(request):
     if not cliente:
         return JsonResponse({"detail": "Cliente no encontrado"}, status=404)
 
-    # Balance dinamico: solo cuenta DET_ED cuyos documentos en CAB_ED esten Abiertos.
+    # Balance dinamico: suma el libro DET_ED completo; los CAB_ED cancelados reversan movimientos.
     cliente["saldo"] = _get_open_ed_balance(id_sn)
     cliente["foto_url"] = _build_foto_url(cliente.get("foto"))
     return JsonResponse({"cliente": cliente})

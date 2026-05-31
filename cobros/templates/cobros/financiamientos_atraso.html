@@ -1,0 +1,429 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<div class="fin-atraso-page">
+  <header class="fin-atraso-header">
+    <div>
+      <h2 class="page-title">Financiamientos en atraso</h2>
+      <p class="page-subtitle">Listado de clientes con cuotas vencidas, ordenado por mayor cantidad de cuotas en atraso.</p>
+    </div>
+    <div class="fin-atraso-summary">
+      <div><span>Cuentas</span><strong>{{ total_records }}</strong></div>
+      <div><span>Cuotas</span><strong>{{ total_cuotas }}</strong></div>
+      <div><span>Balance</span><strong>{{ total_balance|floatformat:2 }}</strong></div>
+    </div>
+  </header>
+
+  <div class="fin-atraso-layout">
+    <aside class="fin-atraso-filters">
+      <form method="get" class="fin-filter-card">
+        <h3>Filtros</h3>
+
+        <label for="fin_q">Cliente, cedula o financiamiento</label>
+        <input id="fin_q" name="q" type="search" value="{{ q }}" placeholder="Buscar..." />
+
+        <div class="fin-filter-grid">
+          <div>
+            <label for="fin_cuotas_desde">Cuotas desde</label>
+            <input id="fin_cuotas_desde" name="cuotas_desde" type="number" min="0" step="1" value="{{ cuotas_desde }}" />
+          </div>
+          <div>
+            <label for="fin_cuotas_hasta">Cuotas hasta</label>
+            <input id="fin_cuotas_hasta" name="cuotas_hasta" type="number" min="0" step="1" value="{{ cuotas_hasta }}" placeholder="Sin limite" />
+          </div>
+        </div>
+
+        <label for="fin_sector">Sector</label>
+        <select id="fin_sector" name="sector">
+          <option value="">Todos los sectores</option>
+          {% for sector in sectores %}
+          <option value="{{ sector.id_codigo }}" {% if sector_id == sector.id_codigo %}selected{% endif %}>{{ sector.descripcion }}</option>
+          {% endfor %}
+        </select>
+
+        <div class="fin-filter-actions">
+          <button type="submit">Aplicar</button>
+          <a href="{% url 'cobros:financiamientos_atraso' %}">Limpiar</a>
+        </div>
+      </form>
+    </aside>
+
+    <section class="fin-atraso-list">
+      <div class="fin-table-panel">
+        <div class="fin-table-toolbar">
+          <strong>Financiamientos encontrados</strong>
+          <span>Doble clic sobre una fila para ver la carta de aviso.</span>
+        </div>
+        <div class="fin-table-wrap">
+          <table class="fin-table">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>No. financ.</th>
+                <th>Sector</th>
+                <th class="text-center">Cuotas atraso</th>
+                <th class="text-right">Balance atraso</th>
+                <th class="text-center">Mayor dias</th>
+                <th>Ult. pago</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in records %}
+              <tr data-no-doc="{{ item.id_doc }}" tabindex="0">
+                <td>
+                  <strong>{{ item.cliente }}</strong>
+                  <span>{{ item.id_sn }}{% if item.telefono %} | {{ item.telefono }}{% endif %}</span>
+                </td>
+                <td>{{ item.id_doc }}</td>
+                <td>{{ item.sector }}</td>
+                <td class="text-center fin-alert">{{ item.cuotas_atrasadas }}</td>
+                <td class="text-right">{{ item.balance_atraso|floatformat:2 }}</td>
+                <td class="text-center fin-alert">{{ item.dias_mayor_atraso }}</td>
+                <td>{{ item.fecha_ultimo_pago|default:"-" }}</td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="7" class="fin-empty">No hay financiamientos en atraso para los filtros seleccionados.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="fin-aviso-panel">
+      <div class="fin-aviso-toolbar">
+        <div>
+          <strong>Carta de aviso</strong>
+          <span id="fin_aviso_doc">Selecciona un financiamiento</span>
+        </div>
+        <div>
+          <button id="btn_fin_aviso_open" type="button" disabled>Abrir</button>
+          <button id="btn_fin_aviso_print" type="button" disabled>Imprimir</button>
+        </div>
+      </div>
+      <div class="fin-aviso-frame-wrap">
+        <iframe id="fin_aviso_frame" title="Carta de aviso de financiamiento"></iframe>
+        <div id="fin_aviso_empty" class="fin-aviso-empty">La carta se mostrara aqui al hacer doble clic sobre un financiamiento.</div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<style>
+  .fin-atraso-page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .fin-atraso-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .fin-atraso-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(90px, 1fr));
+    gap: 8px;
+    min-width: 320px;
+  }
+
+  .fin-atraso-summary div,
+  .fin-filter-card,
+  .fin-table-panel,
+  .fin-aviso-panel {
+    background: #ffffff;
+    border: 1px solid #d8e2f3;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(15, 38, 71, 0.08);
+  }
+
+  .fin-atraso-summary div {
+    padding: 10px 12px;
+  }
+
+  .fin-atraso-summary span,
+  .fin-table-toolbar span,
+  .fin-aviso-toolbar span {
+    display: block;
+    color: #627d98;
+    font-size: 12px;
+  }
+
+  .fin-atraso-summary strong {
+    color: #183b56;
+    font-size: 20px;
+  }
+
+  .fin-atraso-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(520px, 1fr) 430px;
+    gap: 14px;
+    align-items: start;
+  }
+
+  .fin-atraso-filters {
+    position: sticky;
+    top: 16px;
+  }
+
+  .fin-filter-card {
+    padding: 16px;
+  }
+
+  .fin-filter-card h3 {
+    margin: 0 0 14px;
+    color: #183b56;
+    font-size: 17px;
+  }
+
+  .fin-filter-card label {
+    display: block;
+    margin: 10px 0 5px;
+    color: #52606d;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .fin-filter-card input,
+  .fin-filter-card select {
+    width: 100%;
+    min-height: 38px;
+    border: 1px solid #c9d6e8;
+    border-radius: 7px;
+    padding: 7px 9px;
+    font-size: 14px;
+    background: #ffffff;
+  }
+
+  .fin-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .fin-filter-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .fin-filter-actions button,
+  .fin-filter-actions a,
+  .fin-aviso-toolbar button {
+    min-height: 38px;
+    border: 1px solid #2a67c7;
+    border-radius: 7px;
+    background: #2a67c7;
+    color: #ffffff;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .fin-filter-actions a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #ffffff;
+    color: #2a67c7;
+  }
+
+  .fin-table-panel {
+    overflow: hidden;
+  }
+
+  .fin-table-toolbar,
+  .fin-aviso-toolbar {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid #d8e2f3;
+  }
+
+  .fin-table-wrap {
+    max-height: calc(100vh - 230px);
+    overflow: auto;
+  }
+
+  .fin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  .fin-table th,
+  .fin-table td {
+    border-bottom: 1px solid #e6edf7;
+    padding: 9px 10px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  .fin-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f5f8fd;
+    color: #52606d;
+    font-size: 12px;
+  }
+
+  .fin-table tbody tr {
+    cursor: pointer;
+  }
+
+  .fin-table tbody tr:hover,
+  .fin-table tbody tr.is-selected {
+    background: #eaf2ff;
+  }
+
+  .fin-table td span {
+    display: block;
+    color: #627d98;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+
+  .text-right {
+    text-align: right !important;
+  }
+
+  .text-center {
+    text-align: center !important;
+  }
+
+  .fin-alert {
+    color: #b42318;
+    font-weight: 800;
+  }
+
+  .fin-empty {
+    height: 160px;
+    color: #627d98;
+    text-align: center !important;
+  }
+
+  .fin-aviso-panel {
+    overflow: hidden;
+  }
+
+  .fin-aviso-toolbar button {
+    min-width: 82px;
+    margin-left: 6px;
+  }
+
+  .fin-aviso-toolbar button:disabled {
+    border-color: #b8c4d4;
+    background: #d8e2f3;
+    cursor: not-allowed;
+  }
+
+  .fin-aviso-frame-wrap {
+    position: relative;
+    min-height: calc(100vh - 235px);
+    background: #eef2f7;
+  }
+
+  #fin_aviso_frame {
+    display: none;
+    width: 100%;
+    height: calc(100vh - 235px);
+    border: none;
+    background: #ffffff;
+  }
+
+  .fin-aviso-empty {
+    padding: 30px;
+    color: #627d98;
+    text-align: center;
+  }
+
+  @media (max-width: 1400px) {
+    .fin-atraso-layout {
+      grid-template-columns: 280px minmax(520px, 1fr);
+    }
+
+    .fin-aviso-panel {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .fin-atraso-header,
+    .fin-table-toolbar,
+    .fin-aviso-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .fin-atraso-summary,
+    .fin-atraso-layout {
+      grid-template-columns: 1fr;
+      min-width: 0;
+    }
+
+    .fin-atraso-filters {
+      position: static;
+    }
+  }
+</style>
+
+<script>
+  (function () {
+    const avisoBaseUrl = "{% url 'cobros:financiamientos_atraso_aviso' %}";
+    const frame = document.getElementById("fin_aviso_frame");
+    const empty = document.getElementById("fin_aviso_empty");
+    const label = document.getElementById("fin_aviso_doc");
+    const openBtn = document.getElementById("btn_fin_aviso_open");
+    const printBtn = document.getElementById("btn_fin_aviso_print");
+    const rows = Array.from(document.querySelectorAll(".fin-table tbody tr[data-no-doc]"));
+    let currentUrl = "";
+
+    function buildAvisoUrl(noDoc, embed) {
+      const suffix = embed ? "&embed=1" : "";
+      return `${avisoBaseUrl}?no_doc=${encodeURIComponent(noDoc)}${suffix}`;
+    }
+
+    function selectRow(row) {
+      const noDoc = row.getAttribute("data-no-doc") || "";
+      if (!noDoc) return;
+      rows.forEach((item) => item.classList.remove("is-selected"));
+      row.classList.add("is-selected");
+      currentUrl = buildAvisoUrl(noDoc, false);
+      frame.src = buildAvisoUrl(noDoc, true);
+      frame.style.display = "block";
+      empty.style.display = "none";
+      label.textContent = `Financiamiento ${noDoc}`;
+      openBtn.disabled = false;
+      printBtn.disabled = false;
+    }
+
+    rows.forEach((row) => {
+      row.addEventListener("dblclick", () => selectRow(row));
+      row.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") selectRow(row);
+      });
+    });
+
+    openBtn?.addEventListener("click", () => {
+      if (currentUrl) window.open(currentUrl, "_blank");
+    });
+
+    printBtn?.addEventListener("click", () => {
+      if (frame && frame.contentWindow) {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+      }
+    });
+  })();
+</script>
+{% endblock %}

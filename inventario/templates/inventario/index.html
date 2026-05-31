@@ -19,6 +19,13 @@
     <a href="{% url 'inventario:entrada_articulos' %}">Abrir entrada</a>
   </div>
   {% endif %}
+  {% if submodules.solicitudes_existencia_operativas %}
+  <div class="info-card">
+    <h3>Solicitudes de existencia</h3>
+    <p>Vista operativa en tiempo real para solicitudes pendientes y atendidas.</p>
+    <a href="{% url 'inventario:solicitudes_existencia_operativas' %}">Abrir solicitudes</a>
+  </div>
+  {% endif %}
   {% if submodules.salida_articulos %}
   <div class="info-card">
     <h3>Salida articulos</h3>

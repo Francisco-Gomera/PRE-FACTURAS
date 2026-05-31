@@ -17,6 +17,13 @@
     <a href="{% url 'caja:index' %}">Abrir modulo</a>
   </div>
   {% endif %}
+  {% if visible_modules.chat_interno %}
+  <div class="info-card">
+    <h3>Chat Interno</h3>
+    <p>Mensajeria en vivo entre usuarios y grupos internos.</p>
+    <a href="{% url 'chat_interno:index' %}">Abrir modulo</a>
+  </div>
+  {% endif %}
   {% if visible_modules.factura %}
   <div class="info-card">
     <h3>Factura</h3>

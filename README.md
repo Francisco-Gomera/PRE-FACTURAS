@@ -46,6 +46,19 @@ Si quieres solo algunas tablas:
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
+## 5.1) Despliegue recomendado en red local con HTTPS
+
+Para usar acceso directo movil y notificaciones del sistema, la app debe abrirse por `HTTPS`.
+
+La ruta recomendada es:
+
+- `Daphne` escuchando en `127.0.0.1:8000`
+- `Caddy` exponiendo `https://caerp.local`
+
+Guia completa:
+
+- [HTTPS_LOCAL_CADDY.md](/c:/Users/franc/Desktop/PRE-FACTURAS/docs/HTTPS_LOCAL_CADDY.md)
+
 ## 6) Parametros base para e-CF
 
 Puedes complementar `.env` con una estrategia de integracion:

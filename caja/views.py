@@ -4,7 +4,7 @@ import socket
 import subprocess
 import uuid
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import lru_cache
 from pathlib import Path
 
@@ -17,8 +17,11 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods
 
 from ajustes.permissions import has_perm
+from ajustes.print_formats import get_print_format, get_print_format_label
 from ajustes.user_signatures import get_user_signature_bytes
+from core.realtime import broadcast_cxc_document_status, broadcast_financiamiento_document_status
 from core.views import _base_context, _get_empresa_data, render_denied
+from prefacturas_app.models_existing import MaestroSn
 from prefacturas_app.views import _get_auth_payload, _get_open_ed_balance, _require_perm_json
 
 
@@ -38,6 +41,35 @@ def _load_firma_b64(usuario_id):
     except Exception:
         return ""
     return ""
+
+
+def _load_usuario_meta(usuario_ref):
+    usuario_ref = str(usuario_ref or "").strip()
+    if not usuario_ref:
+        return {}
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT TOP 1
+                    ID_USUARIO,
+                    ISNULL(NULLIF(LTRIM(RTRIM(NOMBRE)), ''), USUARIO) AS NOMBRE
+                FROM USUARIO
+                WHERE CAST(ID_USUARIO AS NVARCHAR(255)) = %s
+                   OR LTRIM(RTRIM(ISNULL(USUARIO, ''))) = %s
+                   OR LTRIM(RTRIM(ISNULL(NOMBRE, ''))) = %s
+                """,
+                [usuario_ref, usuario_ref, usuario_ref],
+            )
+            row = cursor.fetchone()
+            if row:
+                return {
+                    "id": str(row[0] or "").strip(),
+                    "nombre": str(row[1] or "").strip(),
+                }
+    except Exception:
+        return {}
+    return {}
 
 
 def _fmt_date_input(value):
@@ -95,6 +127,16 @@ def _to_decimal(value, default=Decimal("0")):
 
 def _values_match(left, right, tolerance=Decimal("0.01")):
     return abs(_to_decimal(left) - _to_decimal(right)) <= tolerance
+
+
+def _calculate_det_recibo_sub_pdo(total_pago, total_fact, cuota):
+    total_pago_dec = _to_decimal(total_pago)
+    total_fact_dec = _to_decimal(total_fact)
+    cuota_dec = _to_decimal(cuota)
+    if cuota_dec == Decimal("0"):
+        return Decimal("0.00")
+    sub_pdo = (total_pago_dec * total_fact_dec) / cuota_dec
+    return sub_pdo.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
 def _parse_date_value(value):
@@ -322,16 +364,23 @@ def _insert_dynamic_row(cursor, table_name, table_columns, values_by_column, *, 
     if not insert_columns:
         raise ValueError(f"No hay columnas para insertar en {table_name}")
     placeholders = ", ".join(["%s"] * len(insert_columns))
-    output_sql = f" OUTPUT INSERTED.[{output_column}]" if output_column else ""
-    sql = (
-        f"INSERT INTO {table_name} ({', '.join(f'[{column}]' for column in insert_columns)})"
-        f"{output_sql} VALUES ({placeholders})"
-    )
     params = [values_by_column[column] for column in insert_columns]
-    cursor.execute(sql, params)
     if output_column:
+        sql = (
+            "DECLARE @codex_inserted_output TABLE (value sql_variant); "
+            f"INSERT INTO {table_name} ({', '.join(f'[{column}]' for column in insert_columns)}) "
+            f"OUTPUT INSERTED.[{output_column}] INTO @codex_inserted_output "
+            f"VALUES ({placeholders}); "
+            "SELECT TOP 1 CAST(value AS NVARCHAR(255)) FROM @codex_inserted_output;"
+        )
+        cursor.execute(sql, params)
+        while cursor.description is None:
+            if not cursor.nextset():
+                return None
         row = cursor.fetchone()
         return row[0] if row else None
+    sql = f"INSERT INTO {table_name} ({', '.join(f'[{column}]' for column in insert_columns)}) VALUES ({placeholders})"
+    cursor.execute(sql, params)
     return None
 
 
@@ -786,7 +835,6 @@ def _get_det_recibo_payment_amount(row):
             row,
             "TOTAL_PAGO",
             "TOTAL_PAGO2",
-            "SALDO_VENC",
             "PAGO_ABONO",
             "IMP_ABONO",
             "IMP_PAGADO",
@@ -802,6 +850,7 @@ def _get_det_recibo_payment_amount(row):
             "PAGO",
             "COBRO",
             "IMPORTE",
+            "SALDO_VENC",
             default=0,
         )
     )
@@ -822,6 +871,14 @@ def _get_det_recibo_discount_amount(row):
 
 def _get_det_recibo_applied_amount(row):
     return _get_det_recibo_payment_amount(row) + _get_det_recibo_discount_amount(row)
+
+
+def _resolve_cxc_ed_total(cash_total, total_desc, *, is_close_account=False):
+    cash_total_dec = _to_decimal(cash_total)
+    total_desc_dec = _to_decimal(total_desc)
+    if is_close_account:
+        return total_desc_dec
+    return max(cash_total_dec + total_desc_dec, Decimal("0"))
 
 
 def _append_cancelled_comment(comment):
@@ -978,20 +1035,6 @@ def _create_cxc_cancel_ed_entries(
         raise ValueError("No se pudo identificar el CAB_ED del recibo.")
 
     cancel_comment = _append_cancelled_comment(_pick_row_text(original_cab_ed, "COMENTARIO", "OBSERVACION"))
-    original_cab_ed_updates = {}
-    _assign_existing_values(original_cab_ed_updates, cab_ed_columns, "Cancelado", "EST_DOC", "ESTADO", "ESTATUS")
-    _assign_existing_values(original_cab_ed_updates, cab_ed_columns, cancel_comment, "COMENTARIO", "OBSERVACION")
-    _assign_existing_values(original_cab_ed_updates, cab_ed_columns, timezone.localtime(), "FECHA_ACT")
-    original_cab_ed_lookup_col = cab_ed_key_col if original_cab_ed_id else cab_ed_no_col
-    original_cab_ed_lookup_value = original_cab_ed_id if original_cab_ed_id else original_cab_ed_no
-    _update_dynamic_row(
-        cursor,
-        "CAB_ED",
-        original_cab_ed_updates,
-        f"CAST([{original_cab_ed_lookup_col}] AS NVARCHAR(255)) = %s",
-        [original_cab_ed_lookup_value],
-    )
-
     next_ed_no = None
     if cab_ed_no_col and cab_ed_no_col not in cab_ed_identity_columns:
         next_ed_no = _next_table_numeric_value(cursor, "CAB_ED", cab_ed_no_col)
@@ -1615,10 +1658,19 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
 
     like_value = f"%{(query or '').strip()}%"
     where_columns = []
+    matching_client_ids = []
     filtro_normalizado = (filtro or "recibo").strip().lower()
     if like_value != "%%":
         if filtro_normalizado == "cliente":
             where_columns = _unique_columns(cliente_col, nombre_col)
+            try:
+                matching_client_ids = list(
+                    MaestroSn.objects.filter(nom_socio__icontains=(query or "").strip())
+                    .order_by("id_sn")
+                    .values_list("id_sn", flat=True)[:50]
+                )
+            except Exception:
+                matching_client_ids = []
         elif filtro_normalizado == "rnc":
             where_columns = _unique_columns(rnc_col)
         else:
@@ -1626,17 +1678,24 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
 
     sql = f"SELECT TOP {max(1, min(int(limit), 300))} {', '.join(f'[{column}]' for column in selected_columns)} FROM CAB_RECIBO_INGRESO"
     params = []
+    where_parts = []
     if where_columns:
-        sql += " WHERE " + " OR ".join(f"CAST([{column}] AS NVARCHAR(255)) LIKE %s" for column in where_columns)
+        where_parts.append("(" + " OR ".join(f"CAST([{column}] AS NVARCHAR(255)) LIKE %s" for column in where_columns) + ")")
         params.extend([like_value] * len(where_columns))
+    if filtro_normalizado == "cliente" and cliente_col and matching_client_ids:
+        client_placeholders = ", ".join(["%s"] * len(matching_client_ids))
+        where_parts.append(f"CAST([{cliente_col}] AS NVARCHAR(255)) IN ({client_placeholders})")
+        params.extend(matching_client_ids)
+    if where_parts:
+        sql += " WHERE " + " OR ".join(where_parts)
 
-    order_col = _pick_existing_column(columns, "FECHA_CONT", "F_CONT", "ID_RECIBO", "NO_RECIBO", "ID_DOC")
-    if filtro_normalizado == "recibo":
-        receipt_order_columns = _unique_columns(no_recibo_col, id_col, order_col)
-        if receipt_order_columns:
-            sql += " ORDER BY " + ", ".join(f"[{column}] DESC" for column in receipt_order_columns)
-    elif order_col:
-        sql += f" ORDER BY [{order_col}] DESC"
+    order_col = _pick_existing_column(columns, "FECHA_CONT", "F_CONT", "FECHA_DOC", "FECHA")
+    receipt_order_columns = _unique_columns(no_recibo_col, id_col, order_col)
+    order_parts = []
+    for column in receipt_order_columns:
+        order_parts.append(f"[{column}] DESC")
+    if order_parts:
+        sql += " ORDER BY " + ", ".join(order_parts)
 
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
@@ -1685,14 +1744,13 @@ def _load_cxc_recibos_busqueda(query="", filtro="recibo", limit=150):
                 "estatus": _pick_row_text(row, estatus_col) or "Abierto",
             }
         )
-    if filtro_normalizado == "recibo":
-        results.sort(
-            key=lambda item: (
-                _doc_sort_key(item.get("no_recibo") or item.get("recibo_id")),
-                _doc_sort_key(item.get("recibo_id")),
-            ),
-            reverse=True,
-        )
+    results.sort(
+        key=lambda item: (
+            _doc_sort_key(item.get("no_recibo") or item.get("recibo_id")),
+            _doc_sort_key(item.get("recibo_id")),
+        ),
+        reverse=True,
+    )
     return results
 
 
@@ -2113,9 +2171,12 @@ def _build_cxc_recibo_payload(header_row, detail_rows):
                     balance_doc = cuota_balance
                 elif prestamo_meta.get("balance") is not None:
                     balance_doc = _to_float(prestamo_meta.get("balance"))
+        desc_avance_value = _to_float(_pick_row_value(raw_row, "DESC_AVANCE", "DESCUENTO", "AVANCE", default=0))
+        balance_pend_with_discount = max(balance_pend - desc_avance_value, 0)
         detalle.append(
             {
                 "td": _pick_row_text(raw_row, "TIPO_DOC", "TD", "CLASE_DOC", "TIPO"),
+                "linea": _stringify_doc(_pick_row_value(raw_row, "NO_LINEA", "LINEA", "NO_ITEM", "ORDEN", default="")),
                 "no_doc": no_doc,
                 "fecha_cont": _fmt_date(_pick_row_value(raw_row, "FECHA_CONT", "F_CONT", "FECHA_DOC", "FECHA", default=_pick_row_value(header_row, "FECHA_CONT", "FECHA_DOC"))),
                 "monto_doc": _to_float(_pick_row_value(raw_row, "MONTO_DOC", "TOTAL_DOC", "MONTO", "CUOTA", default=balance_doc or pago_abono)),
@@ -2134,9 +2195,9 @@ def _build_cxc_recibo_payload(header_row, detail_rows):
                 "dias": dias,
                 "cargo": _to_float(_pick_row_value(raw_row, "CARGO", "MORA", "TOTAL_MORA", default=0)),
                 "porc_desc": _to_float(_pick_row_value(raw_row, "PORC_DESC", "PORCENTAJE_DESC", "PCT_DESC", default=0)),
-                "desc_avance": _to_float(_pick_row_value(raw_row, "DESC_AVANCE", "DESCUENTO", "AVANCE", default=0)),
+                "desc_avance": desc_avance_value,
                 "pago_abono": pago_abono,
-                "balance_pend": balance_pend,
+                "balance_pend": balance_pend_with_discount,
                 "total_ret": _to_float(_pick_row_value(raw_row, "TOTAL_RET", "RETENCION", "RET", default=0)),
                 "selected": True,
                 "tiene_financiamiento": is_financed_line,
@@ -2200,6 +2261,8 @@ def _build_cxc_recibo_payload(header_row, detail_rows):
             "efectivo": efectivo,
             "transferencia": transferencia,
             "fecha_pago": _fmt_date_input(_pick_row_value(header_row, "FECHA_PAGO", "FECHA_CONT", "F_CONT")),
+            "usuario_id": _pick_row_text(header_row, "ID_USUARIO", "USUARIO_ID"),
+            "usuario_nombre": _pick_row_text(header_row, "USUARIO_NOMBRE", "NOMBRE_USUARIO", "USUARIO"),
         },
         "summary": {
             "total_mora": total_mora_summary,
@@ -2307,6 +2370,19 @@ def _build_cxc_recibo_print_payload(record, auth_payload):
             close_account=str(header.get("metodo") or "").strip().upper() == "CIERRE DE CUENTA",
         )
 
+    usuario_original_id = str(header.get("usuario_id") or "").strip()
+    usuario_original_nombre = str(header.get("usuario_nombre") or "").strip()
+    usuario_meta = _load_usuario_meta(usuario_original_id or usuario_original_nombre)
+    if not usuario_original_id:
+        usuario_original_id = str(usuario_meta.get("id") or "").strip()
+    if not usuario_original_nombre:
+        usuario_original_nombre = str(usuario_meta.get("nombre") or "").strip()
+    usuario_impresion_id = usuario_original_id or str((auth_payload or {}).get("usuario_id") or "").strip()
+    usuario_impresion_nombre = (
+        usuario_original_nombre
+        or str((auth_payload or {}).get("usuario_nombre") or "").strip()
+    )
+
     return {
         "empresa": {
             "nombre": empresa.get("nombre", ""),
@@ -2357,7 +2433,9 @@ def _build_cxc_recibo_print_payload(record, auth_payload):
         "metodos_pago": metodo_lineas,
         "balance_rd": balance_rd,
         "total_recibo": total_recibo,
-        "usuario_nombre": str((auth_payload or {}).get("usuario_nombre") or "").strip(),
+        "usuario_nombre": usuario_impresion_nombre,
+        "usuario_firma_b64": _load_firma_b64(usuario_impresion_id),
+        "impreso_por_nombre": str((auth_payload or {}).get("usuario_nombre") or "").strip(),
         "impreso_fecha": timezone.localdate().strftime("%d/%m/%Y"),
         "impreso_hora": timezone.localtime().strftime("%I:%M:%S %p").lstrip("0").lower(),
     }
@@ -2374,6 +2452,59 @@ def _build_image_src(base64_value, image_type):
     return f"data:image/png;base64,{base64_value}"
 
 
+def _paginate_cxc_receipt_pages(formatted_detail, first_capacity=11, summary_capacity=9):
+    detail_rows = list(formatted_detail or [])
+    if not detail_rows:
+        return [{"detalle": [], "continued": False, "show_summary": True}]
+
+    if len(detail_rows) <= summary_capacity:
+        return [{"detalle": detail_rows, "continued": False, "show_summary": True}]
+
+    if len(detail_rows) <= first_capacity:
+        return [{"detalle": detail_rows, "continued": False, "show_summary": False}]
+
+    pages = []
+    first_page_rows = detail_rows[:first_capacity]
+    remaining_rows = detail_rows[first_capacity:]
+
+    pages.append(
+        {
+            "detalle": first_page_rows,
+            "continued": False,
+            "show_summary": False,
+        }
+    )
+
+    if len(remaining_rows) <= summary_capacity:
+        pages.append(
+            {
+                "detalle": remaining_rows,
+                "continued": True,
+                "show_summary": True,
+            }
+        )
+        return pages
+
+    head_rows = remaining_rows[:-summary_capacity]
+    tail_rows = remaining_rows[-summary_capacity:]
+    for start in range(0, len(head_rows), first_capacity):
+        pages.append(
+            {
+                "detalle": head_rows[start:start + first_capacity],
+                "continued": True,
+                "show_summary": False,
+            }
+        )
+    pages.append(
+        {
+            "detalle": tail_rows,
+            "continued": True,
+            "show_summary": True,
+        }
+    )
+    return [page for page in pages if page.get("detalle") or page.get("show_summary")]
+
+
 def _build_cxc_receipt_template_context(print_data, copies=1):
     print_data = print_data or {}
     empresa = dict(print_data.get("empresa") or {})
@@ -2384,6 +2515,7 @@ def _build_cxc_receipt_template_context(print_data, copies=1):
     normalized_copies = max(1, min(int(copies or 1), 20))
 
     empresa["logo_src"] = _build_image_src(empresa.get("logo_b64"), empresa.get("logo_tipo"))
+    usuario_firma_src = _build_image_src(print_data.get("usuario_firma_b64"), "")
     documento["monto_rd_fmt"] = _pdf_money(documento.get("monto_rd"))
     documento["tasa_pago_fmt"] = _pdf_money(documento.get("tasa_pago") or 1)
     is_cancelled = str(documento.get("estado") or "").strip().upper() == "CANCELADO"
@@ -2421,20 +2553,36 @@ def _build_cxc_receipt_template_context(print_data, copies=1):
         for no_factura, balance_value in balance_facturas.items()
     ]
 
+    paged_detail = _paginate_cxc_receipt_pages(formatted_detail)
+    page_instances = []
+    total_pages = len(paged_detail) or 1
+    for copy_index in range(normalized_copies):
+        for page_index, page in enumerate(paged_detail or [{"detalle": [], "continued": False, "show_summary": True}]):
+            page_instances.append(
+                {
+                    **page,
+                    "page_no": page_index + 1,
+                    "total_pages": total_pages,
+                    "is_last_output": copy_index == normalized_copies - 1 and page_index == total_pages - 1,
+                }
+            )
+
     return {
         "empresa": empresa,
         "cliente": cliente,
         "documento": documento,
-        "detalle": formatted_detail,
         "metodos_pago": payment_lines,
         "balance_facturas": balance_facturas_lines,
         "balance_rd_fmt": _pdf_money(print_data.get("balance_rd")),
         "total_recibo_fmt": _pdf_money(print_data.get("total_recibo")),
         "usuario_nombre": str(print_data.get("usuario_nombre") or "").strip(),
+        "impreso_por_nombre": str(print_data.get("impreso_por_nombre") or "").strip(),
+        "usuario_firma_src": usuario_firma_src,
+        "formato_impresion": get_print_format("recibo_pago"),
         "impreso_fecha": str(print_data.get("impreso_fecha") or "").strip(),
         "impreso_hora": str(print_data.get("impreso_hora") or "").strip(),
         "is_cancelled": is_cancelled,
-        "copies_range": range(normalized_copies),
+        "page_instances": page_instances,
     }
 
 
@@ -2627,6 +2775,7 @@ def _pdf_render_receipt_page_ops(print_data):
     balance_total = _to_float((print_data or {}).get("balance_rd"))
     total_recibo = _to_float((print_data or {}).get("total_recibo"))
     usuario_nombre = str((print_data or {}).get("usuario_nombre") or "").strip()
+    impreso_por_nombre = str((print_data or {}).get("impreso_por_nombre") or "").strip()
     impreso_fecha = str((print_data or {}).get("impreso_fecha") or "").strip()
     impreso_hora = str((print_data or {}).get("impreso_hora") or "").strip()
 
@@ -2902,7 +3051,7 @@ def _pdf_render_receipt_page_ops(print_data):
         left,
         footer_y,
         table_total_width,
-        f"Registrado por: {usuario_nombre}",
+        f"Impreso por: {impreso_por_nombre}",
         font="F1",
         size=6.2,
         align="center",
@@ -3432,6 +3581,16 @@ def _load_financiamiento_facturas_disponibles(query="", filtro="nombre", limit=1
         if len(results) >= safe_limit:
             break
 
+    def _factura_sort_key(item):
+        fecha_key = str(item.get("fecha_iso") or "")
+        no_doc_key = str(item.get("no_doc") or "").strip()
+        try:
+            no_doc_numeric = int(no_doc_key)
+        except (TypeError, ValueError):
+            no_doc_numeric = -1
+        return (fecha_key, no_doc_numeric, no_doc_key)
+
+    results.sort(key=_factura_sort_key, reverse=True)
     return results
 
 
@@ -3651,6 +3810,10 @@ def _load_financiamiento_record(no_doc):
         and _to_float(prestamo.get("total_pagado")) <= tolerance
         and detail_initial_state
     )
+    factura_base = None
+    factura_base_doc = prestamo.get("no_factura") or prestamo.get("no_doc")
+    if editable and factura_base_doc:
+        factura_base = _load_financiamiento_factura_base_snapshot(factura_base_doc)
     finanzas = {
         "capital_total": capital_total,
         "interes_total": interes_total,
@@ -3664,6 +3827,68 @@ def _load_financiamiento_record(no_doc):
         "historial": historial,
         "finanzas": finanzas,
         "editable": editable,
+        "factura_base": factura_base,
+    }
+
+
+def _load_financiamiento_factura_base_snapshot(factura_no):
+    factura_no = _stringify_doc(factura_no)
+    if not factura_no:
+        return None
+
+    cab_columns = _load_table_columns("CAB_FACTURA")
+    if not cab_columns:
+        return None
+
+    doc_col = _pick_existing_column(cab_columns, "ID_DOC", "NO_DOC", "DOCUMENTO", "FACTURA")
+    id_sn_col = _pick_existing_column(cab_columns, "ID_SN", "CLIENTE", "COD_CLIENTE")
+    nombre_col = _pick_existing_column(cab_columns, "NOM_SN", "NOM_SOCIO", "NOMBRE", "NOM_CLIENTE")
+    rnc_col = _pick_existing_column(cab_columns, "RNC_CED", "RNC", "CEDULA")
+    fecha_col = _pick_existing_column(cab_columns, "FECHA_DOC", "FECHA_CONT", "FECHA", "FECHA_APLIC")
+    total_col = _pick_existing_column(cab_columns, "TOTAL_DOC", "MONTO", "IMPORTE", "TOTAL")
+    saldo_col = _pick_existing_column(cab_columns, "SALDO", "BALANCE")
+    abono_col = _pick_existing_column(cab_columns, "ABONO")
+    estado_col = _pick_existing_column(cab_columns, "EST_DOC", "ESTATUS", "ESTADO")
+    tipo_col = _pick_existing_column(cab_columns, "TIPO_DOC", "TD", "CLASE_DOC", "TIPO")
+    comentario_col = _pick_existing_column(cab_columns, "COMENTARIO", "OBSERVACION")
+    if not doc_col:
+        return None
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT TOP 1 * FROM CAB_FACTURA WHERE CAST([{doc_col}] AS NVARCHAR(255)) = %s",
+            [factura_no],
+        )
+        raw_row = cursor.fetchone()
+        if not raw_row:
+            return None
+        row = _normalize_result_row([col[0] for col in cursor.description], raw_row)
+
+    codigo = _pick_row_text(row, id_sn_col)
+    maestro_row = (_load_maestro_sn_lookup([codigo]).get(codigo, {}) if codigo else {})
+    total_doc_val = max(_to_float(_pick_row_value(row, total_col, default=0)), 0.0)
+    saldo_doc_val = max(_to_float(_pick_row_value(row, saldo_col, default=0)), 0.0)
+    abono_doc_val = max(_to_float(_pick_row_value(row, abono_col, default=0)), 0.0)
+    saldo_doc_reconstruido = saldo_doc_val if saldo_doc_val > 0.01 else max(total_doc_val - abono_doc_val, 0.0)
+    estado_doc = _pick_row_text(row, estado_col) or "Abierto"
+    return {
+        "no_doc": factura_no,
+        "codigo": codigo,
+        "nombre": _pick_row_text(row, nombre_col) or maestro_row.get("nombre", ""),
+        "cedula": _pick_row_text(row, rnc_col) or maestro_row.get("rnc_ced", ""),
+        "fecha": _fmt_date_flexible(_pick_row_value(row, fecha_col)),
+        "fecha_iso": _fmt_date_input(_pick_row_value(row, fecha_col)),
+        "estado": estado_doc,
+        "tipo_doc": _pick_row_text(row, tipo_col) or "",
+        "total_doc": total_doc_val,
+        "saldo": saldo_doc_reconstruido,
+        "abono": abono_doc_val,
+        "comentario": _pick_row_text(row, comentario_col),
+        "disponible": (
+            str(estado_doc or "").strip().upper() == "ABIERTO"
+            and saldo_doc_reconstruido > 0.01
+            and not _factura_closed_by_abono(total_doc_val, abono_doc_val)
+        ),
     }
 
 
@@ -3980,6 +4205,20 @@ def _persist_financiamiento_record(
             skip_columns=det_identity_columns,
         )
 
+    factura_columns = factura_base.get("columns") or []
+    factura_doc_col = str(factura_base.get("doc_col") or "").upper()
+    factura_updates = {}
+    _assign_existing_values(factura_updates, factura_columns, monto_principal, "MONTO_FTO")
+    _assign_existing_values(factura_updates, factura_columns, plazo, "PLAZO")
+    _assign_existing_values(factura_updates, factura_columns, porc_interes, "INTERES")
+    _assign_existing_values(factura_updates, factura_columns, metodo, "METODO")
+    _assign_existing_values(factura_updates, factura_columns, tipo_cuota, "FORMA")
+    _assign_existing_values(factura_updates, factura_columns, valor_cuota, "CUOTA")
+    _assign_existing_values(factura_updates, factura_columns, "Y", "FINANCIADO")
+    if factura_updates and factura_doc_col:
+        factura_where_sql, factura_where_params = _build_doc_lookup_where([factura_doc_col], factura_no)
+        _update_dynamic_row(cursor, "CAB_FACTURA", factura_updates, factura_where_sql, factura_where_params)
+
     return {
         "lookup": main_doc_value or factura_no,
         "factura_no": factura_no,
@@ -4001,6 +4240,9 @@ def cuentas_por_cobrar_view(request):
         "imprimir": has_perm(usuario_id, "caja", "cxc_imprimir"),
         "cancelar": has_perm(usuario_id, "caja", "cxc_cancelar"),
         "cerrar_cuenta": has_perm(usuario_id, "caja", "cxc_cerrar_cuenta"),
+        "modificar_medio_pago": has_perm(usuario_id, "caja", "cxc_modificar_medio_pago"),
+        "corregir_monto_pago": has_perm(usuario_id, "caja", "cxc_corregir_monto_pago"),
+        "modificar_fechas_pago": has_perm(usuario_id, "caja", "cxc_modificar_fechas_pago"),
     }
     ctx["cxc_shortcuts"] = {
         "financiamiento": has_perm(usuario_id, "caja", "ver_financiamiento"),
@@ -4008,6 +4250,9 @@ def cuentas_por_cobrar_view(request):
         "prefactura": has_perm(usuario_id, "prefacturas", "ver"),
     }
     ctx["cxc_default_payment_method"] = _load_cxc_default_payment_method(usuario_id)
+    cxc_print_format = get_print_format("recibo_pago")
+    ctx["cxc_print_format"] = cxc_print_format
+    ctx["cxc_print_format_label"] = get_print_format_label(cxc_print_format)
     return render(request, "caja/cuentas_por_cobrar.html", ctx)
 
 
@@ -4171,6 +4416,601 @@ def cuentas_por_cobrar_marcar_impreso_view(request):
 
 
 @require_http_methods(["POST"])
+def cuentas_por_cobrar_medio_pago_view(request):
+    auth_payload = _require_perm_json(request, "caja", "cxc_modificar_medio_pago")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    recibo_id = str(payload.get("recibo_id") or "").strip()
+    if not recibo_id:
+        return JsonResponse({"detail": "Parametro recibo_id requerido"}, status=400)
+
+    efectivo = max(_to_decimal(payload.get("efectivo")), Decimal("0"))
+    transferencia = max(_to_decimal(payload.get("transferencia")), Decimal("0"))
+    total_metodos = efectivo + transferencia
+    client_event_id = str(payload.get("event_id") or "").strip()
+    recibo_id_real = ""
+    no_recibo = ""
+
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cab_columns = _load_table_columns("CAB_RECIBO_INGRESO")
+                cab_key_col = _pick_existing_column(cab_columns, "ID_RECIBO", "ID_DOC", "NO_RECIBO", "NO_DOC")
+                cab_no_recibo_col = _pick_existing_column(cab_columns, "NO_RECIBO", "NO_DOC", "ID_RECIBO", "ID_DOC")
+                efectivo_col = _pick_existing_column(cab_columns, "IMP_EFECTIVO", "EFECTIVO", "MONTO_EFECTIVO", "PAGO_EFECTIVO")
+                transferencia_col = _pick_existing_column(
+                    cab_columns,
+                    "IMP_TRANSF",
+                    "TRANSFERENCIA",
+                    "MONTO_TRANSFERENCIA",
+                    "PAGO_TRANSFERENCIA",
+                )
+                total_col = _pick_existing_column(cab_columns, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO")
+                if not cab_key_col or not efectivo_col or not transferencia_col:
+                    return JsonResponse({"detail": "No se pudo determinar la estructura del medio de pago."}, status=500)
+
+                where_parts = [f"CAST([{cab_key_col}] AS NVARCHAR(255)) = %s"]
+                where_params = [recibo_id]
+                if cab_no_recibo_col and cab_no_recibo_col != cab_key_col:
+                    where_parts.append(f"CAST([{cab_no_recibo_col}] AS NVARCHAR(255)) = %s")
+                    where_params.append(recibo_id)
+
+                cursor.execute(
+                    f"""
+                    SELECT TOP 1 *
+                    FROM CAB_RECIBO_INGRESO WITH (UPDLOCK, HOLDLOCK)
+                    WHERE {' OR '.join(f'({part})' for part in where_parts)}
+                    """,
+                    where_params,
+                )
+                raw_header = cursor.fetchone()
+                if not raw_header:
+                    return JsonResponse({"detail": "No se encontro el recibo para actualizar medio de pago."}, status=404)
+                header_row = _normalize_result_row([col[0] for col in cursor.description], raw_header)
+
+                estado_actual = _pick_row_text(header_row, "EST_DOC", "ESTATUS", "ESTADO").strip().upper()
+                cancelado_actual = _pick_row_text(header_row, "CANCELADO").strip().upper()
+                if estado_actual == "CANCELADO" or cancelado_actual == "Y":
+                    return JsonResponse({"detail": "No se puede modificar el medio de pago de un recibo cancelado."}, status=400)
+
+                original_efectivo = _to_decimal(_pick_row_value(header_row, efectivo_col, default=0))
+                original_transferencia = _to_decimal(_pick_row_value(header_row, transferencia_col, default=0))
+                original_total = original_efectivo + original_transferencia
+                total_recibo = _to_decimal(_pick_row_value(header_row, total_col, default=original_total))
+                total_requerido = original_total if original_total > Decimal("0.01") else total_recibo
+                if total_requerido <= Decimal("0.01"):
+                    return JsonResponse({"detail": "Este recibo no tiene monto de pago para modificar."}, status=400)
+                if not _values_match(total_metodos, total_requerido):
+                    return JsonResponse(
+                        {"detail": "La suma de efectivo y transferencia debe ser igual al monto original a pagar."},
+                        status=400,
+                    )
+                if _values_match(efectivo, original_efectivo) and _values_match(transferencia, original_transferencia):
+                    return JsonResponse({"detail": "No se detectaron cambios en el medio de pago."}, status=400)
+
+                recibo_id_real = _stringify_doc(_pick_row_value(header_row, cab_key_col, cab_no_recibo_col))
+                no_recibo = _stringify_doc(_pick_row_value(header_row, cab_no_recibo_col, cab_key_col))
+                updates = {
+                    efectivo_col: efectivo,
+                    transferencia_col: transferencia,
+                }
+                _assign_existing_values(updates, cab_columns, timezone.localtime(), "FECHA_ACT")
+                updated = _update_dynamic_row(
+                    cursor,
+                    "CAB_RECIBO_INGRESO",
+                    updates,
+                    f"CAST([{cab_key_col}] AS NVARCHAR(255)) = %s",
+                    [recibo_id_real or recibo_id],
+                )
+                if updated <= 0:
+                    return JsonResponse({"detail": "No se pudo actualizar el medio de pago."}, status=500)
+
+                transaction.on_commit(
+                    lambda rid=recibo_id_real or recibo_id, nro=no_recibo or recibo_id, estado=estado_actual, eid=client_event_id: broadcast_cxc_document_status(
+                        document_id=rid,
+                        no_recibo=nro,
+                        estado=estado,
+                        reason="medio-pago-updated",
+                        event_id=eid,
+                    )
+                )
+    except Exception as exc:
+        return JsonResponse({"detail": f"No se pudo actualizar el medio de pago: {exc}"}, status=500)
+
+    return JsonResponse({"ok": True, "recibo_id": recibo_id_real or recibo_id, "no_recibo": no_recibo or recibo_id})
+
+
+@require_http_methods(["POST"])
+def cuentas_por_cobrar_corregir_monto_view(request):
+    auth_payload = _require_perm_json(request, "caja", "cxc_corregir_monto_pago")
+    if isinstance(auth_payload, JsonResponse):
+        return auth_payload
+
+    try:
+        payload = json.loads(request.body.decode("utf-8"))
+    except Exception:
+        return JsonResponse({"detail": "JSON invalido"}, status=400)
+
+    recibo_id = str(payload.get("recibo_id") or "").strip()
+    raw_detail = payload.get("detail") or []
+    if not recibo_id:
+        return JsonResponse({"detail": "Parametro recibo_id requerido"}, status=400)
+    if not isinstance(raw_detail, list) or not raw_detail:
+        return JsonResponse({"detail": "Debes indicar el detalle corregido."}, status=400)
+
+    requested = {}
+    for item in raw_detail:
+        if not isinstance(item, dict):
+            continue
+        key = (
+            str(item.get("linea") or "").strip(),
+            str(item.get("no_doc") or "").strip(),
+            str(item.get("no_cuota") or "").strip() or "1",
+        )
+        if not key[0] and not key[1]:
+            continue
+        requested[key] = max(_to_decimal(item.get("pago_abono")), Decimal("0"))
+    if not requested:
+        return JsonResponse({"detail": "No se recibieron montos validos para corregir."}, status=400)
+
+    efectivo = max(_to_decimal(payload.get("efectivo")), Decimal("0"))
+    transferencia = max(_to_decimal(payload.get("transferencia")), Decimal("0"))
+    client_event_id = str(payload.get("event_id") or "").strip()
+    recibo_id_real = ""
+    no_recibo = ""
+    usuario_modificacion = (
+        str((auth_payload or {}).get("usuario_nombre") or "").strip()
+        or str((auth_payload or {}).get("usuario") or "").strip()
+        or str((auth_payload or {}).get("usuario_id") or "").strip()
+    )[:120]
+
+    try:
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cab_columns = _load_table_columns("CAB_RECIBO_INGRESO")
+                det_columns = _load_table_columns("DET_RECIBO_INGRESO")
+                cab_key_col = _pick_existing_column(cab_columns, "ID_RECIBO", "ID_DOC", "NO_RECIBO", "NO_DOC")
+                cab_no_recibo_col = _pick_existing_column(cab_columns, "NO_RECIBO", "NO_DOC", "ID_RECIBO", "ID_DOC")
+                det_key_col = _pick_existing_column(det_columns, "ID_RECIBO", "NO_RECIBO", "ID_DOC", "NO_DOC")
+                det_no_recibo_col = _pick_existing_column(det_columns, "NO_RECIBO", "ID_RECIBO", "ID_DOC", "NO_DOC")
+                det_line_col = _pick_existing_column(det_columns, "NO_LINEA", "LINEA", "NO_ITEM", "ORDEN")
+                det_doc_col = _pick_existing_column(det_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+                det_cuota_col = _pick_existing_column(det_columns, "NO_CUOTA", "CUOTA_NUM", "NUM_CUOTA")
+                if not cab_key_col or not det_key_col:
+                    return JsonResponse({"detail": "No se pudo determinar la estructura del recibo."}, status=500)
+
+                header_where_parts = [f"CAST([{cab_key_col}] AS NVARCHAR(255)) = %s"]
+                header_where_params = [recibo_id]
+                if cab_no_recibo_col and cab_no_recibo_col != cab_key_col:
+                    header_where_parts.append(f"CAST([{cab_no_recibo_col}] AS NVARCHAR(255)) = %s")
+                    header_where_params.append(recibo_id)
+                cursor.execute(
+                    f"""
+                    SELECT TOP 1 *
+                    FROM CAB_RECIBO_INGRESO WITH (UPDLOCK, HOLDLOCK)
+                    WHERE {' OR '.join(f'({part})' for part in header_where_parts)}
+                    """,
+                    header_where_params,
+                )
+                raw_header = cursor.fetchone()
+                if not raw_header:
+                    return JsonResponse({"detail": "No se encontro el recibo para corregir."}, status=404)
+                header_row = _normalize_result_row([col[0] for col in cursor.description], raw_header)
+
+                estado_actual = _pick_row_text(header_row, "EST_DOC", "ESTATUS", "ESTADO").strip().upper()
+                cancelado_actual = _pick_row_text(header_row, "CANCELADO").strip().upper()
+                if estado_actual != "ABIERTO" or cancelado_actual == "Y":
+                    return JsonResponse({"detail": "Solo se pueden corregir recibos abiertos."}, status=400)
+
+                recibo_id_real = _stringify_doc(_pick_row_value(header_row, cab_key_col, cab_no_recibo_col))
+                no_recibo = _stringify_doc(_pick_row_value(header_row, cab_no_recibo_col, cab_key_col))
+                detail_lookup_value = (
+                    no_recibo
+                    if det_no_recibo_col and det_key_col == det_no_recibo_col and no_recibo
+                    else recibo_id_real or recibo_id
+                )
+                detail_where_parts = [f"CAST([{det_key_col}] AS NVARCHAR(255)) = %s"]
+                detail_where_params = [detail_lookup_value]
+                if det_no_recibo_col and det_no_recibo_col != det_key_col and no_recibo:
+                    detail_where_parts.append(f"CAST([{det_no_recibo_col}] AS NVARCHAR(255)) = %s")
+                    detail_where_params.append(no_recibo)
+
+                detail_sql = f"SELECT * FROM DET_RECIBO_INGRESO WITH (UPDLOCK, HOLDLOCK) WHERE {' OR '.join(f'({part})' for part in detail_where_parts)}"
+                if det_line_col:
+                    detail_sql += f" ORDER BY [{det_line_col}]"
+                cursor.execute(detail_sql, detail_where_params)
+                detail_columns = [col[0] for col in cursor.description]
+                detail_rows = [_normalize_result_row(detail_columns, raw_row) for raw_row in cursor.fetchall()]
+                if not detail_rows:
+                    return JsonResponse({"detail": "El recibo no tiene detalle para corregir."}, status=400)
+
+                old_total_pago = Decimal("0")
+                new_total_pago = Decimal("0")
+                total_mora = Decimal("0")
+                total_desc = Decimal("0")
+                total_ret = Decimal("0")
+                old_applied_by_doc = {}
+                new_applied_by_doc = {}
+                corrected_rows = []
+                prestamo_docs_actualizados = set()
+
+                for row in detail_rows:
+                    line_value = _stringify_doc(_pick_row_value(row, det_line_col, default="")) if det_line_col else ""
+                    no_doc = _stringify_doc(_pick_row_value(row, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA"))
+                    no_cuota = _stringify_doc(_pick_row_value(row, "NO_CUOTA", "CUOTA_NUM", "NUM_CUOTA", default="1")) or "1"
+                    key = (line_value, no_doc, no_cuota)
+                    fallback_key = ("", no_doc, no_cuota)
+                    old_pago = _to_decimal(
+                        _pick_amount_value(
+                            row,
+                            "TOTAL_PAGO",
+                            "TOTAL_PAGO2",
+                            "PAGO_ABONO",
+                            "IMP_ABONO",
+                            "IMP_PAGADO",
+                            "IMP_PAGO",
+                            "IMP_COBRADO",
+                            "IMP_APLICADO",
+                            "MONTO_APLICADO",
+                            "ABONO_APLICADO",
+                            "MONTO_ABONO",
+                            "MONTO_PAGO",
+                            "ABONO",
+                            "PAGADO",
+                            "PAGO",
+                            "COBRO",
+                            "IMPORTE",
+                            default=0,
+                        )
+                    )
+                    desc = _get_det_recibo_discount_amount(row)
+                    cargo = _to_decimal(_pick_row_value(row, "CARGO", "MORA", "TOTAL_MORA", default=0))
+                    ret = _to_decimal(_pick_row_value(row, "TOTAL_RET", "RETENCION", "RET", default=0))
+                    new_pago = requested.get(key, requested.get(fallback_key, old_pago))
+                    balance_doc = _to_decimal(
+                        _pick_row_value(row, "BALANCE_DOC", "BALANCE", "SALDO_DOC", "SALDO", "MONTO_DOC", "CUOTA", default=old_pago + desc)
+                    )
+                    if balance_doc <= Decimal("0"):
+                        balance_doc = old_pago + desc
+                    max_pago_line = max(balance_doc - desc, Decimal("0"))
+                    if new_pago > max_pago_line + Decimal("0.01"):
+                        return JsonResponse(
+                            {"detail": f"El monto corregido excede el balance de la linea {no_doc} cuota {no_cuota}."},
+                            status=400,
+                        )
+
+                    old_total_pago += old_pago
+                    new_total_pago += new_pago
+                    total_mora += cargo
+                    total_desc += desc
+                    total_ret += ret
+                    old_applied_by_doc[no_doc] = old_applied_by_doc.get(no_doc, Decimal("0")) + old_pago + desc
+                    new_applied_by_doc[no_doc] = new_applied_by_doc.get(no_doc, Decimal("0")) + new_pago + desc
+                    corrected_rows.append(
+                        {
+                            "row": row,
+                            "linea": line_value,
+                            "no_doc": no_doc,
+                            "no_cuota": no_cuota,
+                            "old_pago": old_pago,
+                            "new_pago": new_pago,
+                            "desc": desc,
+                            "balance_doc": balance_doc,
+                        }
+                    )
+
+                if new_total_pago <= Decimal("0.01"):
+                    return JsonResponse({"detail": "El recibo debe conservar un monto pagado mayor a 0."}, status=400)
+
+                new_cash_total = max(new_total_pago + total_mora - total_ret, Decimal("0"))
+                new_ed_total = _resolve_cxc_ed_total(new_cash_total, total_desc)
+                new_ed_total_letra = _amount_to_spanish_words(new_ed_total)
+                if not _values_match(efectivo + transferencia, new_cash_total):
+                    return JsonResponse(
+                        {"detail": "La suma de efectivo y transferencia debe coincidir con el nuevo monto a pagar."},
+                        status=400,
+                    )
+
+                factura_columns = _load_table_columns("CAB_FACTURA")
+                factura_has_abono = "ABONO" in factura_columns
+                factura_has_fecha_act = "FECHA_ACT" in factura_columns
+                doc_numbers = [doc for doc in old_applied_by_doc.keys() if doc]
+                if not doc_numbers:
+                    return JsonResponse({"detail": "No se pudo identificar las facturas del recibo."}, status=400)
+                placeholders = ", ".join(["%s"] * len(doc_numbers))
+                cursor.execute(
+                    f"""
+                    SELECT ID_DOC, SALDO, TOTAL_DOC, EST_DOC, ABONO
+                    FROM CAB_FACTURA WITH (UPDLOCK, HOLDLOCK)
+                    WHERE CAST(ID_DOC AS VARCHAR(50)) IN ({placeholders})
+                    """,
+                    doc_numbers,
+                )
+                factura_lookup = {
+                    _stringify_doc(row[0]): {
+                        "saldo": _to_decimal(row[1]),
+                        "total_doc": _to_decimal(row[2]),
+                        "est_doc": str(row[3] or "").strip(),
+                        "abono": _to_decimal(row[4]),
+                    }
+                    for row in cursor.fetchall()
+                }
+                for doc_number in doc_numbers:
+                    factura_row = factura_lookup.get(doc_number)
+                    if not factura_row:
+                        return JsonResponse({"detail": f"No se encontro la factura {doc_number}."}, status=400)
+                    available = max(_to_decimal(factura_row.get("saldo")) + old_applied_by_doc.get(doc_number, Decimal("0")), Decimal("0"))
+                    total_factura = max(_to_decimal(factura_row.get("total_doc")), Decimal("0"))
+                    if total_factura > Decimal("0"):
+                        available = min(available, total_factura)
+                    if new_applied_by_doc.get(doc_number, Decimal("0")) > available + Decimal("0.01"):
+                        return JsonResponse(
+                            {"detail": f"El monto corregido de la factura {doc_number} excede el saldo disponible actual."},
+                            status=400,
+                        )
+
+                now = timezone.localtime()
+                total_letra = _amount_to_spanish_words(new_cash_total)
+                header_updates = {}
+                _assign_existing_values(header_updates, cab_columns, efectivo, "IMP_EFECTIVO", "EFECTIVO", "MONTO_EFECTIVO", "PAGO_EFECTIVO")
+                _assign_existing_values(header_updates, cab_columns, transferencia, "IMP_TRANSF", "TRANSFERENCIA", "MONTO_TRANSFERENCIA", "PAGO_TRANSFERENCIA")
+                _assign_existing_values(header_updates, cab_columns, new_cash_total, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO")
+                _assign_existing_values(header_updates, cab_columns, total_mora, "TOTAL_MORA", "MORA", "CARGO")
+                _assign_existing_values(header_updates, cab_columns, total_desc, "TOTAL_DESCTO", "DESC_AVANCE", "DESCUENTO", "AVANCE")
+                _assign_existing_values(header_updates, cab_columns, total_ret, "TOTAL_RET", "RETENCION", "RET")
+                _assign_existing_values(header_updates, cab_columns, total_letra, "TOTAL_LETRA")
+                _assign_existing_values(header_updates, cab_columns, usuario_modificacion, "USUARIO_MODIF_MONTO")
+                _assign_existing_values(header_updates, cab_columns, now, "FECHA_MODIF_MONTO")
+                _assign_existing_values(header_updates, cab_columns, now, "FECHA_ACT")
+                _update_dynamic_row(
+                    cursor,
+                    "CAB_RECIBO_INGRESO",
+                    header_updates,
+                    f"CAST([{cab_key_col}] AS NVARCHAR(255)) = %s",
+                    [recibo_id_real or recibo_id],
+                )
+
+                for item in corrected_rows:
+                    row = item["row"]
+                    new_pago = item["new_pago"]
+                    desc = item["desc"]
+                    balance_doc = item["balance_doc"]
+                    total_recibo_linea = max(balance_doc - new_pago, Decimal("0"))
+                    saldo_venc_linea = new_pago + total_recibo_linea + desc
+                    det_updates = {}
+                    _assign_existing_values(
+                        det_updates,
+                        det_columns,
+                        new_pago,
+                        "PAGO_ABONO",
+                        "IMP_ABONO",
+                        "IMP_PAGADO",
+                        "IMP_PAGO",
+                        "IMP_COBRADO",
+                        "IMP_APLICADO",
+                        "MONTO_APLICADO",
+                        "ABONO_APLICADO",
+                        "MONTO_ABONO",
+                        "MONTO_PAGO",
+                        "ABONO",
+                        "PAGADO",
+                        "PAGO",
+                        "COBRO",
+                        "IMPORTE",
+                    )
+                    _assign_existing_values(det_updates, det_columns, new_pago, "TOTAL_PAGO")
+                    _assign_existing_values(det_updates, det_columns, new_pago, "TOTAL_PAGO2")
+                    _assign_existing_values(det_updates, det_columns, saldo_venc_linea, "SALDO_VENC")
+                    _assign_existing_values(det_updates, det_columns, total_recibo_linea, "TOTAL_RECIBO")
+                    _assign_existing_values(det_updates, det_columns, total_recibo_linea, "TOTAL_RECIBO2")
+                    _assign_existing_values(det_updates, det_columns, max(balance_doc - new_pago - desc, Decimal("0")), "BALANCE_PEND", "SALDO_PEND", "PENDIENTE")
+                    where_parts = [f"CAST([{det_key_col}] AS NVARCHAR(255)) = %s"]
+                    where_params = [detail_lookup_value]
+                    if det_line_col and item["linea"]:
+                        where_parts.append(f"CAST([{det_line_col}] AS NVARCHAR(255)) = %s")
+                        where_params.append(item["linea"])
+                    else:
+                        if not det_doc_col or not det_cuota_col:
+                            return JsonResponse({"detail": "No se pudo identificar la linea del detalle a corregir."}, status=500)
+                        where_parts.extend([
+                            f"CAST([{det_doc_col}] AS NVARCHAR(255)) = %s",
+                            f"CAST([{det_cuota_col}] AS NVARCHAR(255)) = %s",
+                        ])
+                        where_params.extend([item["no_doc"], item["no_cuota"]])
+                    _update_dynamic_row(cursor, "DET_RECIBO_INGRESO", det_updates, " AND ".join(where_parts), where_params)
+
+                for doc_number in doc_numbers:
+                    factura_row = factura_lookup.get(doc_number) or {}
+                    old_applied = old_applied_by_doc.get(doc_number, Decimal("0"))
+                    new_applied = new_applied_by_doc.get(doc_number, Decimal("0"))
+                    total_factura = max(_to_decimal(factura_row.get("total_doc")), Decimal("0"))
+                    new_saldo = max(_to_decimal(factura_row.get("saldo")) + old_applied - new_applied, Decimal("0"))
+                    if total_factura > Decimal("0"):
+                        new_saldo = min(new_saldo, total_factura)
+                    factura_updates = {"SALDO": new_saldo, "EST_DOC": "CERRADO" if new_saldo <= Decimal("0.01") else "ABIERTO"}
+                    if factura_has_abono:
+                        new_abono = max(_to_decimal(factura_row.get("abono")) - old_applied + new_applied, Decimal("0"))
+                        if total_factura > Decimal("0"):
+                            new_abono = min(new_abono, total_factura)
+                        factura_updates["ABONO"] = new_abono
+                    if factura_has_fecha_act:
+                        factura_updates["FECHA_ACT"] = now
+                    _update_dynamic_row(
+                        cursor,
+                        "CAB_FACTURA",
+                        factura_updates,
+                        "CAST(ID_DOC AS VARCHAR(50)) = %s",
+                        [doc_number],
+                    )
+
+                prestamo_columns = _load_table_columns("DET_PRESTAMO")
+                prestamo_doc_col = _pick_existing_column(prestamo_columns, "NO_DOC", "ID_DOC", "DOCUMENTO", "FACTURA")
+                prestamo_cuota_col = _pick_existing_column(prestamo_columns, "NO_CUOTA", "CUOTA_NUM", "NUM_CUOTA")
+                if prestamo_doc_col and prestamo_cuota_col:
+                    for item in corrected_rows:
+                        if not item["no_doc"] or not item["no_cuota"]:
+                            continue
+                        cursor.execute(
+                            f"""
+                            SELECT TOP 1 1
+                            FROM DET_PRESTAMO WITH (UPDLOCK, HOLDLOCK)
+                            WHERE CAST([{prestamo_doc_col}] AS NVARCHAR(255)) = %s
+                              AND CAST([{prestamo_cuota_col}] AS NVARCHAR(255)) = %s
+                            """,
+                            [item["no_doc"], item["no_cuota"]],
+                        )
+                        if cursor.fetchone():
+                            prestamo_docs_actualizados.add(item["no_doc"])
+                    for prestamo_doc in prestamo_docs_actualizados:
+                        _rebuild_det_prestamo_from_active_receipts(cursor, prestamo_doc)
+                        _sync_cab_prestamo_from_det(cursor, prestamo_doc, now=now)
+
+                old_cash_total = _to_decimal(_pick_row_value(header_row, "TOTAL_COBRO", "TOTAL_DOC", "IMPORTE", "MONTO", default=old_total_pago))
+                delta_total = new_cash_total - old_cash_total
+                if abs(delta_total) > Decimal("0.01"):
+                    _adjust_catalogo_saldo_actual(
+                        cursor,
+                        cuenta_num="11020101",
+                        cuenta_nombre="Cuentas por Cobrar Clientes",
+                        delta=delta_total,
+                    )
+
+                cab_ed_columns = _load_table_columns("CAB_ED")
+                det_ed_columns = _load_table_columns("DET_ED")
+                cab_ed_key_col = _pick_existing_column(cab_ed_columns, "ID_DOC", "ID_ED", "NO_DOC", "NO_ED")
+                cab_ed_no_col = _pick_existing_column(cab_ed_columns, "NO_DOC", "NO_ED", "ID_DOC", "ID_ED")
+                cab_ed_tipo_col = _pick_existing_column(cab_ed_columns, "TIPO_DOC", "TD", "CLASE_DOC", "TIPO")
+                cab_ed_origen_col = _pick_existing_column(cab_ed_columns, "ORIGEN", "REFERENCIA", "NO_RECIBO")
+                cab_ed_status_col = _pick_existing_column(cab_ed_columns, "EST_DOC", "ESTADO", "ESTATUS")
+                if cab_ed_origen_col and (cab_ed_key_col or cab_ed_no_col):
+                    ed_where_parts = [f"CAST([{cab_ed_origen_col}] AS NVARCHAR(255)) = %s"]
+                    ed_where_params = [no_recibo or recibo_id_real or recibo_id]
+                    if recibo_id_real and recibo_id_real != no_recibo:
+                        ed_where_parts.append(f"CAST([{cab_ed_origen_col}] AS NVARCHAR(255)) = %s")
+                        ed_where_params.append(recibo_id_real)
+                    ed_filter = [f"({' OR '.join(f'({part})' for part in ed_where_parts)})"]
+                    if cab_ed_tipo_col:
+                        ed_filter.append(f"UPPER(LTRIM(RTRIM(ISNULL([{cab_ed_tipo_col}], '')))) = 'RI'")
+                    if cab_ed_status_col:
+                        ed_filter.append(f"UPPER(LTRIM(RTRIM(ISNULL([{cab_ed_status_col}], '')))) <> 'CANCELADO'")
+                    cursor.execute(
+                        f"SELECT TOP 1 * FROM CAB_ED WITH (UPDLOCK, HOLDLOCK) WHERE {' AND '.join(ed_filter)} ORDER BY [{cab_ed_no_col or cab_ed_key_col}] DESC",
+                        ed_where_params,
+                    )
+                    raw_ed = cursor.fetchone()
+                    if raw_ed:
+                        ed_row = _normalize_result_row([col[0] for col in cursor.description], raw_ed)
+                        ed_id = _stringify_doc(_pick_row_value(ed_row, cab_ed_key_col, cab_ed_no_col))
+                        ed_no = _stringify_doc(_pick_row_value(ed_row, cab_ed_no_col, cab_ed_key_col))
+                        ed_updates = {}
+                        _assign_existing_values(ed_updates, cab_ed_columns, new_ed_total, "TOTAL_DOC", "MONTO", "IMPORTE")
+                        _assign_existing_values(ed_updates, cab_ed_columns, new_ed_total, "ABONO")
+                        _assign_existing_values(ed_updates, cab_ed_columns, new_ed_total_letra, "TOTAL_LETRA")
+                        _assign_existing_values(ed_updates, cab_ed_columns, now, "FECHA_ACT")
+                        _update_dynamic_row(
+                            cursor,
+                            "CAB_ED",
+                            ed_updates,
+                            f"CAST([{cab_ed_key_col or cab_ed_no_col}] AS NVARCHAR(255)) = %s",
+                            [ed_id or ed_no],
+                        )
+
+                        det_ed_doc_key_col = _pick_existing_column(det_ed_columns, "ID_DOC", "ID_ED")
+                        det_ed_doc_no_col = _pick_existing_column(det_ed_columns, "NO_DOC", "NO_ED")
+                        det_ed_origen_col = _pick_existing_column(det_ed_columns, "ORIGEN", "REFERENCIA", "NO_RECIBO")
+                        det_ed_line_col = _pick_existing_column(det_ed_columns, "NO_LINEA", "LINEA", "NO_ITEM", "ORDEN")
+                        det_ed_debito_col = _pick_existing_column(det_ed_columns, "DEBITO", "DEBE")
+                        det_ed_credito_col = _pick_existing_column(det_ed_columns, "CREDITO", "HABER")
+
+                        det_ed_where_parts = []
+                        det_ed_where_params = []
+                        if det_ed_doc_key_col and ed_id:
+                            det_ed_where_parts.append(f"CAST([{det_ed_doc_key_col}] AS NVARCHAR(255)) = %s")
+                            det_ed_where_params.append(ed_id)
+                        if det_ed_doc_no_col and ed_no and ed_no != ed_id:
+                            det_ed_where_parts.append(f"CAST([{det_ed_doc_no_col}] AS NVARCHAR(255)) = %s")
+                            det_ed_where_params.append(ed_no)
+                        if det_ed_origen_col:
+                            origen_refs = [value for value in (no_recibo, recibo_id_real, recibo_id) if str(value or "").strip()]
+                            for origen_ref in dict.fromkeys(origen_refs):
+                                det_ed_where_parts.append(f"CAST([{det_ed_origen_col}] AS NVARCHAR(255)) = %s")
+                                det_ed_where_params.append(origen_ref)
+
+                        if det_ed_where_parts and (det_ed_debito_col or det_ed_credito_col):
+                            det_ed_sql = f"SELECT * FROM DET_ED WITH (UPDLOCK, HOLDLOCK) WHERE {' OR '.join(f'({part})' for part in det_ed_where_parts)}"
+                            if det_ed_line_col:
+                                det_ed_sql += f" ORDER BY [{det_ed_line_col}]"
+                            cursor.execute(det_ed_sql, det_ed_where_params)
+                            det_ed_raw_columns = [col[0] for col in cursor.description]
+                            det_ed_rows = [_normalize_result_row(det_ed_raw_columns, raw_row) for raw_row in cursor.fetchall()]
+
+                            for det_ed_row in det_ed_rows:
+                                debito_actual = _to_decimal(_pick_row_value(det_ed_row, det_ed_debito_col, "DEBITO", "DEBE", default=0))
+                                credito_actual = _to_decimal(_pick_row_value(det_ed_row, det_ed_credito_col, "CREDITO", "HABER", default=0))
+                                det_ed_updates = {}
+                                _assign_existing_values(det_ed_updates, det_ed_columns, new_ed_total, "TOTAL_DOC", "MONTO", "IMPORTE", "ABONO")
+                                if debito_actual > Decimal("0.01") and credito_actual <= Decimal("0.01"):
+                                    _assign_existing_values(det_ed_updates, det_ed_columns, new_ed_total, "DEBITO", "DEBE")
+                                    _assign_existing_values(det_ed_updates, det_ed_columns, Decimal("0"), "CREDITO", "HABER")
+                                else:
+                                    _assign_existing_values(det_ed_updates, det_ed_columns, Decimal("0"), "DEBITO", "DEBE")
+                                    _assign_existing_values(det_ed_updates, det_ed_columns, new_ed_total, "CREDITO", "HABER")
+                                _assign_existing_values(det_ed_updates, det_ed_columns, now, "FECHA_ACT")
+
+                                row_where_parts = []
+                                row_where_params = []
+                                if det_ed_doc_key_col:
+                                    row_doc_key = _stringify_doc(_pick_row_value(det_ed_row, det_ed_doc_key_col, default=""))
+                                    if row_doc_key:
+                                        row_where_parts.append(f"CAST([{det_ed_doc_key_col}] AS NVARCHAR(255)) = %s")
+                                        row_where_params.append(row_doc_key)
+                                if det_ed_doc_no_col:
+                                    row_doc_no = _stringify_doc(_pick_row_value(det_ed_row, det_ed_doc_no_col, default=""))
+                                    if row_doc_no:
+                                        row_where_parts.append(f"CAST([{det_ed_doc_no_col}] AS NVARCHAR(255)) = %s")
+                                        row_where_params.append(row_doc_no)
+                                if det_ed_line_col:
+                                    row_line = _stringify_doc(_pick_row_value(det_ed_row, det_ed_line_col, default=""))
+                                    if row_line:
+                                        row_where_parts.append(f"CAST([{det_ed_line_col}] AS NVARCHAR(255)) = %s")
+                                        row_where_params.append(row_line)
+                                elif det_ed_origen_col:
+                                    row_origen = _stringify_doc(_pick_row_value(det_ed_row, det_ed_origen_col, default=""))
+                                    if row_origen:
+                                        row_where_parts.append(f"CAST([{det_ed_origen_col}] AS NVARCHAR(255)) = %s")
+                                        row_where_params.append(row_origen)
+
+                                if row_where_parts and det_ed_updates:
+                                    _update_dynamic_row(
+                                        cursor,
+                                        "DET_ED",
+                                        det_ed_updates,
+                                        " AND ".join(row_where_parts),
+                                        row_where_params,
+                                    )
+
+                transaction.on_commit(
+                    lambda rid=recibo_id_real or recibo_id, nro=no_recibo or recibo_id, eid=client_event_id: broadcast_cxc_document_status(
+                        document_id=rid,
+                        no_recibo=nro,
+                        estado="Abierto",
+                        reason="monto-pago-corrected",
+                        event_id=eid,
+                    )
+                )
+    except Exception as exc:
+        return JsonResponse({"detail": f"No se pudo corregir el monto pagado: {exc}"}, status=500)
+
+    return JsonResponse({"ok": True, "recibo_id": recibo_id_real or recibo_id, "no_recibo": no_recibo or recibo_id})
+
+
+@require_http_methods(["POST"])
 def cuentas_por_cobrar_cancelar_view(request):
     auth_payload = _require_perm_json(request, "caja", "cxc_cancelar")
     if isinstance(auth_payload, JsonResponse):
@@ -4190,6 +5030,7 @@ def cuentas_por_cobrar_cancelar_view(request):
     usuario_id = int((auth_payload or {}).get("usuario_id") or 0) or None
     usuario_nombre = str((auth_payload or {}).get("usuario_nombre") or "").strip()
     terminal = _resolve_request_terminal(request, payload)
+    client_event_id = str(payload.get("event_id") or "").strip()
 
     try:
         with transaction.atomic():
@@ -4417,6 +5258,16 @@ def cuentas_por_cobrar_cancelar_view(request):
                     delta=-total_recibo,
                 )
 
+                transaction.on_commit(
+                    lambda rid=recibo_id_real or recibo_id, nro=no_recibo or recibo_id, eid=client_event_id: broadcast_cxc_document_status(
+                        document_id=rid,
+                        no_recibo=nro,
+                        estado="Cancelado",
+                        reason="recibo-cancelled",
+                        event_id=eid,
+                    )
+                )
+
     except Exception as exc:
         return JsonResponse({"detail": f"No se pudo cancelar el recibo: {exc}"}, status=500)
 
@@ -4471,6 +5322,7 @@ def cuentas_por_cobrar_guardar_view(request):
     cash_total = Decimal("0")
     if total_doc > Decimal("0.01"):
         cash_total = max(total_doc + total_mora - total_ret, Decimal("0"))
+    ed_total = _resolve_cxc_ed_total(cash_total, total_desc, is_close_account=is_close_account)
     monto_pagar = _to_decimal(payload.get("monto_pagar"))
 
     if applied_total <= Decimal("0"):
@@ -4500,9 +5352,15 @@ def cuentas_por_cobrar_guardar_view(request):
             status=400,
         )
 
-    fecha_cont = _parse_date_value(payload.get("fecha_cont")) or timezone.localdate()
-    fecha_venc = _parse_date_value(payload.get("fecha_venc")) or fecha_cont
-    fecha_aplic = _parse_date_value(payload.get("fecha_aplic")) or fecha_cont
+    can_modify_payment_dates = has_perm((auth_payload or {}).get("usuario_id"), "caja", "cxc_modificar_fechas_pago")
+    if can_modify_payment_dates:
+        fecha_cont = _parse_date_value(payload.get("fecha_cont")) or timezone.localdate()
+        fecha_venc = _parse_date_value(payload.get("fecha_venc")) or fecha_cont
+        fecha_aplic = _parse_date_value(payload.get("fecha_aplic")) or fecha_cont
+    else:
+        fecha_cont = timezone.localdate()
+        fecha_venc = fecha_cont
+        fecha_aplic = fecha_cont
     fecha_pago = _parse_date_value(payload.get("fecha_pago")) or fecha_cont
     now = timezone.localtime()
     local_date = timezone.localdate()
@@ -4523,6 +5381,7 @@ def cuentas_por_cobrar_guardar_view(request):
     no_transferencia = str(payload.get("no_transferencia") or "").strip()
     cuenta_cliente_pago = str(payload.get("cuenta_cliente_pago") or "").strip()
     comentario = str(payload.get("comentario") or "").strip()
+    client_event_id = str(payload.get("event_id") or "").strip()
     if is_close_account and not cuenta_desc_ret:
         return JsonResponse({"detail": "Debes indicar una cuenta Desc./Ret. para grabar el cierre de cuenta."}, status=400)
     total_letra = _amount_to_spanish_words(total_desc if is_close_account else cash_total)
@@ -4793,8 +5652,10 @@ def cuentas_por_cobrar_guardar_view(request):
                     output_column=cab_key_col or cab_no_recibo_col,
                     skip_columns=cab_identity_columns,
                 )
-                recibo_id = _stringify_doc(inserted_recibo_id or next_no_recibo or "")
-                no_recibo = _stringify_doc(next_no_recibo or inserted_recibo_id or "")
+                inserted_recibo_id = _stringify_doc(inserted_recibo_id)
+                next_no_recibo_text = _stringify_doc(next_no_recibo)
+                recibo_id = inserted_recibo_id or next_no_recibo_text
+                no_recibo = next_no_recibo_text or inserted_recibo_id
 
                 det_line_col = _pick_existing_column(det_columns, "NO_LINEA", "LINEA", "NO_ITEM", "ORDEN")
                 next_det_line = 0
@@ -4811,9 +5672,16 @@ def cuentas_por_cobrar_guardar_view(request):
                     vencida = "*" if int(_to_float(item.get("dias"))) > 0 else ""
                     monto_total_factura = _to_decimal(item.get("monto_doc"))
                     cuota_linea = _to_decimal(item.get("cuota"))
+                    balance_doc_linea = _to_decimal(item.get("balance_doc"))
                     monto_pagado_linea = _to_decimal(item.get("pago_abono"))
                     monto_descuento_linea = _to_decimal(item.get("desc_avance"))
-                    total_recibo_linea = max(cuota_linea - monto_pagado_linea - monto_descuento_linea, Decimal("0"))
+                    total_recibo_linea = max(balance_doc_linea - monto_pagado_linea, Decimal("0"))
+                    saldo_venc_linea = monto_pagado_linea + total_recibo_linea + monto_descuento_linea
+                    sub_pdo_linea = _calculate_det_recibo_sub_pdo(
+                        monto_pagado_linea,
+                        monto_total_factura,
+                        cuota_linea,
+                    )
                     detail_values = {}
                     _assign_existing_values(detail_values, det_columns, recibo_id, "ID_RECIBO")
                     _assign_existing_values(detail_values, det_columns, no_recibo, "NO_RECIBO")
@@ -4859,7 +5727,8 @@ def cuentas_por_cobrar_guardar_view(request):
                     )
                     _assign_existing_values(detail_values, det_columns, monto_pagado_linea, "TOTAL_PAGO")
                     _assign_existing_values(detail_values, det_columns, monto_pagado_linea, "TOTAL_PAGO2")
-                    _assign_existing_values(detail_values, det_columns, monto_pagado_linea, "SALDO_VENC")
+                    _assign_existing_values(detail_values, det_columns, sub_pdo_linea, "SUB_PDO", "SUBPDO")
+                    _assign_existing_values(detail_values, det_columns, saldo_venc_linea, "SALDO_VENC")
                     _assign_existing_values(detail_values, det_columns, Decimal("1.0000"), "TASAFACT")
                     _assign_existing_values(detail_values, det_columns, total_recibo_linea, "TOTAL_RECIBO")
                     _assign_existing_values(detail_values, det_columns, total_recibo_linea, "TOTAL_RECIBO2")
@@ -4881,7 +5750,7 @@ def cuentas_por_cobrar_guardar_view(request):
                     fecha_cont=fecha_cont,
                     fecha_doc=fecha_pago,
                     fecha_venc=fecha_venc,
-                    total_recibo=total_desc if is_close_account else cash_total,
+                    total_recibo=ed_total,
                     comentario=comentario_ed,
                     periodo_cont=periodo_cont,
                     ejercicio=ejercicio,
@@ -4947,6 +5816,16 @@ def cuentas_por_cobrar_guardar_view(request):
                 for prestamo_doc in prestamo_docs_actualizados:
                     _rebuild_det_prestamo_from_active_receipts(cursor, prestamo_doc)
                     _sync_cab_prestamo_from_det(cursor, prestamo_doc, now=now)
+
+                transaction.on_commit(
+                    lambda rid=recibo_id, nro=no_recibo, estado=recibo_estado, eid=client_event_id: broadcast_cxc_document_status(
+                        document_id=rid,
+                        no_recibo=nro,
+                        estado=estado,
+                        reason="recibo-saved",
+                        event_id=eid,
+                    )
+                )
 
     except Exception as exc:
         return JsonResponse({"detail": f"No se pudo grabar el recibo: {exc}"}, status=500)
@@ -5556,6 +6435,7 @@ def financiamiento_guardar_view(request):
         payload = json.loads(request.body.decode("utf-8"))
     except Exception:
         return JsonResponse({"detail": "JSON invalido"}, status=400)
+    client_event_id = str(payload.get("event_id") or "").strip()
 
     factura_no = str(payload.get("factura_no") or "").strip()
     if not factura_no:
@@ -5619,6 +6499,25 @@ def financiamiento_guardar_view(request):
                 or save_result.get("loan_no")
                 or save_result.get("factura_no")
             )
+            event_document_id = str(
+                save_result.get("lookup")
+                or save_result.get("loan_no")
+                or save_result.get("factura_no")
+                or ""
+            ).strip()
+            event_factura_no = str(save_result.get("factura_no") or factura_no or "").strip()
+            event_estado = str(((record or {}).get("prestamo") or {}).get("estado") or "").strip() or "Abierto"
+            event_reason = "financiamiento-updated" if record_lookup else "financiamiento-saved"
+            if event_document_id:
+                transaction.on_commit(
+                    lambda doc_id=event_document_id, fact_no=event_factura_no, estado=event_estado, reason=event_reason, eid=client_event_id: broadcast_financiamiento_document_status(
+                        document_id=doc_id,
+                        factura_no=fact_no,
+                        estado=estado,
+                        reason=reason,
+                        event_id=eid,
+                    )
+                )
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     except Exception as exc:

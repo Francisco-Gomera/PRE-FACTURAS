@@ -53,14 +53,23 @@ SECRET_KEY = os.getenv(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
+DEBUG = os.getenv("DJANGO_DEBUG", "false").lower() == "true"
 
-ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if host.strip()]
+ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',
+    'channels',
     'django.contrib.contenttypes',
     'django.contrib.messages',
     'django.contrib.staticfiles',
@@ -76,12 +85,14 @@ INSTALLED_APPS = [
     'cartas',
     'factura',
     'caja',
+    'chat_interno',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.middleware.common.CommonMiddleware',
     'core.middleware.ServerLocalTimezoneMiddleware',
+    'core.middleware.ServerConnectionExperienceMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -91,6 +102,7 @@ if find_spec("whitenoise") is not None:
     MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 
 ROOT_URLCONF = 'prefacturas.urls'
+ASGI_APPLICATION = 'prefacturas.asgi.application'
 
 TEMPLATES = [
     {
@@ -178,6 +190,10 @@ WHATSAPP_PHONE_NUMBER_ID = _env_value("WHATSAPP_PHONE_NUMBER_ID", "")
 WHATSAPP_WABA_ID = _env_value("WHATSAPP_WABA_ID", "")
 WHATSAPP_VERIFY_TOKEN = _env_value("WHATSAPP_VERIFY_TOKEN", "")
 
+QZ_SIGNING_DIR = Path(_env_value("QZ_SIGNING_DIR", str(BASE_DIR / "private" / "qz")))
+QZ_CERTIFICATE_PATH = Path(_env_value("QZ_CERTIFICATE_PATH", str(QZ_SIGNING_DIR / "digital-certificate.txt")))
+QZ_PRIVATE_KEY_PATH = Path(_env_value("QZ_PRIVATE_KEY_PATH", str(QZ_SIGNING_DIR / "private-key.pem")))
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -187,3 +203,17 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # in an existing SQL Server database.
 SESSION_ENGINE = "django.contrib.sessions.backends.signed_cookies"
 MESSAGE_STORAGE = "django.contrib.messages.storage.cookie.CookieStorage"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
+
+# Keep the custom auth cookie persistent per terminal/device so the app can be
+# saved to the home screen and reopened without forcing a new login on browser close.
+AUTH_COOKIE_MAX_AGE = int(
+    os.getenv("AUTH_COOKIE_MAX_AGE", str(60 * 60 * 24 * 365 * 5))
+)
+SESSION_COOKIE_AGE = AUTH_COOKIE_MAX_AGE
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False

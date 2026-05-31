@@ -1,0 +1,11 @@
+{
+  "name": "CA ERP",
+  "short_name": "CA ERP",
+  "description": "ERP web para Comercial Anita con experiencia optimizada para acceso directo movil.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#eef4ff",
+  "theme_color": "#0f6edc",
+  "orientation": "portrait"
+}

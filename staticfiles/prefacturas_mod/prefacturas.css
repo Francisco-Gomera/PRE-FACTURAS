@@ -1,0 +1,1996 @@
+        :root {
+            --bg: #d8d8d8;
+            --panel: #d2d2d2;
+            --line: #a8a8a8;
+            --tab: #c6c6c6;
+            --tab-active: #83d595;
+            --text: #101010;
+            --title: #0d2c8c;
+            --white: #f4f4f4;
+            --btn: #ececec;
+            --btn-border: #6f6f6f;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: "Bahnschrift", "Trebuchet MS", "Segoe UI", sans-serif;
+            font-size: 14px;
+        }
+
+        .app {
+            max-width: 1350px;
+            margin: 0 auto;
+            border-top: 2px solid #1a4f8a;
+            min-height: 100vh;
+            padding: 4px;
+        }
+
+        .session-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .session-strip strong {
+            color: #203a92;
+        }
+
+        .user-click {
+            color: #203a92;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
+        .logout-link {
+            text-decoration: none;
+            color: #223f97;
+            background: #ededed;
+            border: 1px solid #7f7f7f;
+            padding: 4px 10px;
+            border-radius: 5px;
+        }
+
+        .tab {
+            border: 1px solid #7d7d7d;
+            border-bottom: none;
+            background: var(--tab);
+            border-top-left-radius: 7px;
+            border-top-right-radius: 7px;
+            padding: 4px 12px;
+            font-size: 14px;
+        }
+
+        .tab.active {
+            background: var(--tab-active);
+        }
+
+        .maestro-tab {
+            min-width: unset;
+            height: auto;
+            border-radius: 7px 7px 0 0;
+            font-size: 14px;
+            font-weight: 400;
+            padding: 4px 12px;
+            background: var(--tab);
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            background: var(--panel);
+            padding: 8px;
+        }
+
+        .header-grid {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 8px;
+        }
+
+        .card {
+            border: 1px solid #bbbbbb;
+            background: #d7d7d7;
+            padding: 6px;
+        }
+
+        .title {
+            margin: 0;
+            text-align: center;
+            font-size: 38px;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--title);
+            text-shadow: 1px 1px 0 #ffffff;
+        }
+
+        .form-grid {
+            margin-top: 6px;
+            display: grid;
+            grid-template-columns: 160px 1fr 70px 1fr;
+            gap: 4px 8px;
+            align-items: center;
+        }
+
+        .inline-input-btn {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: 1fr 80px;
+            gap: 4px 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .quick-actions h4 {
+            margin: 0 0 4px;
+            font-size: 14px;
+        }
+
+        .quick-actions button {
+            width: 100%;
+            margin-bottom: 4px;
+        }
+
+        label {
+            font-size: 13px;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            height: 24px;
+            border: 1px solid #bbbbbb;
+            background: #eeeeee;
+            padding: 2px 6px;
+            font-family: inherit;
+            font-size: 13px;
+        }
+
+        input[readonly] {
+            background: #e2e2e2;
+            color: #2a2a2a;
+        }
+
+        .field-required-error {
+            border: 2px solid #c52323 !important;
+            background: #fff0f0 !important;
+        }
+
+        textarea {
+            height: 68px;
+            resize: none;
+        }
+
+        .detail-head {
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .toolbar {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+        }
+
+        .grid-shell {
+            border: 1px solid #bcbcbc;
+            background: #efefef;
+            min-height: 170px;
+            margin-top: 4px;
+            overflow: auto;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 980px;
+            font-size: 13px;
+        }
+
+        #stock_articulos_modal_backdrop table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #prefactura_modal_backdrop table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #prefactura_modal_backdrop th,
+        #prefactura_modal_backdrop td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(1),
+        #prefactura_modal_backdrop td:nth-child(1) {
+            width: 7%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(2),
+        #prefactura_modal_backdrop td:nth-child(2) {
+            width: 14%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(3),
+        #prefactura_modal_backdrop td:nth-child(3) {
+            width: 40%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(4),
+        #prefactura_modal_backdrop td:nth-child(4) {
+            width: 12%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(5),
+        #prefactura_modal_backdrop td:nth-child(5) {
+            width: 14%;
+        }
+
+        #prefactura_modal_backdrop th:nth-child(6),
+        #prefactura_modal_backdrop td:nth-child(6) {
+            width: 13%;
+        }
+
+        #grupo_articulo_modal_backdrop table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #grupo_articulo_modal_backdrop th,
+        #grupo_articulo_modal_backdrop td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #articulo_modal_backdrop table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #articulo_modal_backdrop th,
+        #articulo_modal_backdrop td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #articulo_modal_backdrop th:nth-child(1),
+        #articulo_modal_backdrop td:nth-child(1) {
+            width: 20%;
+        }
+
+        #articulo_modal_backdrop th:nth-child(2),
+        #articulo_modal_backdrop td:nth-child(2) {
+            width: 48%;
+        }
+
+        #articulo_modal_backdrop th:nth-child(3),
+        #articulo_modal_backdrop td:nth-child(3) {
+            width: 16%;
+        }
+
+        #articulo_modal_backdrop th:nth-child(4),
+        #articulo_modal_backdrop td:nth-child(4) {
+            width: 16%;
+        }
+
+        #stock_articulos_modal_backdrop th,
+        #stock_articulos_modal_backdrop td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #etiquetas_articulos_modal_backdrop .win-modal {
+            width: min(1100px, 96vw);
+            max-height: 92vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #etiquetas_articulos_modal_backdrop .win-body {
+            overflow: auto;
+            max-height: calc(92vh - 120px);
+        }
+
+        #etiquetas_articulos_modal_backdrop table {
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #etiquetas_articulos_modal_backdrop th,
+        #etiquetas_articulos_modal_backdrop td {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .etiquetas-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 10px;
+        }
+
+        .etiquetas-layout > div {
+            min-width: 0;
+        }
+
+        .etiquetas-preview-shell {
+            border: 1px solid #b6b6b6;
+            background: #f5f5f5;
+            min-height: 260px;
+            max-height: 420px;
+            overflow: auto;
+            padding: 8px;
+        }
+
+        .etiquetas-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 8px;
+        }
+
+        .etq-remove-btn {
+            min-width: 58px;
+            width: 58px;
+            height: 24px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 0;
+        }
+
+        .ga-remove-btn {
+            min-width: 100px;
+            width: 100px;
+            height: 24px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 0;
+        }
+
+        .etiqueta-card {
+            border: 1px solid #a8a8a8;
+            background: #fff;
+            padding: 5px 7px;
+            width: 205px;
+            min-height: 96px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            box-sizing: border-box;
+        }
+
+        .etq-empresa {
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.05;
+            letter-spacing: 0.2px;
+        }
+
+        .etq-articulo {
+            font-size: 10px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 1px;
+        }
+
+        .etq-ref {
+            font-size: 11px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 5px;
+        }
+
+        .etq-barcode {
+            height: 22px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-start;
+            gap: 0;
+            margin-top: 2px;
+            width: 100%;
+        }
+
+        .etq-barcode svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .etq-bar {
+            display: inline-block;
+            width: 1px;
+            background: #111;
+        }
+
+        .etq-barcode-wrap {
+            margin-top: auto;
+            margin-bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .etq-barcode-frame {
+            background: #fff;
+            padding: 0;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            max-width: 100%;
+        }
+
+        .etq-code {
+            text-align: left;
+            font-size: 11px;
+            letter-spacing: 0;
+            margin-top: 1px;
+            font-weight: 500;
+        }
+
+        .etq-precio {
+            margin-top: 1px;
+            font-size: 22px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        @media (max-width: 980px) {
+            .etiquetas-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .etiquetas-preview-shell {
+                max-height: 320px;
+            }
+        }
+
+        .etiqueta-format-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+            gap: 10px;
+        }
+
+        .etiqueta-format-panel {
+            border: 1px solid #b9b9b9;
+            background: #efefef;
+            padding: 8px;
+            max-height: 66vh;
+            overflow: auto;
+        }
+
+        .etiqueta-format-group {
+            border: 1px solid #c4c4c4;
+            background: #f7f7f7;
+            padding: 6px;
+            margin-bottom: 8px;
+        }
+
+        .etiqueta-format-group h6 {
+            margin: 0 0 6px;
+            font-size: 13px;
+        }
+
+        .etiqueta-format-grid {
+            display: grid;
+            grid-template-columns: 110px 1fr 90px 1fr;
+            gap: 4px 6px;
+            align-items: center;
+        }
+
+        .etiqueta-format-inline-checks {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .etiqueta-format-preview-shell {
+            border: 1px solid #b9b9b9;
+            background: #ececec;
+            min-height: 66vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10px;
+            overflow: auto;
+        }
+
+        .etiqueta-format-preview-shell .etiqueta-card {
+            transform: scale(2.1);
+            transform-origin: center center;
+        }
+
+        th,
+        td {
+            border: 1px solid #c4c4c4;
+            text-align: left;
+            padding: 4px 6px;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f8f8f8;
+            font-weight: 600;
+        }
+
+        .bottom-grid {
+            margin-top: 8px;
+            display: grid;
+            grid-template-columns: 1.1fr 1.2fr 0.9fr;
+            gap: 8px;
+        }
+
+        .print-box {
+            border: 1px solid #b6b6b6;
+            background: #dedede;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+
+        .print-box h5 {
+            margin: 0 0 6px;
+            font-size: 13px;
+        }
+
+        .totals-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 8px;
+            align-items: center;
+        }
+
+        .actions-bar {
+            margin-top: 10px;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            height: 42px;
+            min-width: 108px;
+            border-radius: 9px;
+            border: 1px solid var(--btn-border);
+            background: linear-gradient(#ffffff, #d5d5d5);
+            font-family: inherit;
+            font-size: 24px;
+            font-weight: 700;
+            color: #1b1b1b;
+            cursor: pointer;
+        }
+
+        button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .btn-small {
+            min-width: 120px;
+            height: 28px;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .btn-client {
+            min-width: 128px;
+            height: 24px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 0 10px;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.18);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .modal-backdrop.nested {
+            z-index: 1200;
+        }
+
+        #articulo_modal_backdrop.open {
+            z-index: 1300;
+        }
+
+        .win-modal {
+            width: min(900px, 96vw);
+            border: 1px solid #6f6f6f;
+            background: #d8d8d8;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .win-modal.maestro {
+            width: min(1120px, 98vw);
+        }
+
+        .win-modal.grupo {
+            width: min(520px, 92vw);
+        }
+
+        .win-titlebar {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: linear-gradient(90deg, #0f3b94, #2a67c7);
+            color: #fff;
+            padding: 0 8px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .win-titlebar button {
+            min-width: 28px;
+            height: 22px;
+            border-radius: 2px;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .win-body {
+            padding: 10px;
+        }
+
+        .search-row {
+            display: grid;
+            grid-template-columns: 110px 1fr 160px auto;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .search-grid {
+            border: 1px solid #adadad;
+            background: #f2f2f2;
+            min-height: 280px;
+            max-height: 360px;
+            overflow: auto;
+        }
+
+        .group-grid {
+            border: 1px solid #b6b6b6;
+            background: #f1f1f1;
+            min-height: 260px;
+            max-height: 320px;
+            overflow: auto;
+            margin-top: 8px;
+        }
+
+        .group-picker {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .condicion-picker #maestro_id_condicion {
+            width: 90px;
+            flex: 0 0 90px;
+        }
+
+        .condicion-picker #maestro_condicion_desc {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .group-id-label {
+            min-width: 56px;
+            margin: 0;
+            padding: 2px 4px;
+            border: 1px solid #bcbcbc;
+            background: #efefef;
+            text-align: center;
+            font-size: 12px;
+            line-height: 1.2;
+        }
+
+        .th-numero,
+        .td-numero {
+            width: 96px;
+            max-width: 96px;
+            white-space: nowrap;
+        }
+
+        .maestro-top {
+            border: 1px solid #b2b2b2;
+            background: #d6d6d6;
+            padding: 6px;
+            display: grid;
+            grid-template-columns: 1fr 190px;
+            gap: 8px;
+        }
+
+        .maestro-title {
+            margin: 0 0 6px;
+            text-align: center;
+            color: #0d2c8c;
+            font-size: 40px;
+            font-weight: 800;
+            line-height: 1;
+            text-shadow: 1px 1px 0 #fff;
+        }
+
+        .maestro-form {
+            display: grid;
+            grid-template-columns: 110px 1fr 110px 1fr;
+            gap: 4px 8px;
+            align-items: center;
+        }
+
+        .maestro-photo {
+            border: 1px solid #b5b5b5;
+            background: #dfdfdf;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .maestro-account {
+            border: 1px solid #b9b9b9;
+            background: #ececec;
+            padding: 6px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 4px;
+        }
+
+        .maestro-account-inline {
+            border: 1px solid #b9b9b9;
+            background: #ececec;
+            padding: 4px;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 4px;
+        }
+
+        .maestro-account-row {
+            display: grid;
+            grid-template-columns: 70px 1fr;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .balance-input {
+            text-align: right;
+            font-weight: 700;
+        }
+
+        .maestro-photo-box {
+            height: 168px;
+            border: 1px solid #b9b9b9;
+            background: #ececec;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6a6a6a;
+            font-size: 14px;
+            font-weight: 700;
+            overflow: hidden;
+        }
+
+        .maestro-photo-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .maestro-tabs {
+            margin-top: 8px;
+            display: flex;
+            gap: 2px;
+            flex-wrap: wrap;
+        }
+
+        .maestro-content {
+            border: 1px solid #b5b5b5;
+            background: #d7d7d7;
+            min-height: 270px;
+            padding: 8px;
+            display: grid;
+            grid-template-columns: 1fr 280px;
+            gap: 8px;
+        }
+
+        .maestro-panel {
+            display: none;
+        }
+
+        .maestro-panel.active {
+            display: block;
+        }
+
+        .maestro-left {
+            display: grid;
+            grid-template-columns: 110px 1fr;
+            gap: 6px 8px;
+            align-content: start;
+        }
+
+        .maestro-right {
+            display: grid;
+            grid-template-columns: 1fr;
+            align-content: start;
+            gap: 6px;
+        }
+
+        .maestro-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .dir-grid-top {
+            border: 1px solid #b8b8b8;
+            background: #d8d8d8;
+            padding: 6px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .dir-block {
+            border: 1px solid #c0c0c0;
+            background: #dadada;
+            min-height: 120px;
+            position: relative;
+            padding: 8px;
+        }
+
+        .dir-block h5 {
+            margin: 0;
+            padding: 2px 0;
+            font-size: 28px;
+            font-weight: 800;
+            border-bottom: 1px solid #c2c2c2;
+            margin-bottom: 8px;
+        }
+
+        .refs-box {
+            border: 1px solid #b8b8b8;
+            background: #d8d8d8;
+            padding: 6px;
+        }
+
+        .refs-title {
+            font-weight: 800;
+            text-decoration: underline;
+            margin-bottom: 4px;
+        }
+
+        .refs-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .ref-col h6 {
+            margin: 0 0 4px;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .ref-form {
+            display: grid;
+            grid-template-columns: 70px 1fr;
+            gap: 4px 8px;
+            align-items: center;
+        }
+
+        .cond-box {
+            border: 1px solid #b8b8b8;
+            background: #d7d7d7;
+            min-height: 270px;
+            padding: 8px;
+        }
+
+        .cond-form {
+            width: min(620px, 100%);
+            display: grid;
+            grid-template-columns: 120px 1fr 26px 90px 1fr;
+            gap: 4px 8px;
+            align-items: center;
+        }
+
+        .pick-btn {
+            min-width: 24px;
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0;
+            font-weight: 700;
+        }
+
+        .cell-picker {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .cell-picker input {
+            width: 100%;
+        }
+
+        .cell-pick-btn {
+            width: 22px;
+            min-width: 22px;
+            height: 22px;
+            padding: 0;
+            line-height: 1;
+            font-weight: 700;
+            display: none;
+        }
+
+        .cell-picker:focus-within .cell-pick-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cond-check {
+            margin-top: 8px;
+            font-size: 24px;
+        }
+
+        .prefactura-tab {
+            cursor: pointer;
+        }
+
+        .prefactura-tab-panel {
+            display: none;
+        }
+
+        .prefactura-tab-panel.active {
+            display: block;
+        }
+
+        .result-empty {
+            padding: 10px;
+            color: #5f5f5f;
+            font-size: 13px;
+        }
+
+        .click-row {
+            cursor: pointer;
+        }
+
+        .click-row:hover {
+            background: #dfe9ff;
+        }
+
+        #prefactura_detalle_body tr.detalle-row-selected td {
+            background: #dfe9ff;
+        }
+
+        .spacer {
+            flex: 1;
+        }
+
+        .close-btn {
+            min-width: 160px;
+            font-size: 30px;
+        }
+
+        .status-control {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .status-control input {
+            min-width: 130px;
+        }
+
+        .status-control .btn-small {
+            min-width: 58px;
+            padding: 2px 6px;
+        }
+
+        @media (max-width: 1100px) {
+            .title {
+                font-size: 28px;
+            }
+
+            .header-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .form-grid {
+                grid-template-columns: 140px 1fr;
+            }
+
+            .bottom-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Modern UX/UI Theme Overrides */
+
+        :root {
+            --bg: #f4f8ff;
+            --panel: #ffffff;
+            --line: #d3deee;
+            --tab: #eaf1fb;
+            --tab-active: #0f6edc;
+            --text: #1b2b40;
+            --title: #0f3f78;
+            --white: #ffffff;
+            --btn: #ffffff;
+            --btn-border: #1a64c8;
+            --accent: #1f7aed;
+            --accent-2: #00a8c7;
+            --danger: #d94253;
+            --muted: #6d7f95;
+            --surface-soft: #f7faff;
+        }
+
+        body {
+            font-family: "Outfit", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(1200px 500px at 8% -20%, rgba(31, 122, 237, 0.16), transparent 55%),
+                radial-gradient(900px 420px at 92% -14%, rgba(0, 168, 199, 0.14), transparent 58%),
+                linear-gradient(180deg, #f6fbff, #f1f6ff 45%, #eef4ff);
+            color: var(--text);
+        }
+
+        body.modal-open {
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: none;
+        }
+
+        .app {
+            max-width: 1440px;
+            border-top: none;
+            padding: 10px 14px;
+        }
+
+        .session-strip {
+            background: linear-gradient(135deg, #0f3f78, #1162bf 56%, #0bb1bf);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-radius: 14px;
+            color: #eef6ff;
+            padding: 6px 10px;
+            margin-bottom: 8px;
+            box-shadow: 0 10px 28px rgba(15, 63, 120, 0.26);
+        }
+
+        .session-left {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .session-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+
+        .session-brand {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .brand-tag {
+            font-family: "Space Grotesk", "Outfit", sans-serif;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: rgba(255, 255, 255, 0.17);
+            border: 1px solid rgba(255, 255, 255, 0.34);
+            border-radius: 999px;
+            padding: 2px 10px;
+        }
+
+        .brand-company {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+            opacity: 0.95;
+        }
+
+        .session-user {
+            font-size: 12px;
+        }
+
+        .session-strip strong {
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .user-click {
+            color: #ffffff;
+            text-decoration-color: rgba(255, 255, 255, 0.56);
+        }
+
+        .logout-link {
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.36);
+            color: #ffffff;
+            border-radius: 10px;
+            padding: 4px 10px;
+            transition: 0.2s ease;
+        }
+
+        .logout-link:hover {
+            background: rgba(255, 255, 255, 0.27);
+        }
+
+        .panel,
+        .card,
+        .win-modal {
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, #ffffff, #f7faff);
+            box-shadow: 0 10px 26px rgba(17, 77, 145, 0.11);
+        }
+
+        .panel {
+            border-radius: 16px;
+            padding: 12px;
+        }
+
+        .card {
+            border-radius: 12px;
+            background: linear-gradient(180deg, #ffffff, #f4f8ff);
+        }
+
+        .title {
+            font-family: "Space Grotesk", "Outfit", sans-serif;
+            font-size: 34px;
+            color: #0f3f78;
+            letter-spacing: 1px;
+            text-shadow: none;
+            margin-top: 4px;
+            margin-bottom: 4px;
+        }
+
+        .title-sub {
+            margin: 0 0 10px;
+            text-align: center;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .quick-actions h4 {
+            font-size: 15px;
+            color: #123f77;
+            margin-bottom: 8px;
+        }
+
+        .tab {
+            border: 1px solid #cfdcf0;
+            background: var(--tab);
+            border-radius: 10px 10px 0 0;
+            color: #36506b;
+            font-weight: 600;
+            padding: 6px 12px;
+            transition: 0.2s ease;
+        }
+
+        .tab.active {
+            background: linear-gradient(180deg, #1d79e8, #1065cb);
+            color: #ffffff;
+            border-color: #1065cb;
+            box-shadow: 0 8px 16px rgba(16, 101, 203, 0.22);
+        }
+
+        .prefactura-tab {
+            border-radius: 10px 10px 0 0;
+        }
+
+        input,
+        select,
+        textarea {
+            border: 1px solid #c9d8ed;
+            background: #ffffff;
+            color: #1f334a;
+            border-radius: 8px;
+            height: 30px;
+            padding: 4px 10px;
+            font-size: 13px;
+            transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+
+        textarea {
+            height: 78px;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #1f7aed;
+            box-shadow: 0 0 0 3px rgba(31, 122, 237, 0.14);
+        }
+
+        input[readonly],
+        input:disabled,
+        select:disabled,
+        textarea:disabled {
+            background: #f3f7fd;
+            color: #4e637b;
+        }
+
+        label {
+            color: #334d68;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+
+        button {
+            min-width: 118px;
+            height: 38px;
+            border-radius: 10px;
+            border: 1px solid var(--btn-border);
+            background: linear-gradient(180deg, #1f7aed, #125ec3);
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            box-shadow: 0 8px 16px rgba(18, 94, 195, 0.2);
+            transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 11px 20px rgba(18, 94, 195, 0.26);
+            filter: brightness(1.03);
+        }
+
+        button:disabled {
+            background: linear-gradient(180deg, #d8e2f1, #c8d5e8);
+            border-color: #bfd0e8;
+            color: #6f8199;
+            box-shadow: none;
+            opacity: 1;
+        }
+
+        .btn-small {
+            min-width: 102px;
+            height: 30px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .btn-client {
+            min-width: 132px;
+            height: 30px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .pick-btn,
+        .cell-pick-btn {
+            background: linear-gradient(180deg, #ffffff, #e9f2ff);
+            color: #225ca7;
+            border-color: #b7cae6;
+            box-shadow: none;
+        }
+
+        .pick-btn:hover:not(:disabled),
+        .cell-pick-btn:hover:not(:disabled) {
+            box-shadow: 0 4px 10px rgba(32, 95, 172, 0.18);
+        }
+
+        .grid-shell,
+        .search-grid,
+        .group-grid,
+        .etiquetas-preview-shell {
+            border: 1px solid #d2dfef;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+
+        th {
+            background: linear-gradient(180deg, #eaf2ff, #ddeafd);
+            color: #21486f;
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        td {
+            background: #ffffff;
+            color: #243b53;
+        }
+
+        .click-row:hover td {
+            background: #f1f7ff;
+        }
+
+        .print-box,
+        .maestro-account,
+        .maestro-account-inline,
+        .cond-box,
+        .refs-box,
+        .dir-block,
+        .maestro-content {
+            border: 1px solid #d2dfef;
+            border-radius: 10px;
+            background: linear-gradient(180deg, #ffffff, #f4f8ff);
+        }
+
+        .maestro-title {
+            font-family: "Space Grotesk", "Outfit", sans-serif;
+            color: #0f3f78;
+            font-size: 32px;
+            text-shadow: none;
+        }
+
+        .maestro-photo-box {
+            border: 1px dashed #bfd3ec;
+            border-radius: 10px;
+            background: #f6faff;
+        }
+
+        .win-modal {
+            border-radius: 12px;
+            overflow: hidden;
+            background: #f8fbff;
+        }
+
+        .win-titlebar {
+            height: 34px;
+            background: linear-gradient(90deg, #0f3f78, #1064c8, #0bb1bf);
+            font-family: "Space Grotesk", "Outfit", sans-serif;
+            font-size: 13px;
+            letter-spacing: .35px;
+        }
+
+        .win-titlebar button {
+            min-width: 28px;
+            height: 24px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.35);
+            color: #ffffff;
+            box-shadow: none;
+        }
+
+        .actions-bar {
+            border-top: 1px solid #d7e3f2;
+            margin-top: 10px;
+            padding-top: 8px;
+            gap: 8px;
+        }
+
+        .etiqueta-card {
+            border: 1px solid #c9dbf2;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(25, 83, 150, 0.09);
+        }
+
+        .etq-empresa {
+            color: #0f3f78;
+        }
+
+        .etq-precio {
+            color: #0d315d;
+        }
+
+        .field-required-error {
+            border: 2px solid var(--danger) !important;
+            background: #fff3f5 !important;
+        }
+
+        .app-alert-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(12, 24, 43, 0.34);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2200;
+            padding: 16px;
+        }
+
+        .app-alert-backdrop.open {
+            display: flex;
+        }
+
+        .app-alert-modal {
+            width: min(520px, 96vw);
+            border: 1px solid #d2dfef;
+            border-radius: 14px;
+            background: linear-gradient(180deg, #ffffff, #f4f8ff);
+            box-shadow: 0 16px 38px rgba(10, 44, 84, 0.28);
+            overflow: hidden;
+        }
+
+        .app-alert-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 12px;
+            background: linear-gradient(90deg, #0f3f78, #1064c8, #0bb1bf);
+            color: #fff;
+            font-family: "Space Grotesk", "Outfit", sans-serif;
+            font-size: 13px;
+            letter-spacing: .4px;
+            font-weight: 700;
+        }
+
+        .app-alert-close {
+            min-width: 28px;
+            width: 28px;
+            height: 24px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, .35);
+            background: rgba(255, 255, 255, .18);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 0;
+            box-shadow: none;
+        }
+
+        .app-alert-body {
+            padding: 16px 16px 8px;
+            color: #1f334a;
+            font-size: 14px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .app-alert-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 10px 14px 14px;
+            border-top: 1px solid #d7e3f2;
+        }
+
+        .app-alert-ok {
+            min-width: 92px;
+            height: 34px;
+            border-radius: 9px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .app-confirm-body {
+            padding: 16px 16px 8px;
+            color: #1f334a;
+            font-size: 14px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .app-confirm-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+            padding: 10px 14px 14px;
+            border-top: 1px solid #d7e3f2;
+        }
+
+        .app-confirm-cancel,
+        .app-confirm-ok {
+            min-width: 96px;
+            height: 34px;
+            border-radius: 9px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        @media (max-width: 900px) {
+            .session-strip {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .session-right {
+                width: 100%;
+                margin-left: 0;
+                justify-content: space-between;
+                flex-wrap: wrap;
+            }
+
+            .brand-tag {
+                font-size: 16px;
+            }
+
+            .title {
+                font-size: 27px;
+            }
+        }
+
+        /* Prefactura compacta: menos alto arriba, mas filas visibles en detalle */
+        #prefactura_panel {
+            padding: 7px;
+        }
+
+        #prefactura_panel .header-grid {
+            grid-template-columns: minmax(0, 1fr) 288px;
+            gap: 5px;
+        }
+
+        #prefactura_panel .card {
+            padding: 4px 6px;
+        }
+
+        #prefactura_panel .form-grid {
+            margin-top: 0;
+            gap: 2px 6px;
+        }
+
+        #prefactura_panel label {
+            font-size: 11.5px;
+        }
+
+        #prefactura_panel input,
+        #prefactura_panel select {
+            height: 24px;
+            padding: 2px 8px;
+        }
+
+        #prefactura_panel .btn-client {
+            height: 24px;
+        }
+
+        #prefactura_panel .quick-actions h4 {
+            margin-bottom: 3px;
+            font-size: 12px;
+        }
+
+        #prefactura_panel .quick-actions button {
+            margin-bottom: 1px;
+            height: 24px;
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        #prefactura_panel .detail-head {
+            margin-top: 3px;
+        }
+
+        #prefactura_panel .actions-bar {
+            margin-top: 8px;
+            padding-top: 0;
+            border-top: none;
+            align-items: flex-end;
+        }
+
+        #prefactura_tab_detalle.active ~ .actions-bar {
+            margin-top: -40px;
+        }
+
+        #prefactura_panel .grid-shell {
+            min-height: 220px;
+            height: clamp(220px, 33vh, 360px);
+        }
+
+        #prefactura_panel .bottom-grid {
+            margin-top: 5px;
+            gap: 6px;
+        }
+
+        #prefactura_panel textarea {
+            height: 58px;
+        }
+
+        #prefactura_panel .totals-grid {
+            gap: 2px 6px;
+        }
+
+        #prefactura_panel .grid-shell th,
+        #prefactura_panel .grid-shell td {
+            padding: 2px 5px;
+        }
+
+        #prefactura_panel .grid-shell td input,
+        #prefactura_panel .grid-shell td select {
+            height: 22px;
+            padding: 1px 5px;
+            font-size: 13px;
+        }
+
+        #prefactura_total_doc {
+            font-weight: 800;
+        }
+
+        /* Ajustes de columnas en detalle de pre-factura */
+        #prefactura_panel .grid-shell table th:nth-child(1),
+        #prefactura_panel .grid-shell table td:nth-child(1) {
+            min-width: 320px;
+        }
+
+        /* Ocultar columna Articulo y ceder espacio a Descripcion */
+        #prefactura_panel .grid-shell table th:nth-child(2),
+        #prefactura_panel .grid-shell table td:nth-child(2) {
+            display: none;
+        }
+
+        /* Cant. mas estrecha */
+        #prefactura_panel .grid-shell table th:nth-child(4),
+        #prefactura_panel .grid-shell table td:nth-child(4) {
+            width: 52px;
+            min-width: 52px;
+            max-width: 52px;
+        }
+
+        /* UoM 40% mas ancha */
+        #prefactura_panel .grid-shell table th:nth-child(6),
+        #prefactura_panel .grid-shell table td:nth-child(6) {
+            width: 84px;
+            min-width: 84px;
+            max-width: 84px;
+        }
+
+        /* Proyecto y CeBe 35% menos anchas */
+        #prefactura_panel .grid-shell table th:nth-child(8),
+        #prefactura_panel .grid-shell table td:nth-child(8),
+        #prefactura_panel .grid-shell table th:nth-child(9),
+        #prefactura_panel .grid-shell table td:nth-child(9) {
+            width: 72px;
+            min-width: 72px;
+            max-width: 72px;
+        }
+
+        /* % Desc. reducida ~50% */
+        #prefactura_panel .grid-shell table th:nth-child(13),
+        #prefactura_panel .grid-shell table td:nth-child(13) {
+            width: 56px;
+            min-width: 56px;
+            max-width: 56px;
+        }
+
+        /* Ajustes moviles (iPhone y pantallas pequenas) */
+        @media (max-width: 640px) {
+            body {
+                font-size: 13px;
+                line-height: 1.35;
+            }
+
+            .app {
+                padding: 8px 8px 14px;
+            }
+
+            .session-strip {
+                padding: 10px;
+                gap: 6px;
+                border-radius: 12px;
+            }
+
+            .session-brand {
+                gap: 2px;
+            }
+
+            .brand-tag {
+                font-size: 14px;
+                letter-spacing: 0.4px;
+            }
+
+            .brand-company {
+                font-size: 12px;
+            }
+
+            .session-user {
+                font-size: 12px;
+            }
+
+            .logout-link {
+                width: 100%;
+                text-align: center;
+                padding: 8px 12px;
+            }
+
+            .header-grid {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "quick"
+                    "client";
+                align-items: start;
+                gap: 8px;
+                width: 100%;
+                justify-items: stretch;
+            }
+
+            #prefactura_panel .card {
+                padding: 6px;
+                border-radius: 12px;
+                background: #ffffff;
+                width: 100%;
+            }
+
+            #prefactura_panel .header-grid .card:first-child {
+                grid-area: client;
+                min-width: 0;
+            }
+
+            #prefactura_panel .header-grid .card:last-child {
+                grid-area: quick;
+                min-width: 0;
+                align-self: start;
+            }
+
+            #prefactura_panel .form-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+                width: 100%;
+            }
+
+            #prefactura_panel .form-grid label {
+                margin-top: 0;
+                font-size: 11.5px;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+                color: var(--muted);
+            }
+
+            #prefactura_panel .form-grid > label + input,
+            #prefactura_panel .form-grid > label + .inline-input-btn,
+            #prefactura_panel .form-grid > label + .status-control {
+                margin-top: -4px;
+            }
+
+            #prefactura_panel input,
+            #prefactura_panel select {
+                height: 34px;
+                font-size: 14px;
+                border-radius: 10px;
+            }
+
+            #prefactura_panel .btn-client {
+                height: 36px;
+                font-size: 13px;
+            }
+
+            .inline-input-btn {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+
+            .status-control {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+
+            .status-control input {
+                grid-column: 1 / -1;
+                width: 100%;
+                min-width: 0;
+            }
+
+            .status-control .btn-small {
+                min-width: 0;
+                height: 34px;
+                font-size: 13px;
+            }
+
+            .quick-actions h4 {
+                font-size: 12px;
+                color: var(--muted);
+            }
+
+            .quick-actions button {
+                height: 34px;
+                font-size: 12px;
+            }
+
+            .quick-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 6px;
+                width: 100%;
+            }
+
+            .quick-actions button {
+                white-space: normal;
+                line-height: 1.1;
+                padding: 6px 8px;
+                height: auto;
+                min-height: 36px;
+            }
+
+            .quick-actions h4 {
+                grid-column: 1 / -1;
+                margin-bottom: 2px;
+            }
+
+            .detail-head {
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+
+            .detail-head .tab {
+                flex: 1 1 30%;
+                text-align: center;
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .toolbar {
+                width: 100%;
+                margin-left: 0;
+                justify-content: flex-start;
+            }
+
+            .toolbar .btn-small {
+                height: 32px;
+                font-size: 12px;
+            }
+
+            .grid-shell {
+                border-radius: 10px;
+                overflow: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .grid-shell table {
+                font-size: 12px;
+                min-width: 640px;
+            }
+
+            .grid-shell th,
+            .grid-shell td {
+                padding: 4px 6px;
+            }
+
+            .grid-shell td input,
+            .grid-shell td select {
+                height: 26px;
+                font-size: 12px;
+            }
+
+            /* Detalle prefactura: muestra solo columnas clave en movil */
+            #prefactura_panel .grid-shell table th:nth-child(2),
+            #prefactura_panel .grid-shell table td:nth-child(2),
+            #prefactura_panel .grid-shell table th:nth-child(3),
+            #prefactura_panel .grid-shell table td:nth-child(3),
+            #prefactura_panel .grid-shell table th:nth-child(5),
+            #prefactura_panel .grid-shell table td:nth-child(5),
+            #prefactura_panel .grid-shell table th:nth-child(6),
+            #prefactura_panel .grid-shell table td:nth-child(6),
+            #prefactura_panel .grid-shell table th:nth-child(7),
+            #prefactura_panel .grid-shell table td:nth-child(7),
+            #prefactura_panel .grid-shell table th:nth-child(8),
+            #prefactura_panel .grid-shell table td:nth-child(8),
+            #prefactura_panel .grid-shell table th:nth-child(9),
+            #prefactura_panel .grid-shell table td:nth-child(9),
+            #prefactura_panel .grid-shell table th:nth-child(11),
+            #prefactura_panel .grid-shell table td:nth-child(11),
+            #prefactura_panel .grid-shell table th:nth-child(14),
+            #prefactura_panel .grid-shell table td:nth-child(14) {
+                display: none;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(1),
+            #prefactura_panel .grid-shell table td:nth-child(1) {
+                min-width: 220px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(4),
+            #prefactura_panel .grid-shell table td:nth-child(4) {
+                width: 64px;
+                min-width: 64px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(10),
+            #prefactura_panel .grid-shell table td:nth-child(10) {
+                width: 84px;
+                min-width: 84px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(12),
+            #prefactura_panel .grid-shell table td:nth-child(12) {
+                width: 84px;
+                min-width: 84px;
+            }
+
+            #prefactura_panel .grid-shell table th:nth-child(13),
+            #prefactura_panel .grid-shell table td:nth-child(13) {
+                width: 56px;
+                min-width: 56px;
+            }
+
+            .bottom-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .totals-grid {
+                grid-template-columns: 1fr 1fr;
+                gap: 6px;
+            }
+
+            .actions-bar {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 8px;
+            }
+
+            .actions-bar button {
+                width: 100%;
+                height: 40px;
+                font-size: 16px;
+            }
+
+            #prefactura_tab_detalle.active ~ .actions-bar {
+                margin-top: 10px;
+            }
+
+            .search-row {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .maestro-top {
+                grid-template-columns: 1fr;
+            }
+
+            .maestro-form {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .maestro-photo,
+            .maestro-account,
+            .maestro-account-inline {
+                padding: 6px;
+            }
+
+            .win-modal {
+                width: 100vw;
+                max-width: 100vw;
+                height: 100vh;
+                max-height: 100vh;
+                border-radius: 0;
+            }
+
+            .win-body {
+                padding: 10px;
+                max-height: calc(100vh - 40px);
+                overflow: auto;
+            }
+        }

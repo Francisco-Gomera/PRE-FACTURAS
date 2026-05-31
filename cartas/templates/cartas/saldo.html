@@ -396,26 +396,26 @@
   }
 
   .carta-sign {
-    margin-top: 1cm;
+    margin-top: 6mm;
     text-align: center;
   }
   .firma-img {
-    max-width: 200px;
-    max-height: 90px;
+    max-width: 180px;
+    max-height: 72px;
     margin: 0 auto;
     object-fit: contain;
   }
   .sello-img {
-    max-width: 220px;
-    max-height: 120px;
-    margin: 0 auto 5px;
+    max-width: 200px;
+    max-height: 96px;
+    margin: 0 auto 3px;
     object-fit: contain;
   }
   hr.firma-line {
     border: none;
     border-top: 1px solid #111;
     width: 250px;
-    margin: 8px auto 4px;
+    margin: 6px auto 3px;
   }
 
   /* Modal Styles */
@@ -608,8 +608,8 @@
 		
 		    .carta-sign {
 		      position: static !important;
-		      margin-top: 12mm !important;
-		      padding: 0 0 6mm 0 !important;
+		      margin-top: 7mm !important;
+		      padding: 0 0 3mm 0 !important;
 		      text-align: center !important;
 		      page-break-inside: avoid !important;
 		      color: #111 !important;
@@ -635,14 +635,14 @@
 		    }
 
 		    .sello-img {
-		      max-width: 220px !important;
-		      max-height: 120px !important;
-		      margin-bottom: 5px !important;
+		      max-width: 200px !important;
+		      max-height: 96px !important;
+		      margin-bottom: 3px !important;
 		    }
 
 		    .firma-img {
-		      max-width: 200px !important;
-		      max-height: 90px !important;
+		      max-width: 180px !important;
+		      max-height: 72px !important;
 		    }
 
 		    /* Compactar un poco para que no desborde a una segunda pagina. */
@@ -1042,12 +1042,21 @@
       closeSaldoModal();
     }
   });
+  function isSaldoMobilePrintContext() {
+    try {
+      return window.matchMedia("(max-width: 768px)").matches;
+    } catch (error) {
+      return window.innerWidth <= 768;
+    }
+  }
+
   function doPrint() {
     const cartaDoc = saldoPreview?.querySelector(".carta-doc");
     if (!cartaDoc) {
-      requestAnimationFrame(() => window.print());
+      window.alert("No se pudo preparar la carta para imprimir.");
       return;
     }
+    const mobilePrintMode = isSaldoMobilePrintContext();
 
     const clonedCarta = cartaDoc.cloneNode(true);
     clonedCarta.style.transform = "none";
@@ -1061,49 +1070,160 @@
       html, body {
         margin: 0;
         padding: 0;
-        background: #fff;
+        min-height: 100%;
+        background: #eef3f9;
         overflow: visible !important;
       }
       body {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 12px;
       }
       .carta-doc {
         transform: none !important;
         transform-origin: top left !important;
-        width: auto !important;
-        max-width: 100% !important;
-        height: auto !important;
-        min-height: 0 !important;
-        margin: 0 !important;
-        box-shadow: none !important;
+        box-sizing: border-box !important;
+        width: min(210mm, 100%) !important;
+        min-height: 297mm !important;
+        margin: 0 auto !important;
+        background: #ffffff !important;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15) !important;
         border-radius: 0 !important;
+        display: block !important;
+        padding: 0 !important;
       }
-      .carta-body,
-      .carta-preview-container,
-      .carta-preview-body,
-      .page-container,
-      .content,
-      .main,
-      .app-shell {
-        overflow: visible !important;
-        height: auto !important;
-        max-height: none !important;
-        min-height: 0 !important;
+      .carta-body {
+        padding: 12mm !important;
+      }
+      .carta-sign {
+        position: static !important;
+        margin-top: 7mm !important;
+        padding: 0 0 3mm 0 !important;
+        text-align: center !important;
+        page-break-inside: avoid !important;
+        color: #111 !important;
+        display: block !important;
+      }
+      .firma-img {
+        max-width: 180px !important;
+        max-height: 72px !important;
+      }
+      .sello-img {
+        max-width: 200px !important;
+        max-height: 96px !important;
+        margin-bottom: 3px !important;
+      }
+      body.mobile-print .carta-doc {
+        font-size: 11pt !important;
+        line-height: 1.22 !important;
+      }
+      body.mobile-print .carta-body {
+        padding: 9mm !important;
+      }
+      body.mobile-print .carta-header {
+        grid-template-columns: 150px 1fr !important;
+        gap: 10px !important;
+        margin-bottom: 5mm !important;
+      }
+      body.mobile-print .carta-logo {
+        width: 150px !important;
+      }
+      body.mobile-print .carta-header-info {
+        font-size: 9pt !important;
+      }
+      body.mobile-print .carta-title {
+        margin: 5mm 0 4mm !important;
+        font-size: 20pt !important;
+      }
+      body.mobile-print .carta-table {
+        margin-top: 4mm !important;
+        font-size: 8.2pt !important;
+      }
+      body.mobile-print .carta-table th,
+      body.mobile-print .carta-table td {
+        padding: 3px 4px !important;
+      }
+      body.mobile-print .carta-sign {
+        margin-top: 4mm !important;
+        padding-bottom: 2mm !important;
+      }
+      body.mobile-print .firma-img {
+        max-width: 150px !important;
+        max-height: 56px !important;
+      }
+      body.mobile-print .sello-img {
+        max-width: 170px !important;
+        max-height: 72px !important;
+      }
+      body.mobile-print hr.firma-line {
+        margin: 4px auto 2px !important;
+      }
+      hr.firma-line {
+        display: block !important;
+        height: 0 !important;
+        border: none !important;
+        border-top: 1px solid #111 !important;
+        background: transparent !important;
+        width: 250px !important;
+        margin: 6px auto 3px !important;
+        opacity: 1 !important;
       }
       @page {
-        size: auto;
+        size: A4;
         margin: 12mm;
       }
       @media print {
         html, body {
+          display: block !important;
+          padding: 0 !important;
+          background: #fff !important;
           overflow: visible !important;
         }
         .carta-doc {
+          width: 100% !important;
+          min-height: 273mm !important;
+          box-shadow: none !important;
           page-break-after: auto !important;
         }
       }
     `;
+
+    const printDocumentHtml = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Carta de saldo</title>
+        <style>${inlineStyles}</style>
+        <style>${printStyles}</style>
+      </head>
+      <body class="${mobilePrintMode ? "mobile-print" : ""}">${clonedCarta.outerHTML}</body>
+      </html>
+    `;
+
+    if (isSaldoMobilePrintContext()) {
+      const printWindow = window.open("", "_blank");
+      if (!printWindow || !printWindow.document) {
+        window.alert("No se pudo abrir la impresion. Verifica si tu navegador bloqueo la ventana emergente.");
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(printDocumentHtml);
+      printWindow.document.close();
+      setTimeout(() => {
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch (error) {
+          // En algunos navegadores moviles solo se mostrara el documento listo para imprimir.
+        }
+      }, 220);
+      return;
+    }
 
     const printFrame = document.createElement("iframe");
     printFrame.setAttribute("aria-hidden", "true");
@@ -1120,24 +1240,12 @@
     const frameDoc = printFrame.contentWindow?.document;
     if (!frameDoc || !printFrame.contentWindow) {
       printFrame.remove();
-      requestAnimationFrame(() => window.print());
+      window.alert("No se pudo preparar la impresion de la carta.");
       return;
     }
 
     frameDoc.open();
-    frameDoc.write(`
-      <!DOCTYPE html>
-      <html lang="es">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Carta de saldo</title>
-        <style>${inlineStyles}</style>
-        <style>${printStyles}</style>
-      </head>
-      <body>${clonedCarta.outerHTML}</body>
-      </html>
-    `);
+    frameDoc.write(printDocumentHtml);
     frameDoc.close();
 
     let hasPrinted = false;

@@ -1,13 +1,20 @@
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 from ajustes.permissions import has_perm
+from core.realtime import broadcast_notification_refresh
 from core.views import _base_context, render_denied
-from .models import CobroAcuerdo
-from prefacturas_app.models_existing import MaestroSn
+from cartas.views import (
+    _build_aviso_default_body_text,
+    _build_empresa_payload,
+    _load_firma_b64,
+    _format_money_str,
+)
+from .models import CobroAcuerdo, CobroCartaEnviada
+from prefacturas_app.models_existing import MaestroSn, Usuario
 from prefacturas_app.views import _get_open_ed_balance, _require_perm_or_denied
 
 
@@ -81,6 +88,33 @@ def _ensure_cobro_acuerdo_table():
                     CREADO_POR_ID BIGINT NOT NULL,
                     FECHA_CREACION DATETIME2 NOT NULL CONSTRAINT DF_COBRO_ACUERDO_FECHA_CREACION DEFAULT (SYSDATETIME()),
                     FECHA_MODIFICACION DATETIME2 NOT NULL CONSTRAINT DF_COBRO_ACUERDO_FECHA_MODIFICACION DEFAULT (SYSDATETIME())
+                );
+            END
+            """
+        )
+
+
+def _ensure_cobro_carta_enviada_table():
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            IF OBJECT_ID('COBRO_CARTA_ENVIADA', 'U') IS NULL
+            BEGIN
+                CREATE TABLE COBRO_CARTA_ENVIADA (
+                    ID_CARTA INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+                    ID_SN NVARCHAR(20) NOT NULL,
+                    CLIENTE_NOMBRE NVARCHAR(200) NOT NULL,
+                    TELEFONO NVARCHAR(50) NOT NULL CONSTRAINT DF_COBRO_CARTA_TELEFONO DEFAULT (''),
+                    SECTOR NVARCHAR(120) NOT NULL CONSTRAINT DF_COBRO_CARTA_SECTOR DEFAULT (''),
+                    TIPO NVARCHAR(30) NOT NULL CONSTRAINT DF_COBRO_CARTA_TIPO DEFAULT ('AVISO'),
+                    MEDIO_ENVIO NVARCHAR(30) NOT NULL CONSTRAINT DF_COBRO_CARTA_MEDIO DEFAULT ('IMPRESA'),
+                    FECHA_ENVIO DATE NOT NULL,
+                    ESTADO NVARCHAR(20) NOT NULL CONSTRAINT DF_COBRO_CARTA_ESTADO DEFAULT ('ENVIADA'),
+                    FECHA_SEGUIMIENTO DATE NULL,
+                    NOTA NVARCHAR(MAX) NOT NULL,
+                    CREADO_POR_ID BIGINT NOT NULL,
+                    FECHA_CREACION DATETIME2 NOT NULL CONSTRAINT DF_COBRO_CARTA_FECHA_CREACION DEFAULT (SYSDATETIME()),
+                    FECHA_MODIFICACION DATETIME2 NOT NULL CONSTRAINT DF_COBRO_CARTA_FECHA_MODIFICACION DEFAULT (SYSDATETIME())
                 );
             END
             """
@@ -374,6 +408,262 @@ def _build_alertas_context(min_days, max_days=None, sector_id=None):
     }
 
 
+def _parse_positive_int(value, default=None):
+    raw = str(value or "").strip()
+    if not raw:
+        return default
+    try:
+        return max(int(raw), 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _build_financiamientos_atraso_context(cuotas_desde=None, cuotas_hasta=None, sector_id=None, q=""):
+    cuotas_desde = _parse_positive_int(cuotas_desde, None)
+    cuotas_hasta = _parse_positive_int(cuotas_hasta, None)
+    if cuotas_desde is not None and cuotas_hasta is not None and cuotas_hasta < cuotas_desde:
+        cuotas_desde, cuotas_hasta = cuotas_hasta, cuotas_desde
+    try:
+        sector_id = None if sector_id in (None, "") else int(sector_id)
+    except (TypeError, ValueError):
+        sector_id = None
+    q = str(q or "").strip()
+
+    sql = """
+        SELECT
+            f.ID_SN,
+            s.NOM_SOCIO,
+            s.RNC_CED,
+            s.TEL1,
+            s.DIR_FACTURA,
+            s.ID_SECTOR,
+            ISNULL(t.DESCRIPCION, 'SIN SECTOR') AS SECTOR,
+            f.ID_DOC,
+            f.FECHA_DOC,
+            f.TOTAL_DOC,
+            f.SALDO,
+            f.FECHA_VENC,
+            p.NO_CUOTA,
+            p.FECHA,
+            p.FECHA_VENC,
+            p.CUOTA,
+            p.BALANCE,
+            p.SALDO_INSOLUTO
+        FROM CAB_FACTURA f
+        INNER JOIN DET_PRESTAMO p ON p.NO_DOC = f.ID_DOC
+        INNER JOIN MAESTRO_SN s ON s.ID_SN = f.ID_SN
+        LEFT JOIN Territorio t ON t.ID_CODIGO = s.ID_SECTOR
+        WHERE UPPER(ISNULL(f.EST_DOC, '')) = 'ABIERTO'
+    """
+    params = []
+    if sector_id is not None:
+        sql += " AND s.ID_SECTOR = %s"
+        params.append(sector_id)
+    if q:
+        sql += """
+            AND (
+                CAST(f.ID_DOC AS NVARCHAR(255)) LIKE %s OR
+                CAST(f.ID_SN AS NVARCHAR(255)) LIKE %s OR
+                s.NOM_SOCIO LIKE %s OR
+                s.RNC_CED LIKE %s OR
+                s.TEL1 LIKE %s
+            )
+        """
+        like = f"%{q}%"
+        params.extend([like, like, like, like, like])
+    sql += " ORDER BY f.ID_DOC, p.NO_CUOTA"
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    records_map = {}
+    overdue_docs = []
+    for row in rows:
+        (
+            id_sn,
+            nom_socio,
+            rnc_ced,
+            tel1,
+            dir_factura,
+            _id_sector,
+            sector,
+            id_doc,
+            fecha_doc,
+            total_doc,
+            saldo_doc,
+            fecha_venc_doc,
+            no_cuota,
+            fecha_cuota,
+            fecha_venc_cuota,
+            cuota_monto,
+            balance,
+            saldo_insoluto,
+        ) = row
+
+        saldo_cuota = balance if balance is not None else saldo_insoluto
+        saldo_val = _to_float(saldo_cuota)
+        if saldo_val <= 0:
+            continue
+        vencimiento = fecha_venc_cuota or fecha_venc_doc
+        dias = _days_overdue(vencimiento)
+        if dias <= 0:
+            continue
+
+        if id_doc not in records_map:
+            records_map[id_doc] = {
+                "id_sn": id_sn,
+                "cliente": nom_socio or id_sn or "",
+                "rnc_ced": rnc_ced or "",
+                "telefono": tel1 or "",
+                "direccion": dir_factura or "",
+                "sector": sector or "SIN SECTOR",
+                "id_doc": id_doc,
+                "fecha_doc": _fmt_date(fecha_doc),
+                "fecha_venc": _fmt_date(fecha_venc_doc),
+                "total_doc": _to_float(total_doc),
+                "saldo_doc": _to_float(saldo_doc),
+                "cuotas_atrasadas": 0,
+                "balance_atraso": 0.0,
+                "dias_mayor_atraso": 0,
+                "primera_vencida": "",
+                "ultima_vencida": "",
+                "cuotas": [],
+            }
+            overdue_docs.append(id_doc)
+
+        record = records_map[id_doc]
+        cuota_val = _to_float(cuota_monto)
+        record["cuotas_atrasadas"] += 1
+        record["balance_atraso"] += saldo_val
+        record["dias_mayor_atraso"] = max(record["dias_mayor_atraso"], dias)
+        record["cuotas"].append(
+            {
+                "no_cuota": no_cuota or "",
+                "fecha": _fmt_date(fecha_cuota or fecha_doc),
+                "fecha_venc": _fmt_date(vencimiento),
+                "monto": cuota_val,
+                "pagado": max(cuota_val - saldo_val, 0.0),
+                "saldo": saldo_val,
+                "dias": dias,
+            }
+        )
+
+    ult_pago_by_doc = {}
+    unique_docs = list(dict.fromkeys(overdue_docs))
+    if unique_docs:
+        for docs_chunk in _chunked(unique_docs, 300):
+            placeholders = ", ".join(["%s"] * len(docs_chunk))
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT NO_DOC, MAX(FECHA_CONT)
+                    FROM DET_RECIBO_INGRESO
+                    WHERE NO_DOC IN ({placeholders})
+                    GROUP BY NO_DOC
+                    """,
+                    docs_chunk,
+                )
+                for no_doc, fecha_pago in cursor.fetchall():
+                    ult_pago_by_doc[no_doc] = _fmt_date(fecha_pago)
+
+    records = []
+    for record in records_map.values():
+        if cuotas_desde is not None and record["cuotas_atrasadas"] < cuotas_desde:
+            continue
+        if cuotas_hasta is not None and record["cuotas_atrasadas"] > cuotas_hasta:
+            continue
+        record["cuotas"] = sorted(record["cuotas"], key=lambda item: (-item["dias"], item["no_cuota"]))
+        record["primera_vencida"] = record["cuotas"][0]["fecha_venc"] if record["cuotas"] else ""
+        record["ultima_vencida"] = record["cuotas"][-1]["fecha_venc"] if record["cuotas"] else ""
+        record["fecha_ultimo_pago"] = ult_pago_by_doc.get(record["id_doc"], "")
+        records.append(record)
+
+    records = sorted(
+        records,
+        key=lambda item: (-item["cuotas_atrasadas"], -item["dias_mayor_atraso"], (item["cliente"] or "").upper(), item["id_doc"]),
+    )
+    return {
+        "records": records,
+        "total_records": len(records),
+        "total_cuotas": sum(item["cuotas_atrasadas"] for item in records),
+        "total_balance": sum(item["balance_atraso"] for item in records),
+        "cuotas_desde": cuotas_desde if cuotas_desde is not None else "",
+        "cuotas_hasta": cuotas_hasta if cuotas_hasta is not None else "",
+        "sector_id": sector_id if sector_id is not None else "",
+        "q": q,
+        "fecha_impresion": timezone.localdate(),
+    }
+
+
+def _build_financiamiento_aviso_context(request, no_doc, auth_payload, embed=False):
+    no_doc = str(no_doc or "").strip()
+    data = _build_financiamientos_atraso_context(q=no_doc)
+    record = next((item for item in data["records"] if str(item.get("id_doc") or "") == no_doc), None)
+    if not record:
+        record = {
+            "id_doc": no_doc,
+            "cliente": "",
+            "rnc_ced": "",
+            "direccion": "",
+            "telefono": "",
+            "sector": "",
+            "cuotas": [],
+            "balance_atraso": 0.0,
+        }
+
+    empresa = _build_empresa_payload(_base_context(request, page_title="", active_nav="cobros") or {})
+    logo_tipo = empresa.get("logo_tipo") or "image/png"
+    logo_b64 = empresa.get("logo_b64") or ""
+    sello_b64 = empresa.get("sello_b64") or ""
+    firma_b64 = _load_firma_b64(auth_payload["usuario_id"])
+    total_mora = 0.0
+
+    return {
+        "embed": embed,
+        "document_title": f"aviso_financiamiento_{no_doc}",
+        "empresa_nombre": empresa.get("nombre", "") or "COMERCIAL ANITA SRL",
+        "empresa_direccion": empresa.get("direccion", ""),
+        "empresa_telefonos": "  ".join([value for value in [empresa.get("tel1", ""), empresa.get("tel2", "")] if value]),
+        "empresa_email": empresa.get("email", ""),
+        "empresa_rnc": empresa.get("rnc", ""),
+        "empresa_logo_src": f"data:{logo_tipo};base64,{logo_b64}" if logo_b64 else "",
+        "empresa_sello_src": f"data:image/png;base64,{sello_b64}" if sello_b64 else "",
+        "firma_src": f"data:image/png;base64,{firma_b64}" if firma_b64 else "",
+        "cliente_nombre": record.get("cliente", ""),
+        "cliente_rnc": record.get("rnc_ced", ""),
+        "cliente_direccion": record.get("direccion", ""),
+        "cliente_telefono": record.get("telefono", ""),
+        "ciudad_impresion": record.get("sector", ""),
+        "fecha": timezone.localdate().strftime("%d/%m/%Y"),
+        "hora": timezone.localtime().strftime("%I:%M:%S %p").lstrip("0"),
+        "aviso_asunto": f"Financiamiento {no_doc} con cuotas en atraso",
+        "aviso_body_text": _build_aviso_default_body_text(),
+        "facturas": [
+            {
+                "id_doc": record.get("id_doc", ""),
+                "no_cuota": item.get("no_cuota") or "Abierto",
+                "fecha_venc": item.get("fecha_venc", ""),
+                "monto_fmt": _format_money_str(item.get("monto")),
+                "pagado_fmt": _format_money_str(item.get("pagado")),
+                "saldo_fmt": _format_money_str(item.get("saldo")),
+                "mora_fmt": _format_money_str(0),
+                "dias": item.get("dias", 0),
+            }
+            for item in record.get("cuotas", [])
+        ],
+        "total_saldo_fmt": _format_money_str(record.get("balance_atraso")),
+        "total_mora_fmt": _format_money_str(total_mora),
+    }
+
+
+def _can_view_financiamientos_atraso(usuario_id):
+    return (
+        has_perm(usuario_id, "cobros", "ver_financiamientos_atraso")
+        or has_perm(usuario_id, "cobros", "ver_alertas")
+    )
+
+
 def index(request):
     ctx = _base_context(request, page_title="Gestion de cobros", active_nav="cobros")
     if not ctx:
@@ -383,7 +673,9 @@ def index(request):
     ctx["submodules"] = {
         "estado_cuenta": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_estado_cuenta"),
         "alertas": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_alertas"),
+        "financiamientos_atraso": _can_view_financiamientos_atraso(ctx["auth_payload"]["usuario_id"]),
         "acuerdos": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_acuerdos"),
+        "cartas_enviadas": has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_cartas_enviadas"),
     }
     return render(request, "cobros/index.html", ctx)
 
@@ -424,6 +716,22 @@ def alertas_view(request):
     return render(request, "cobros/alertas.html", ctx)
 
 
+def financiamientos_atraso_view(request):
+    ctx = _base_context(request, page_title="Cobros - Financiamientos en atraso", active_nav="cobros")
+    if not ctx:
+        return redirect("login")
+    if not _can_view_financiamientos_atraso(ctx["auth_payload"]["usuario_id"]):
+        return render_denied(request, active_nav="cobros")
+
+    cuotas_desde = request.GET.get("cuotas_desde", "1")
+    cuotas_hasta = request.GET.get("cuotas_hasta", "")
+    sector_id = request.GET.get("sector", "")
+    q = request.GET.get("q", "")
+    ctx.update(_build_financiamientos_atraso_context(cuotas_desde, cuotas_hasta, sector_id, q))
+    ctx["sectores"] = _load_sectores()
+    return render(request, "cobros/financiamientos_atraso.html", ctx)
+
+
 def acuerdos_view(request):
     ctx = _base_context(request, page_title="Cobros - Acuerdos", active_nav="cobros")
     if not ctx:
@@ -437,6 +745,7 @@ def acuerdos_view(request):
     q = (request.GET.get("q") or "").strip()
     estado_filtro = (request.GET.get("estado") or "").strip().upper()
     edit_id = (request.GET.get("edit") or "").strip()
+    hoy = timezone.localdate()
     selected = None
     error_message = ""
     success_message = ""
@@ -455,6 +764,9 @@ def acuerdos_view(request):
                 else:
                     acuerdo.estado = "PENDIENTE"
                 acuerdo.save(update_fields=["estado", "fecha_modificacion"])
+                transaction.on_commit(
+                    lambda: broadcast_notification_refresh(reason="payment-agreement-updated")
+                )
             return redirect("cobros:acuerdos")
 
         id_sn = (request.POST.get("id_sn") or "").strip()
@@ -503,6 +815,9 @@ def acuerdos_view(request):
                     acuerdo.nota = nota
                     acuerdo.estado = estado
                     acuerdo.save()
+                    transaction.on_commit(
+                        lambda: broadcast_notification_refresh(reason="payment-agreement-updated")
+                    )
                     return redirect("cobros:acuerdos")
             else:
                 CobroAcuerdo.objects.create(
@@ -516,6 +831,9 @@ def acuerdos_view(request):
                     nota=nota,
                     estado=estado,
                     creado_por_id=usuario_id,
+                )
+                transaction.on_commit(
+                    lambda: broadcast_notification_refresh(reason="payment-agreement-created")
                 )
                 success_message = "Acuerdo guardado correctamente."
 
@@ -543,10 +861,11 @@ def acuerdos_view(request):
             | Q(sector__icontains=q)
             | Q(nota__icontains=q)
         )
-    if estado_filtro:
+    if estado_filtro == "VENCIDOS":
+        acuerdos = acuerdos.filter(estado="PENDIENTE", fecha_compromiso__lt=hoy)
+    elif estado_filtro:
         acuerdos = acuerdos.filter(estado=estado_filtro)
 
-    hoy = timezone.localdate()
     acuerdos_hoy = CobroAcuerdo.objects.filter(estado="PENDIENTE", fecha_compromiso=hoy).order_by("cliente_nombre", "fecha_creacion")
 
     ctx["acuerdos"] = acuerdos
@@ -563,12 +882,212 @@ def acuerdos_view(request):
         ("SEGUIMIENTO", "Seguimiento"),
         ("VISITA", "Visita"),
     ]
+    ctx["estado_filtro_options"] = [
+        ("PENDIENTE", "Pendiente"),
+        ("VENCIDOS", "Pendientes vencidos"),
+        ("CUMPLIDO", "Cumplido"),
+        ("CANCELADO", "Cancelado"),
+    ]
     ctx["estado_options"] = [
         ("PENDIENTE", "Pendiente"),
         ("CUMPLIDO", "Cumplido"),
         ("CANCELADO", "Cancelado"),
     ]
     return render(request, "cobros/acuerdos.html", ctx)
+
+
+def cartas_enviadas_view(request):
+    ctx = _base_context(request, page_title="Cobros - Cartas enviadas", active_nav="cobros")
+    if not ctx:
+        return redirect("login")
+    if not has_perm(ctx["auth_payload"]["usuario_id"], "cobros", "ver_cartas_enviadas"):
+        return render_denied(request, active_nav="cobros")
+
+    _ensure_cobro_carta_enviada_table()
+
+    usuario_id = int(ctx["auth_payload"]["usuario_id"])
+    q = (request.GET.get("q") or "").strip()
+    estado_filtro = (request.GET.get("estado") or "").strip().upper()
+    edit_id = (request.GET.get("edit") or "").strip()
+    hoy = timezone.localdate()
+    selected = None
+    error_message = ""
+    success_message = ""
+
+    if request.method == "POST":
+        action = (request.POST.get("action") or "save").strip().lower()
+        carta_id = (request.POST.get("id_carta") or "").strip()
+
+        if action in {"sent", "complete", "promise", "cancel", "reopen"} and carta_id:
+            carta = CobroCartaEnviada.objects.filter(id_carta=carta_id).first()
+            if carta:
+                if action == "sent":
+                    carta.estado = "ENVIADA"
+                elif action == "complete":
+                    carta.estado = "CUMPLIDA"
+                elif action == "promise":
+                    carta.estado = "PROMESA"
+                elif action == "cancel":
+                    carta.estado = "CANCELADA"
+                else:
+                    carta.estado = "ENVIADA"
+                carta.save(update_fields=["estado", "fecha_modificacion"])
+                transaction.on_commit(
+                    lambda: broadcast_notification_refresh(reason="sent-letter-updated")
+                )
+            return redirect("cobros:cartas_enviadas")
+
+        id_sn = (request.POST.get("id_sn") or "").strip()
+        cliente_nombre = (request.POST.get("cliente_nombre") or "").strip()
+        telefono = (request.POST.get("telefono") or "").strip()
+        sector = (request.POST.get("sector") or "").strip()
+        tipo = (request.POST.get("tipo") or "AVISO").strip().upper()
+        medio_envio = (request.POST.get("medio_envio") or "IMPRESA").strip().upper()
+        fecha_envio_raw = (request.POST.get("fecha_envio") or "").strip()
+        estado = (request.POST.get("estado") or "ENVIADA").strip().upper()
+        fecha_seguimiento_raw = (request.POST.get("fecha_seguimiento") or "").strip()
+        nota = (request.POST.get("nota") or "").strip()
+
+        fecha_envio = hoy
+        fecha_seguimiento = None
+        if not id_sn:
+            error_message = "Debes seleccionar un cliente."
+        elif not cliente_nombre:
+            error_message = "El nombre del cliente es obligatorio."
+        elif not nota:
+            error_message = "La nota o detalle es obligatorio."
+        else:
+            if fecha_envio_raw:
+                try:
+                    fecha_envio = timezone.datetime.strptime(fecha_envio_raw, "%Y-%m-%d").date()
+                except ValueError:
+                    error_message = "La fecha de envio no es valida."
+            if not error_message and fecha_seguimiento_raw:
+                try:
+                    fecha_seguimiento = timezone.datetime.strptime(fecha_seguimiento_raw, "%Y-%m-%d").date()
+                except ValueError:
+                    error_message = "La fecha de seguimiento no es valida."
+
+        if not error_message:
+            if carta_id:
+                carta = CobroCartaEnviada.objects.filter(id_carta=carta_id).first()
+                if not carta:
+                    error_message = "La carta seleccionada no existe."
+                else:
+                    carta.id_sn = id_sn
+                    carta.cliente_nombre = cliente_nombre
+                    carta.telefono = telefono
+                    carta.sector = sector
+                    carta.tipo = tipo
+                    carta.medio_envio = medio_envio
+                    carta.fecha_envio = fecha_envio
+                    carta.estado = estado
+                    carta.fecha_seguimiento = fecha_seguimiento
+                    carta.nota = nota
+                    carta.save()
+                    transaction.on_commit(
+                        lambda: broadcast_notification_refresh(reason="sent-letter-updated")
+                    )
+                    return redirect("cobros:cartas_enviadas")
+            else:
+                CobroCartaEnviada.objects.create(
+                    id_sn=id_sn,
+                    cliente_nombre=cliente_nombre,
+                    telefono=telefono,
+                    sector=sector,
+                    tipo=tipo,
+                    medio_envio=medio_envio,
+                    fecha_envio=fecha_envio,
+                    estado=estado,
+                    fecha_seguimiento=fecha_seguimiento,
+                    nota=nota,
+                    creado_por_id=usuario_id,
+                )
+                transaction.on_commit(
+                    lambda: broadcast_notification_refresh(reason="sent-letter-created")
+                )
+                success_message = "Carta enviada guardada correctamente."
+
+        selected = {
+            "id_carta": carta_id,
+            "id_sn": id_sn,
+            "cliente_nombre": cliente_nombre,
+            "telefono": telefono,
+            "sector": sector,
+            "tipo": tipo,
+            "medio_envio": medio_envio,
+            "fecha_envio": fecha_envio_raw,
+            "estado": estado,
+            "fecha_seguimiento": fecha_seguimiento_raw,
+            "nota": nota,
+        }
+    elif edit_id:
+        selected = CobroCartaEnviada.objects.filter(id_carta=edit_id).first()
+
+    cartas = CobroCartaEnviada.objects.all().order_by("estado", "-fecha_envio", "-fecha_creacion")
+    if q:
+        cartas = cartas.filter(
+            Q(cliente_nombre__icontains=q)
+            | Q(id_sn__icontains=q)
+            | Q(telefono__icontains=q)
+            | Q(sector__icontains=q)
+            | Q(tipo__icontains=q)
+            | Q(medio_envio__icontains=q)
+            | Q(nota__icontains=q)
+        )
+    if estado_filtro:
+        cartas = cartas.filter(estado=estado_filtro)
+
+    cartas = list(cartas)
+    usuario_ids = [carta.creado_por_id for carta in cartas if carta.creado_por_id]
+    usuarios_lookup = {}
+    if usuario_ids:
+        usuarios_lookup = {
+            row["id_usuario"]: (row.get("nombre") or row.get("usuario") or str(row["id_usuario"]))
+            for row in Usuario.objects.filter(id_usuario__in=list(dict.fromkeys(usuario_ids))).values(
+                "id_usuario",
+                "usuario",
+                "nombre",
+            )
+        }
+    for carta in cartas:
+        carta.registrado_por = usuarios_lookup.get(carta.creado_por_id, str(carta.creado_por_id or ""))
+
+    seguimientos_hoy = CobroCartaEnviada.objects.filter(
+        estado__in=["ENVIADA", "PROMESA"],
+        fecha_seguimiento=hoy,
+    ).order_by("cliente_nombre", "fecha_creacion")
+
+    ctx["cartas"] = cartas
+    ctx["seguimientos_hoy"] = seguimientos_hoy
+    ctx["fecha_hoy"] = hoy
+    ctx["selected_carta"] = selected
+    ctx["carta_error"] = error_message
+    ctx["carta_success"] = success_message
+    ctx["carta_query"] = q
+    ctx["carta_estado"] = estado_filtro
+    ctx["tipo_options"] = [
+        ("AVISO", "Carta de aviso"),
+        ("SALDO", "Carta de saldo"),
+        ("INTIMACION", "Intimacion"),
+        ("RECORDATORIO", "Recordatorio"),
+        ("OTRA", "Otra"),
+    ]
+    ctx["medio_options"] = [
+        ("IMPRESA", "Impresa"),
+        ("WHATSAPP", "WhatsApp"),
+        ("EMAIL", "Email"),
+        ("MENSAJERO", "Mensajero"),
+        ("OTRO", "Otro"),
+    ]
+    ctx["estado_filtro_options"] = [
+        ("ENVIADA", "Enviada"),
+        ("PROMESA", "Promesa"),
+        ("CUMPLIDA", "Cumplida"),
+        ("CANCELADA", "Cancelada"),
+    ]
+    ctx["estado_options"] = ctx["estado_filtro_options"]
+    return render(request, "cobros/cartas_enviadas.html", ctx)
 
 
 @xframe_options_sameorigin
@@ -611,3 +1130,19 @@ def alertas_print_view(request):
     ctx["auth_payload"] = auth_payload
     ctx["embed"] = embed
     return render(request, "cobros/alertas_print.html", ctx)
+
+
+@xframe_options_sameorigin
+def financiamientos_atraso_aviso_view(request):
+    base = _base_context(request, page_title="Aviso de financiamiento", active_nav="cobros")
+    if not base:
+        return redirect("login")
+    auth_payload = base["auth_payload"]
+    if not _can_view_financiamientos_atraso(auth_payload["usuario_id"]):
+        return render_denied(request, active_nav="cobros")
+
+    no_doc = (request.GET.get("no_doc") or "").strip()
+    embed = (request.GET.get("embed") or "").strip() == "1"
+    ctx = _build_financiamiento_aviso_context(request, no_doc, auth_payload, embed=embed)
+    ctx["auth_payload"] = auth_payload
+    return render(request, "cobros/financiamiento_aviso_print.html", ctx)

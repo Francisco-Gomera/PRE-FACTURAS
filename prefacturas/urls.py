@@ -17,9 +17,25 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib.staticfiles.urls import staticfiles_urlpatterns
-from django.urls import include, path
+from django.urls import include, path, re_path
+from core.error_views import (
+    bad_request_view,
+    media_file_view,
+    offline_view,
+    page_not_found_view,
+    permission_denied_view,
+    service_worker_view,
+)
+
+handler400 = "core.error_views.bad_request_view"
+handler403 = "core.error_views.permission_denied_view"
+handler404 = "core.error_views.page_not_found_view"
+handler500 = "core.error_views.server_error_view"
 
 urlpatterns = [
+    path("sw.js", service_worker_view, name="service_worker"),
+    re_path(r"^media/(?P<path>.*)$", media_file_view, name="media_file"),
+    path("app-offline/", offline_view, name="app_offline"),
     path('', include('prefacturas_app.urls')),
     path('app/', include('core.urls')),
     path('app/prefacturas/', include('prefacturas_mod.urls')),
@@ -32,6 +48,7 @@ urlpatterns = [
     path('app/cartas/', include('cartas.urls')),
     path('app/factura/', include('factura.urls')),
     path('app/caja/', include('caja.urls')),
+    path('app/chat-interno/', include('chat_interno.urls')),
 ]
 
 if settings.DEBUG:

@@ -188,16 +188,26 @@
             font-size: 14px;
             background: #f3f7ff;
         }
+        .legal-note {
+            margin-top: 8px;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 8px 10px;
+            font-size: 11px;
+            line-height: 1.35;
+            color: #2b3448;
+            background: #f8fbff;
+        }
         .footer {
             margin-top: auto;
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 26px;
             align-items: end;
-            padding-top: 18px;
+            padding-top: 10px;
         }
         .sign-box {
-            min-height: 34mm;
+            min-height: 26mm;
             display: flex;
             flex-direction: column;
             justify-content: flex-end;
@@ -205,7 +215,7 @@
         }
         .sign-space {
             width: 100%;
-            min-height: 22mm;
+            min-height: 14mm;
             display: flex;
             align-items: flex-end;
             justify-content: center;
@@ -232,26 +242,905 @@
         .sign-line .placeholder {
             visibility: hidden;
         }
+        .ecf-qr {
+            margin-top: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            text-align: center;
+            font-size: 9px;
+            line-height: 1.2;
+            color: #1d1d1d;
+        }
+        .ecf-qr img {
+            width: 28mm;
+            height: 28mm;
+            object-fit: contain;
+            display: block;
+        }
+        .ecf-qr-code {
+            font-family: Consolas, "Courier New", monospace;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
         .danger { color: var(--danger); font-weight: 700; }
         .mono { font-family: Consolas, "Courier New", monospace; }
+        .logo-placeholder { display: none; }
+        .ticket-detail { display: none; }
+        .buyer-info .label::after { content: ":"; }
+        .totals,
+        .notes,
+        .totals-box,
+        .footer,
+        .sign-box {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        body.mobile-print .page {
+            padding: 6mm 6mm 8mm;
+            position: relative;
+            padding-bottom: 20mm;
+        }
+
+        body.mobile-print .header {
+            gap: 8px;
+            padding-bottom: 6px;
+        }
+
+        body.mobile-print .brand-head {
+            grid-template-columns: 46mm minmax(0, 1fr);
+            gap: 5px;
+        }
+
+        body.mobile-print .brand-logo {
+            min-height: 32mm;
+            padding: 0;
+        }
+
+        body.mobile-print .brand-logo img {
+            max-width: 44mm;
+            max-height: 30mm;
+        }
+
+        body.mobile-print .brand h1 {
+            font-size: 22px;
+        }
+
+        body.mobile-print .brand .meta {
+            margin-top: 3px;
+            line-height: 1.18;
+            font-size: 10px;
+        }
+
+        body.mobile-print .doc-box {
+            width: 40mm;
+            max-width: 40mm;
+            padding: 7px 8px;
+        }
+
+        body.mobile-print .doc-title {
+            font-size: 15px;
+        }
+
+        body.mobile-print .doc-meta {
+            margin-top: 5px;
+            gap: 3px;
+            font-size: 9.5px;
+        }
+
+        body.mobile-print .section {
+            margin-top: 6px;
+            border-radius: 10px;
+        }
+
+        body.mobile-print .section-head {
+            padding: 5px 7px;
+            font-size: 10px;
+        }
+
+        body.mobile-print .section-body {
+            padding: 6px;
+        }
+
+        body.mobile-print .grid-2 {
+            gap: 4px 10px;
+            font-size: 10px;
+        }
+
+        body.mobile-print table {
+            font-size: 9px;
+        }
+
+        body.mobile-print th,
+        body.mobile-print td {
+            padding: 2px 3px;
+        }
+
+        body.mobile-print th {
+            font-size: 8.5px;
+        }
+
+        body.mobile-print .totals {
+            margin-top: 6px;
+            gap: 6px;
+            grid-template-columns: 1fr 220px;
+        }
+
+        body.mobile-print .notes {
+            min-height: 54px;
+            padding: 6px;
+            font-size: 9px;
+        }
+
+        body.mobile-print .totals-box table td {
+            font-size: 9.5px;
+        }
+
+        body.mobile-print .totals-box .grand td {
+            font-size: 10.5px;
+        }
+        body.mobile-print .legal-note {
+            margin-top: 6px;
+            padding: 6px 7px;
+            font-size: 8.7px;
+            line-height: 1.22;
+        }
+
+        body.mobile-print .footer {
+            padding-top: 4px;
+            gap: 10px;
+            position: absolute;
+            left: 6mm;
+            right: 6mm;
+            bottom: 4mm;
+            margin-top: 0;
+        }
+
+        body.mobile-print .sign-box {
+            min-height: 14mm;
+        }
+
+        body.mobile-print .sign-space {
+            min-height: 6mm;
+        }
+
+        body.mobile-print .sign-space img {
+            max-width: 34mm;
+            max-height: 10mm;
+        }
+
+        body.mobile-print .sign-line {
+            padding-top: 2px;
+            font-size: 8.8px;
+            line-height: 1.1;
+        }
+
+        body.mobile-print .sign-line strong {
+            font-size: 8.8px;
+        }
+        body.mobile-print .ecf-qr {
+            margin-top: 4px;
+            gap: 2px;
+            font-size: 7.5px;
+        }
+        body.mobile-print .ecf-qr img {
+            width: 20mm;
+            height: 20mm;
+        }
+
+        {% if formato_impresion == "80mm" or formato_impresion == "58mm" %}
+        .toolbar {
+            max-width: {% if formato_impresion == "80mm" %}80mm{% else %}58mm{% endif %};
+        }
+        .page {
+            width: {% if formato_impresion == "80mm" %}80mm{% else %}58mm{% endif %};
+            min-height: auto;
+            margin: 6px auto 18px;
+            border: none;
+            padding: {% if formato_impresion == "80mm" %}3mm{% else %}2mm{% endif %};
+        }
+        .header,
+        .brand-head,
+        .grid-2,
+        .totals,
+        .footer {
+            grid-template-columns: 1fr;
+            gap: {% if formato_impresion == "80mm" %}5px{% else %}4px{% endif %};
+        }
+        .header {
+            border-bottom-width: 1px;
+            padding-bottom: 5px;
+        }
+        .brand-logo {
+            justify-content: center;
+            min-height: auto;
+            padding: 0;
+        }
+        .brand-logo img {
+            max-width: {% if formato_impresion == "80mm" %}34mm{% else %}24mm{% endif %};
+            max-height: {% if formato_impresion == "80mm" %}22mm{% else %}16mm{% endif %};
+        }
+        .brand h1,
+        .brand .meta,
+        .doc-title,
+        .doc-meta,
+        .legal-note,
+        .sign-line {
+            text-align: center;
+        }
+        .brand h1 {
+            font-size: {% if formato_impresion == "80mm" %}15px{% else %}12px{% endif %};
+        }
+        .brand .meta,
+        .grid-2,
+        table,
+        .notes,
+        .totals-box table td,
+        .legal-note,
+        .sign-line,
+        .sign-line strong {
+            font-size: {% if formato_impresion == "80mm" %}8px{% else %}6.8px{% endif %};
+            line-height: 1.18;
+        }
+        .doc-box {
+            width: auto;
+            max-width: none;
+            justify-self: stretch;
+            border-width: 1px;
+            border-radius: 8px;
+            padding: 5px;
+        }
+        .doc-title {
+            font-size: {% if formato_impresion == "80mm" %}12px{% else %}10px{% endif %};
+            letter-spacing: 0.4px;
+        }
+        .doc-meta {
+            margin-top: 4px;
+            gap: 2px;
+            font-size: {% if formato_impresion == "80mm" %}7.5px{% else %}6.5px{% endif %};
+        }
+        .section {
+            margin-top: 6px;
+            border-radius: 7px;
+        }
+        .section-head {
+            padding: 4px 5px;
+            font-size: {% if formato_impresion == "80mm" %}8px{% else %}7px{% endif %};
+            letter-spacing: 0;
+        }
+        .section-body {
+            padding: 5px;
+            overflow: visible;
+        }
+        th,
+        td {
+            padding: 2px 1.5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        th {
+            font-size: {% if formato_impresion == "80mm" %}7px{% else %}6px{% endif %};
+        }
+        .notes,
+        .legal-note,
+        .totals-box {
+            border-radius: 7px;
+        }
+        .notes {
+            min-height: auto;
+            padding: 5px;
+        }
+        .totals-box .grand td {
+            font-size: {% if formato_impresion == "80mm" %}8.5px{% else %}7.2px{% endif %};
+        }
+        .footer {
+            margin-top: 8px;
+            padding-top: 4px;
+        }
+        .sign-box {
+            min-height: 13mm;
+        }
+        .sign-space {
+            min-height: 6mm;
+        }
+        .sign-space img {
+            max-width: {% if formato_impresion == "80mm" %}28mm{% else %}20mm{% endif %};
+            max-height: 8mm;
+        }
+        {% endif %}
+
+        {% if formato_impresion == "80mm" or formato_impresion == "58mm" %}
+        body.print-format-80mm,
+        body.print-format-58mm {
+            background: #ffffff;
+            color: #000000;
+            font-family: "Courier New", Consolas, monospace;
+            font-weight: 700;
+            letter-spacing: 0;
+            --ink: #000000;
+            --muted: #000000;
+            --line: #000000;
+            --blue: #000000;
+            --soft: #ffffff;
+            --danger: #000000;
+        }
+        body.print-format-80mm {
+            width: 80mm;
+            min-width: 80mm;
+            max-width: 80mm;
+            margin: 0 auto;
+        }
+        body.print-format-58mm {
+            width: 58mm;
+            min-width: 58mm;
+            max-width: 58mm;
+            margin: 0 auto;
+        }
+        body.print-format-80mm .page,
+        body.print-format-58mm .page {
+            width: 100%;
+            min-height: 0;
+            margin: 0 auto 6mm;
+            border: 0;
+            background: #ffffff;
+            color: #000000;
+            font-family: "Courier New", Consolas, monospace;
+            font-weight: 700;
+            padding: {% if formato_impresion == "80mm" %}2.4mm 2.2mm{% else %}2mm 1.5mm{% endif %};
+            break-after: page;
+            page-break-after: always;
+        }
+        body.print-format-80mm .page:last-of-type,
+        body.print-format-58mm .page:last-of-type {
+            break-after: auto;
+            page-break-after: auto;
+        }
+        body.print-format-80mm .header,
+        body.print-format-58mm .header {
+            display: block;
+            border-bottom: 0;
+            padding: 0;
+        }
+        body.print-format-80mm .brand,
+        body.print-format-58mm .brand,
+        body.print-format-80mm .doc-box,
+        body.print-format-58mm .doc-box,
+        body.print-format-80mm .section,
+        body.print-format-58mm .section,
+        body.print-format-80mm .notes,
+        body.print-format-58mm .notes,
+        body.print-format-80mm .totals-box,
+        body.print-format-58mm .totals-box,
+        body.print-format-80mm .legal-note,
+        body.print-format-58mm .legal-note {
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+        body.print-format-80mm .brand-head,
+        body.print-format-58mm .brand-head {
+            display: block;
+        }
+        body.print-format-80mm .brand-logo,
+        body.print-format-58mm .brand-logo {
+            min-height: 0;
+            margin: 0 0 1.8mm;
+            padding: 0;
+            justify-content: center;
+            background: transparent;
+        }
+        body.print-format-80mm .brand-logo img,
+        body.print-format-58mm .brand-logo img {
+            max-width: {% if formato_impresion == "80mm" %}46mm{% else %}34mm{% endif %};
+            max-height: {% if formato_impresion == "80mm" %}14mm{% else %}11mm{% endif %};
+        }
+        body.print-format-80mm .logo-placeholder,
+        body.print-format-58mm .logo-placeholder {
+            display: block;
+            font-size: {% if formato_impresion == "80mm" %}22px{% else %}18px{% endif %};
+            line-height: 1;
+            text-align: center;
+        }
+        body.print-format-80mm .brand h1,
+        body.print-format-58mm .brand h1 {
+            margin: 0 0 1.8mm;
+            color: #000000;
+            text-align: center;
+            text-transform: uppercase;
+            font-family: inherit;
+            font-size: {% if formato_impresion == "80mm" %}14px{% else %}11.5px{% endif %};
+            line-height: 1.1;
+            letter-spacing: 0;
+        }
+        body.print-format-80mm .brand .meta,
+        body.print-format-58mm .brand .meta,
+        body.print-format-80mm .doc-meta,
+        body.print-format-58mm .doc-meta {
+            margin: 0;
+            display: block;
+            text-align: left;
+            font-size: {% if formato_impresion == "80mm" %}9px{% else %}7.4px{% endif %};
+            line-height: 1.24;
+        }
+        body.print-format-80mm .doc-box,
+        body.print-format-58mm .doc-box {
+            width: auto;
+            max-width: none;
+            padding: 2mm 0 0;
+        }
+        body.print-format-80mm .doc-title,
+        body.print-format-58mm .doc-title {
+            margin: 0 0 1mm;
+            color: #000000;
+            text-align: center;
+            font-family: inherit;
+            font-size: {% if formato_impresion == "80mm" %}12px{% else %}10px{% endif %};
+            line-height: 1.15;
+            letter-spacing: 0;
+        }
+        body.print-format-80mm .doc-meta div,
+        body.print-format-58mm .doc-meta div,
+        body.print-format-80mm .brand .meta div,
+        body.print-format-58mm .brand .meta div {
+            margin: 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        body.print-format-80mm .label,
+        body.print-format-58mm .label {
+            display: inline;
+            color: #000000;
+            font-weight: 900;
+            margin-right: 1ch;
+        }
+        body.print-format-80mm .section,
+        body.print-format-58mm .section,
+        body.print-format-80mm .legal-note,
+        body.print-format-58mm .legal-note {
+            margin-top: 2.4mm;
+            padding-top: 1.6mm;
+            border-top: 1px dashed #000000;
+        }
+        body.print-format-80mm .section-head,
+        body.print-format-58mm .section-head {
+            padding: 0;
+            margin: 0 0 1.4mm;
+            background: transparent;
+            color: #000000;
+            text-align: center;
+            font-family: inherit;
+            font-size: {% if formato_impresion == "80mm" %}10px{% else %}8px{% endif %};
+            line-height: 1.15;
+            letter-spacing: 0;
+        }
+        body.print-format-80mm .section-body,
+        body.print-format-58mm .section-body {
+            padding: 0;
+        }
+        body.print-format-80mm .grid-2,
+        body.print-format-58mm .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.8mm 1.2mm;
+            text-align: left;
+            font-size: {% if formato_impresion == "80mm" %}9px{% else %}7.4px{% endif %};
+            line-height: 1.18;
+        }
+        body.print-format-80mm .grid-2 div,
+        body.print-format-58mm .grid-2 div {
+            margin: 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        body.print-format-80mm .buyer-full,
+        body.print-format-58mm .buyer-full {
+            grid-column: 1 / -1;
+        }
+        body.print-format-80mm .buyer-muted,
+        body.print-format-58mm .buyer-muted {
+            font-size: {% if formato_impresion == "80mm" %}8.2px{% else %}6.7px{% endif %};
+        }
+        body.print-format-80mm .buyer-info .label,
+        body.print-format-58mm .buyer-info .label {
+            display: block;
+            margin: 0 0 0.15mm;
+            font-size: {% if formato_impresion == "80mm" %}7px{% else %}5.8px{% endif %};
+            line-height: 1;
+            text-transform: uppercase;
+        }
+        body.print-format-80mm .detail-table,
+        body.print-format-58mm .detail-table {
+            display: none;
+        }
+        .ticket-detail {
+            display: none;
+        }
+        body.print-format-80mm .ticket-detail,
+        body.print-format-58mm .ticket-detail {
+            display: block;
+        }
+        .ticket-head {
+            padding: 0 0 0.8mm;
+            border-bottom: 1px solid #000000;
+            font-size: {% if formato_impresion == "80mm" %}8.2px{% else %}6.4px{% endif %};
+            line-height: 1.12;
+            font-weight: 900;
+            text-transform: uppercase;
+        }
+        .ticket-head-desc {
+            text-align: left;
+        }
+        .ticket-head-cols,
+        .ticket-line-meta {
+            display: grid;
+            grid-template-columns: 1.45fr 0.82fr 0.82fr 1fr;
+            column-gap: {% if formato_impresion == "80mm" %}1mm{% else %}0.55mm{% endif %};
+            align-items: end;
+        }
+        .ticket-head-cols {
+            margin-top: 0.55mm;
+            text-align: right;
+            font-size: {% if formato_impresion == "80mm" %}7.2px{% else %}5.6px{% endif %};
+        }
+        .ticket-item {
+            padding: 1mm 0 1.15mm;
+            border-top: 1px dotted #000000;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .ticket-item:last-child {
+            border-bottom: 1px dashed #000000;
+        }
+        .ticket-line-title {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.9mm;
+            font-size: {% if formato_impresion == "80mm" %}8.7px{% else %}6.8px{% endif %};
+            line-height: 1.16;
+            overflow-wrap: anywhere;
+            word-break: normal;
+        }
+        .ticket-line-title strong {
+            white-space: nowrap;
+        }
+        .ticket-desc {
+            display: block;
+            overflow-wrap: anywhere;
+            word-break: normal;
+        }
+        .ticket-line-meta {
+            margin-top: 0.7mm;
+            font-size: {% if formato_impresion == "80mm" %}8px{% else %}6.2px{% endif %};
+            line-height: 1.12;
+            text-align: right;
+        }
+        .ticket-line-meta span {
+            min-width: 0;
+            white-space: nowrap;
+        }
+        .ticket-amount {
+            font-size: {% if formato_impresion == "80mm" %}8.5px{% else %}6.6px{% endif %};
+            font-weight: 900;
+        }
+        body.print-format-58mm .ticket-head-cols,
+        body.print-format-58mm .ticket-line-meta {
+            grid-template-columns: 1.36fr 0.78fr 0.78fr 0.98fr;
+        }
+        body.print-format-80mm .totals,
+        body.print-format-58mm .totals {
+            display: block;
+            margin-top: 2.2mm;
+        }
+        body.print-format-80mm .notes,
+        body.print-format-58mm .notes {
+            min-height: 0;
+            padding: 0 0 1.5mm;
+            font-size: {% if formato_impresion == "80mm" %}8.8px{% else %}7px{% endif %};
+            line-height: 1.25;
+            text-align: left;
+        }
+        body.print-format-80mm .totals-box,
+        body.print-format-58mm .totals-box {
+            padding-top: 1.4mm;
+            border-top: 1px dashed #000000;
+        }
+        body.print-format-80mm .totals-box table,
+        body.print-format-58mm .totals-box table,
+        body.print-format-80mm .totals-box tbody,
+        body.print-format-58mm .totals-box tbody {
+            display: table;
+            width: 100%;
+            border-collapse: collapse;
+        }
+        body.print-format-80mm .totals-box tr,
+        body.print-format-58mm .totals-box tr {
+            display: table-row;
+            border: 0;
+            padding: 0;
+        }
+        body.print-format-80mm .totals-box td,
+        body.print-format-58mm .totals-box td {
+            display: table-cell;
+            width: auto !important;
+            padding: 0.45mm 0;
+            border: 0;
+            font-size: {% if formato_impresion == "80mm" %}9.5px{% else %}7.6px{% endif %};
+        }
+        body.print-format-80mm .totals-box .align-r,
+        body.print-format-58mm .totals-box .align-r {
+            text-align: right;
+        }
+        body.print-format-80mm .totals-box td::before,
+        body.print-format-58mm .totals-box td::before {
+            content: "";
+        }
+        body.print-format-80mm .totals-box .grand td,
+        body.print-format-58mm .totals-box .grand td {
+            padding-top: 1.3mm;
+            background: transparent;
+            color: #000000;
+            font-size: {% if formato_impresion == "80mm" %}12px{% else %}10px{% endif %};
+            font-weight: 900;
+        }
+        body.print-format-80mm .legal-note,
+        body.print-format-58mm .legal-note {
+            padding: 1.6mm 0 0;
+            font-size: {% if formato_impresion == "80mm" %}7.4px{% else %}5.9px{% endif %};
+            line-height: 1.25;
+            text-align: center;
+        }
+        body.print-format-80mm .footer,
+        body.print-format-58mm .footer {
+            display: block;
+            margin-top: 2.4mm;
+            padding-top: 1.8mm;
+            border-top: 1px dashed #000000;
+        }
+        body.print-format-80mm .sign-box,
+        body.print-format-58mm .sign-box {
+            min-height: auto;
+            margin-top: 2.4mm;
+            display: block;
+        }
+        body.print-format-80mm .sign-space,
+        body.print-format-58mm .sign-space {
+            min-height: 8mm;
+        }
+        body.print-format-80mm .sign-space img,
+        body.print-format-58mm .sign-space img {
+            max-width: {% if formato_impresion == "80mm" %}34mm{% else %}25mm{% endif %};
+            max-height: 10mm;
+        }
+        body.print-format-80mm .sign-line,
+        body.print-format-58mm .sign-line {
+            width: 75%;
+            margin: 0 auto;
+            padding-top: 1mm;
+            border-top: 1px solid #000000;
+            text-align: center;
+            font-size: {% if formato_impresion == "80mm" %}8px{% else %}6.5px{% endif %};
+            line-height: 1.15;
+        }
+        body.print-format-80mm .ecf-qr,
+        body.print-format-58mm .ecf-qr {
+            margin-top: 2mm;
+            gap: 0.8mm;
+            font-size: {% if formato_impresion == "80mm" %}7px{% else %}5.8px{% endif %};
+            color: #000000;
+        }
+        body.print-format-80mm .ecf-qr img {
+            width: 24mm;
+            height: 24mm;
+        }
+        body.print-format-58mm .ecf-qr img {
+            width: 18mm;
+            height: 18mm;
+        }
+        {% endif %}
+
         @page {
+            {% if formato_impresion == "80mm" %}
+            size: 80mm 297mm;
+            margin: 0;
+            {% elif formato_impresion == "58mm" %}
+            size: 58mm 297mm;
+            margin: 0;
+            {% else %}
             size: A4 portrait;
-            margin: 10mm;
+            margin: {% if mobile_print %}6mm 6mm 7mm{% else %}10mm{% endif %};
+            {% endif %}
         }
         @media print {
             body { background: #fff; }
             .toolbar { display: none; }
             .page {
                 width: auto;
-                min-height: 277mm;
+                min-height: {% if formato_impresion == "80mm" or formato_impresion == "58mm" %}auto{% elif mobile_print %}284mm{% else %}272mm{% endif %};
                 margin: 0;
                 border: none;
                 padding: 0;
             }
+            {% if formato_impresion == "80mm" or formato_impresion == "58mm" %}
+            html,
+            body {
+                width: {% if formato_impresion == "80mm" %}80mm{% else %}58mm{% endif %};
+                min-width: {% if formato_impresion == "80mm" %}80mm{% else %}58mm{% endif %};
+                max-width: {% if formato_impresion == "80mm" %}80mm{% else %}58mm{% endif %};
+                margin: 0;
+                padding: 0;
+            }
+            .page {
+                display: block;
+                width: {% if formato_impresion == "80mm" %}80mm{% else %}58mm{% endif %};
+                max-width: {% if formato_impresion == "80mm" %}80mm{% else %}58mm{% endif %};
+                padding: {% if formato_impresion == "80mm" %}2.4mm 2.2mm{% else %}2mm 1.5mm{% endif %};
+            }
+            {% endif %}
+            body:not(.mobile-print) .footer {
+                margin-top: 8px;
+                padding-top: 6px;
+            }
+            body:not(.mobile-print) .sign-box {
+                min-height: 22mm;
+            }
+            body:not(.mobile-print) .sign-space {
+                min-height: 10mm;
+            }
+            body:not(.mobile-print) .sign-space img {
+                max-height: 18mm;
+            }
+            body.mobile-print .page {
+                min-height: 281mm;
+                position: relative;
+                padding-bottom: 18mm;
+            }
+            body.mobile-print .header {
+                gap: 8px;
+                padding-bottom: 6px;
+            }
+            body.mobile-print .brand-head {
+                grid-template-columns: 44mm minmax(0, 1fr);
+                gap: 5px;
+            }
+            body.mobile-print .brand-logo {
+                min-height: 30mm;
+                padding: 0;
+            }
+            body.mobile-print .brand-logo img {
+                max-width: 42mm;
+                max-height: 28mm;
+            }
+            body.mobile-print .brand h1 {
+                font-size: 21px;
+            }
+            body.mobile-print .brand .meta {
+                margin-top: 3px;
+                line-height: 1.16;
+                font-size: 9.8px;
+            }
+            body.mobile-print .doc-box {
+                width: 38mm;
+                max-width: 38mm;
+                padding: 6px 8px;
+            }
+            body.mobile-print .doc-title {
+                font-size: 14px;
+            }
+            body.mobile-print .doc-meta {
+                margin-top: 4px;
+                gap: 3px;
+                font-size: 9.2px;
+            }
+            body.mobile-print .section {
+                margin-top: 5px;
+            }
+            body.mobile-print .section-head {
+                padding: 4px 7px;
+                font-size: 9.8px;
+            }
+            body.mobile-print .section-body {
+                padding: 5px;
+            }
+            body.mobile-print .grid-2 {
+                gap: 4px 8px;
+                font-size: 9.8px;
+            }
+            body.mobile-print table {
+                font-size: 8.8px;
+            }
+            body.mobile-print th,
+            body.mobile-print td {
+                padding: 2px 3px;
+            }
+            body.mobile-print th {
+                font-size: 8.2px;
+            }
+            body.mobile-print .totals {
+                margin-top: 5px;
+                gap: 6px;
+                grid-template-columns: 1fr 210px;
+            }
+            body.mobile-print .notes {
+                min-height: 48px;
+                padding: 5px;
+                font-size: 8.8px;
+            }
+            body.mobile-print .totals-box table td {
+                font-size: 9.2px;
+            }
+            body.mobile-print .totals-box .grand td {
+                font-size: 10px;
+            }
+            body.mobile-print .legal-note {
+                margin-top: 5px;
+                padding: 5px 7px;
+                font-size: 8.5px;
+                line-height: 1.18;
+            }
+            body.mobile-print .footer {
+                padding-top: 3px;
+                gap: 8px;
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 2mm;
+                margin-top: 0;
+            }
+            body.mobile-print .sign-box {
+                min-height: 12mm;
+            }
+            body.mobile-print .sign-space {
+                min-height: 5mm;
+            }
+            body.mobile-print .sign-space img {
+                max-width: 32mm;
+                max-height: 8mm;
+            }
+            body.mobile-print .sign-line {
+                padding-top: 2px;
+                font-size: 8.5px;
+                line-height: 1.08;
+            }
+            body.mobile-print .sign-line strong {
+                font-size: 8.5px;
+            }
+            {% if formato_impresion == "80mm" or formato_impresion == "58mm" %}
+            body.mobile-print.print-format-80mm .page,
+            body.mobile-print.print-format-58mm .page {
+                min-height: auto;
+                position: static;
+                padding: {% if formato_impresion == "80mm" %}3mm 2.6mm{% else %}2.4mm 1.8mm{% endif %};
+            }
+            body.mobile-print.print-format-80mm .brand h1,
+            body.mobile-print.print-format-58mm .brand h1 {
+                font-size: {% if formato_impresion == "80mm" %}24px{% else %}19px{% endif %};
+            }
+            body.mobile-print.print-format-80mm .brand .meta,
+            body.mobile-print.print-format-58mm .brand .meta,
+            body.mobile-print.print-format-80mm .doc-meta,
+            body.mobile-print.print-format-58mm .doc-meta {
+                font-size: {% if formato_impresion == "80mm" %}12px{% else %}10px{% endif %};
+                line-height: 1.35;
+            }
+            body.mobile-print.print-format-80mm .section-head,
+            body.mobile-print.print-format-58mm .section-head {
+                font-size: {% if formato_impresion == "80mm" %}20px{% else %}16px{% endif %};
+            }
+            body.mobile-print.print-format-80mm .footer,
+            body.mobile-print.print-format-58mm .footer {
+                position: static;
+                left: auto;
+                right: auto;
+                bottom: auto;
+            }
+            {% endif %}
         }
     </style>
 </head>
-<body>
+<body class="{% if mobile_print %}mobile-print {% endif %}print-format-{{ formato_impresion|default:'a4' }}">
     <div class="toolbar">
         <button type="button" onclick="window.print()">Imprimir</button>
         <button type="button" onclick="window.close()">Cerrar</button>
@@ -265,6 +1154,8 @@
                     <div class="brand-logo">
                         {% if empresa.logo_src %}
                         <img src="{{ empresa.logo_src }}" alt="Logo empresa" />
+                        {% else %}
+                        <span class="logo-placeholder">LOGO</span>
                         {% endif %}
                     </div>
                     <div>
@@ -296,22 +1187,21 @@
 
         <section class="section">
             <div class="section-head">Datos del Comprador</div>
-            <div class="section-body grid-2">
-                <div><span class="label">Cliente:</span>{{ factura.nom_socio|default:"-" }}</div>
-                <div><span class="label">Codigo:</span>{{ factura.id_sn|default:"-" }}</div>
-                <div><span class="label">RNC/Cedula:</span>{{ factura.rnc_ced|default:"-" }}</div>
-                <div><span class="label">Contacto:</span>{{ factura.contacto|default:"-" }}</div>
-                <div><span class="label">Direccion facturacion:</span>{{ factura.ent_factura|default:"-" }}</div>
-                <div><span class="label">Direccion entrega:</span>{{ factura.ent_mercancia|default:"-" }}</div>
-                <div><span class="label">Condicion:</span>{{ factura.condicion|default:"-" }}</div>
-                <div><span class="label">Vence:</span>{{ factura.fecha_venc|date:"d/m/Y" }}</div>
+            <div class="section-body grid-2 buyer-info">
+                <div class="buyer-full"><span class="label">Cliente</span>{{ factura.nom_socio|default:"-" }}</div>
+                <div><span class="label">Codigo</span>{{ factura.id_sn|default:"-" }}</div>
+                <div><span class="label">RNC/Cedula</span>{{ factura.rnc_ced|default:"-" }}</div>
+                <div class="buyer-full buyer-muted"><span class="label">Contacto</span>{{ factura.contacto|default:"-" }}</div>
+                <div class="buyer-full buyer-muted"><span class="label">Dir. facturacion</span>{{ factura.ent_factura|default:"-" }}</div>
+                <div><span class="label">Condicion</span>{{ factura.condicion|default:"-" }}</div>
+                <div><span class="label">Vence</span>{{ factura.fecha_venc|date:"d/m/Y" }}</div>
             </div>
         </section>
 
         <section class="section">
             <div class="section-head">{{ detalle_label }}</div>
             <div class="section-body">
-                <table>
+                <table class="detail-table">
                     <thead>
                         <tr>
                             <th style="width:32px;">No.</th>
@@ -327,14 +1217,16 @@
                     <tbody>
                         {% for item in detalles %}
                         <tr>
-                            <td>{{ item.linea }}</td>
-                            <td>{{ item.id_articulo }}</td>
-                            <td>{{ item.descrip_art }}</td>
-                            <td class="align-r">{{ item.cantidad|floatformat:2 }}</td>
-                            <td class="align-r">{{ item.precio|floatformat:2 }}</td>
-                            <td class="align-r">{{ item.porc_desc|floatformat:2 }}</td>
-                            <td class="align-r">{{ item.total_itbis|floatformat:2 }}</td>
-                            <td class="align-r">{{ item.total_linea|floatformat:2 }}</td>
+                            <td data-label="No.">{{ item.linea }}</td>
+                            <td data-label="Articulo">{{ item.id_articulo }}</td>
+                            <td data-label="Descripcion" data-ticket-main="1" data-line="{{ item.linea }}">
+                                <span class="ticket-desc">{{ item.descrip_art }}</span>
+                            </td>
+                            <td class="align-r" data-label="Cantidad">{{ item.cantidad|floatformat:2 }}</td>
+                            <td class="align-r" data-label="Precio">{{ item.precio|floatformat:2 }}</td>
+                            <td class="align-r" data-label="% Desc.">{{ item.porc_desc|floatformat:2 }}</td>
+                            <td class="align-r" data-label="ITBIS">{{ item.total_itbis|floatformat:2 }}</td>
+                            <td class="align-r" data-label="Importe">{{ item.total_linea|floatformat:2 }}</td>
                         </tr>
                         {% empty %}
                         <tr>
@@ -343,6 +1235,33 @@
                         {% endfor %}
                     </tbody>
                 </table>
+                <div class="ticket-detail">
+                    <div class="ticket-head">
+                        <div class="ticket-head-desc">Descripcion</div>
+                        <div class="ticket-head-cols">
+                            <span>Cant * Precio</span>
+                            <span>Desc</span>
+                            <span>ITBIS</span>
+                            <span>Importe</span>
+                        </div>
+                    </div>
+                    {% for item in detalles %}
+                    <article class="ticket-item">
+                        <div class="ticket-line-title">
+                            <strong>{{ item.linea }}.</strong>
+                            <span class="ticket-desc">{{ item.descrip_art|default:item.id_articulo }}</span>
+                        </div>
+                        <div class="ticket-line-meta">
+                            <span>{{ item.cantidad|floatformat:2 }} * {{ item.precio|floatformat:2 }}</span>
+                            <span>{{ item.total_desc|floatformat:2 }}</span>
+                            <span>{{ item.total_itbis|floatformat:2 }}</span>
+                            <span class="ticket-amount">{{ item.total_linea|floatformat:2 }}</span>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <article class="ticket-item" style="text-align:center;">No hay detalle disponible.</article>
+                    {% endfor %}
+                </div>
 
                 <div class="totals">
                     <div class="notes">
@@ -379,6 +1298,10 @@
             </div>
         </section>
 
+        <section class="legal-note">
+            El cliente autoriza a {{ empresa.nombre|default:"la empresa" }} a consultar, compartir y reportar su informacion crediticia a las sociedades de informacion crediticia, conforme a la normativa vigente, en caso de incumplimiento de sus obligaciones.
+        </section>
+
         <footer class="footer">
             <section class="sign-box received">
                 <div class="sign-space"></div>
@@ -396,6 +1319,14 @@
                     {% endif %}
                     Registrado por
                 </div>
+                {% if is_electronica and qr_image_url %}
+                <div class="ecf-qr">
+                    <img src="{{ qr_image_url }}" alt="Codigo QR e-CF" />
+                    {% if codigo_seguridad %}
+                    <div class="ecf-qr-code">Codigo seguridad: {{ codigo_seguridad }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
             </section>
         </footer>
     </main>

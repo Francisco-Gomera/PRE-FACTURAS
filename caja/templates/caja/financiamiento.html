@@ -15,6 +15,9 @@
     max-width: 1480px;
     display: grid;
     gap: 12px;
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
   }
 
   .financ-body-card {
@@ -22,6 +25,8 @@
     border: 1px solid #cddcf1;
     border-radius: 18px;
     box-shadow: 0 18px 34px rgba(20, 55, 110, 0.08);
+    min-width: 0;
+    overflow: hidden;
   }
 
   .financ-header-grid {
@@ -34,6 +39,9 @@
     border-radius: 14px;
     background: rgba(255, 255, 255, 0.8);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .financ-top-col {
@@ -233,6 +241,8 @@
     grid-template-columns: 140px 110px 120px 1fr 140px;
     gap: 10px;
     margin-bottom: 10px;
+    min-width: 0;
+    width: 100%;
   }
 
   .financ-inline-combo {
@@ -251,11 +261,17 @@
     border-radius: 16px;
     background: #fff;
     overflow: hidden;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .financ-grid-scroll {
     max-height: 360px;
     overflow: auto;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .financ-grid-shell table {
@@ -316,6 +332,8 @@
     grid-template-columns: minmax(0, 1fr) 156px 156px 156px;
     gap: 10px;
     align-items: end;
+    min-width: 0;
+    width: 100%;
   }
 
   .financ-history-grid {
@@ -323,6 +341,9 @@
     border-radius: 16px;
     background: #fff;
     overflow: auto;
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .financ-history-grid table {
@@ -348,6 +369,8 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 10px;
     align-content: start;
+    min-width: 0;
+    width: 100%;
   }
 
   .financ-kpi {
@@ -380,6 +403,7 @@
     justify-content: flex-start;
     margin-top: 12px;
     width: 100%;
+    min-width: 0;
   }
 
   .modal-backdrop {
@@ -881,6 +905,149 @@
       grid-template-columns: 1fr;
     }
   }
+
+  @media (max-width: 768px) {
+    .financ-page {
+      gap: 8px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+
+    .financ-header-grid {
+      grid-template-columns: 1fr;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .financ-top-col {
+      grid-template-columns: 1fr;
+      gap: 8px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .financ-top-col label {
+      margin-top: 2px;
+    }
+
+    .financ-doc-trigger {
+      grid-template-columns: minmax(0, 1fr) 30px;
+    }
+
+    .financ-header-grid .financ-input,
+    .financ-header-grid .financ-select,
+    .financ-summary-grid .financ-input,
+    .financ-summary-grid .financ-select,
+    .financ-footer-grid .financ-input,
+    .financ-footer-grid .financ-select,
+    .financ-doc-trigger button {
+      height: 34px;
+      font-size: 14px;
+      border-radius: 10px;
+      padding: 4px 10px;
+    }
+
+    .financ-body-card {
+      padding: 10px;
+      border-radius: 14px;
+    }
+
+    .financ-quick-card {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      padding: 0;
+    }
+
+    .financ-quick-card h3 {
+      grid-column: 1 / -1;
+      margin-bottom: 2px;
+    }
+
+    .financ-quick-button {
+      min-height: 38px;
+      height: auto;
+      padding: 8px 10px;
+      font-size: 12px;
+      border-radius: 12px;
+    }
+
+    .financ-tabs-head {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .financ-tab {
+      flex: 1 1 calc(50% - 6px);
+      text-align: center;
+      padding: 9px 12px 8px;
+    }
+
+    .financ-summary-grid,
+    .financ-footer-grid,
+    .financ-finanzas-grid,
+    .financ-print-layout {
+      grid-template-columns: 1fr;
+      gap: 8px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .financ-inline-combo {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .financ-grid-shell,
+    .financ-history-grid {
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .financ-grid-scroll {
+      max-height: min(46dvh, 420px);
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    .financ-grid-shell table {
+      min-width: 760px;
+    }
+
+    .financ-history-grid table {
+      min-width: 620px;
+    }
+
+    .financ-textarea {
+      min-height: 140px;
+      height: 140px;
+    }
+
+    .financ-actions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .financ-action {
+      width: 100%;
+      min-width: 0;
+      height: 44px;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -1166,6 +1333,7 @@
             <li><span>Financiamiento</span><strong id="fin_print_documento">-</strong></li>
             <li><span>Total hojas</span><strong id="fin_print_total_hojas">2</strong></li>
             <li><span>Total copias</span><strong id="fin_print_total_copias">2</strong></li>
+            <li><span>Impresora</span><strong id="fin_print_printer">Dialogo del navegador (selecciona la impresora al imprimir)</strong></li>
           </ul>
         </div>
       </div>
@@ -1196,6 +1364,7 @@
     facturasDisponiblesUrl: "{% url 'caja:financiamiento_facturas_disponibles' %}",
     detalleUrl: "{% url 'caja:financiamiento_detalle' %}",
     guardarUrl: "{% url 'caja:financiamiento_guardar' %}",
+    socketUrl: "/ws/financiamiento/",
     indexUrl: "{% url 'caja:index' %}",
     shortcutUrls: {
       cuentas_por_cobrar: "{% url 'caja:cuentas_por_cobrar' %}",
@@ -1223,5 +1392,5 @@
     usuarioFirmaB64: "{{ usuario_firma_b64|default:''|escapejs }}",
   };
 </script>
-<script src="{% static 'caja/financiamiento.js' %}?v=20260327g"></script>
+<script src="{% static 'caja/financiamiento.js' %}?v=20260530finbase1"></script>
 {% endblock %}

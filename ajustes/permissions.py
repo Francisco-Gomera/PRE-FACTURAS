@@ -38,6 +38,7 @@ def ensure_base_perms():
         "cartas": "Cartas",
         "factura": "Factura",
         "caja": "Caja",
+        "chat_interno": "Chat Interno",
         "ajustes": "Ajustes",
     }
     sub_perms = {
@@ -61,7 +62,9 @@ def ensure_base_perms():
         "cobros": [
             ("ver_estado_cuenta", "Ver Estado de Cuenta"),
             ("ver_alertas", "Ver Alertas"),
+            ("ver_financiamientos_atraso", "Ver Financiamientos en Atraso"),
             ("ver_acuerdos", "Ver Acuerdos"),
+            ("ver_cartas_enviadas", "Ver Cartas Enviadas"),
         ],
         "cartas": [
             ("ver_cartas_aviso", "Ver Cartas de Aviso"),
@@ -80,13 +83,30 @@ def ensure_base_perms():
             ("cxc_imprimir", "Imprimir en Cuentas por Cobrar"),
             ("cxc_cancelar", "Cancelar en Cuentas por Cobrar"),
             ("cxc_cerrar_cuenta", "Cerrar Cuenta en Cuentas por Cobrar"),
+            ("cxc_modificar_medio_pago", "Modificar Medio de Pago en Cuentas por Cobrar"),
+            ("cxc_corregir_monto_pago", "Corregir Monto Pagado en Cuentas por Cobrar"),
+            ("cxc_modificar_fechas_pago", "Modificar Fechas de Pago en Cuentas por Cobrar"),
             ("ver_cuadre_caja", "Ver Cuadre de Caja"),
             ("ver_financiamiento", "Ver Financiamiento"),
         ],
+        "chat_interno": [
+            ("ver_usuarios", "Ver Usuarios de Chat"),
+            ("crear_grupos", "Crear Grupos de Chat"),
+            ("enviar_mensajes", "Enviar Mensajes de Chat"),
+        ],
         "ajustes": [
             ("ver_parametros", "Ver Parametros"),
+            ("ver_parametros_empresa", "Ver Datos de Empresa"),
+            ("ver_parametros_sistema", "Ver Modo del Sistema y Formatos"),
+            ("ver_sectores", "Ver Sectores"),
             ("ver_usuarios", "Ver Usuarios"),
             ("ver_integraciones", "Ver Integraciones"),
+            ("ver_reportes_transunion", "Ver Reportes TransUnion"),
+            ("usuarios_crear", "Crear Usuarios"),
+            ("usuarios_editar", "Editar Usuarios"),
+            ("usuarios_inactivar", "Inactivar Usuarios"),
+            ("sectores_crear", "Crear Sectores"),
+            ("sectores_editar", "Editar Sectores"),
         ],
     }
 

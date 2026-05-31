@@ -4,11 +4,39 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0f6edc" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="CA ERP" />
+  <link rel="icon" type="image/svg+xml" href="{% static 'core/favicon.svg' %}" />
+  <link rel="shortcut icon" href="{% static 'core/favicon.svg' %}" />
+  <link rel="manifest" href="{% static 'core/manifest.webmanifest' %}" />
   <title>{{ page_title|default:"CA ERP 3.0" }}</title>
-  <link rel="stylesheet" href="{% static 'core/app.css' %}?v=20260325a" />
+  <script>
+    (function () {
+      var storageKey = "ca_erp.theme_mode";
+      var theme = "light";
+      try {
+        var stored = (window.localStorage.getItem(storageKey) || "").toLowerCase();
+        theme = stored === "dark" ? "dark" : "light";
+      } catch (error) {
+        theme = "light";
+      }
+      document.documentElement.setAttribute("data-theme", theme);
+      document.documentElement.style.colorScheme = theme === "dark" ? "dark" : "light";
+    })();
+  </script>
+  <link rel="stylesheet" href="{% static 'core/app.css' %}?v=20260525h" />
   {% block head_extra %}{% endblock %}
 </head>
-<body>
+<body
+  data-active-nav="{{ active_nav|default:'' }}"
+  data-chat-enabled="{{ visible_modules.chat_interno|yesno:'true,false' }}"
+  data-chat-socket-url="/ws/chat-interno/"
+  data-chat-index-url="{% url 'chat_interno:index' %}"
+  data-user-id="{{ auth_payload.usuario_id|default:'' }}"
+>
   <div class="app-shell">
     <aside class="sidebar" aria-label="Menu principal">
       <div class="brand">
@@ -44,6 +72,23 @@
             <span class="nav-copy">
               <span class="nav-label">Caja</span>
               <span class="nav-meta">Gestion</span>
+            </span>
+          </span>
+        </a>
+        {% endif %}
+        {% if visible_modules.chat_interno %}
+        <a
+          href="{% url 'chat_interno:index' %}"
+          class="{% if active_nav == 'chat_interno' %}active{% endif %}"
+          title="Chat Interno - Mensajeria"
+        >
+          <span class="nav-item-main">
+            <span class="nav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 6h16v10H8l-4 4z"/><path d="M8 10h8"/><path d="M8 13h6"/></svg>
+            </span>
+            <span class="nav-copy">
+              <span class="nav-label">Chat Interno</span>
+              <span class="nav-meta">Mensajeria</span>
             </span>
           </span>
         </a>
@@ -224,9 +269,64 @@
           Contraer menu
         </button>
         <h1>{{ page_title|default:"Panel" }}</h1>
-        <div class="user-chip">
-          Usuario: <strong>{{ auth_payload.usuario_login }}</strong> |
-          Nombre: <strong>{{ auth_payload.usuario_nombre }}</strong>
+        <div class="topbar-actions">
+          <div
+            class="topbar-notifications"
+            id="topbarNotifications"
+            data-summary-url="{% url 'inventario:solicitudes_existencia_resumen' %}"
+            data-socket-url="/ws/notifications/"
+            data-stock-request-socket-url="/ws/inventario-solicitudes/"
+            data-mark-read-template="{% url 'inventario:notification_state_mark_read' 0 %}"
+            data-mark-read-bulk-url="{% url 'inventario:notification_state_mark_read_bulk' %}"
+            data-delete-template="{% url 'inventario:notification_state_hide' 0 %}"
+            data-delivered-url="{% url 'inventario:notification_state_delivered' %}"
+            data-csrf-token="{{ csrf_token }}"
+            data-user-key="{{ auth_payload.usuario_id|default:auth_payload.usuario_login }}"
+            data-stock-request-notify-enabled="{{ stock_request_notifications_enabled|yesno:'true,false' }}"
+          >
+            <button
+              class="topbar-notification-btn"
+              id="topbarNotificationToggle"
+              type="button"
+              aria-expanded="false"
+              aria-label="Notificaciones"
+            >
+              <span class="topbar-notification-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8" />
+                  <path d="M10 21h4" />
+                </svg>
+              </span>
+              <span class="topbar-notification-badge" id="topbarNotificationBadge" hidden>0</span>
+            </button>
+            <div class="topbar-notification-menu" id="topbarNotificationMenu" aria-hidden="true">
+              <div class="topbar-notification-head">
+                <strong>Notificaciones</strong>
+                <span id="topbarNotificationMenuCount">0 sin leer</span>
+              </div>
+              <div class="topbar-notification-list" id="topbarNotificationList">
+                <div class="topbar-notification-empty">No hay notificaciones activas.</div>
+              </div>
+            </div>
+            <div class="topbar-notification-context" id="topbarNotificationContext" aria-hidden="true">
+              <button type="button" id="topbarNotificationMarkRead">Marcar como leida</button>
+              <button type="button" id="topbarNotificationDelete">Eliminar</button>
+            </div>
+          </div>
+          <button
+            class="user-chip user-chip-btn"
+            id="accountProfileTrigger"
+            type="button"
+            data-change-password-url="{% url 'cambiar_password' %}"
+            data-user-login="{{ auth_payload.usuario_login|default:'' }}"
+            data-user-name="{{ auth_payload.usuario_nombre|default:'' }}"
+            data-csrf-token="{{ csrf_token }}"
+            aria-haspopup="dialog"
+            aria-controls="accountPasswordModal"
+          >
+            Usuario: <strong>{{ auth_payload.usuario_login }}</strong> |
+            Nombre: <strong>{{ auth_payload.usuario_nombre }}</strong>
+          </button>
         </div>
       </header>
       <main class="main">
@@ -235,6 +335,57 @@
     </section>
   </div>
   <div class="overlay" id="navOverlay" aria-hidden="true"></div>
-  <script src="{% static 'core/app.js' %}?v=20260323a"></script>
+  <div class="account-modal-backdrop" id="accountPasswordModal" hidden>
+    <div class="account-modal" role="dialog" aria-modal="true" aria-labelledby="accountPasswordModalTitle">
+      <div class="account-modal-head">
+        <h2 id="accountPasswordModalTitle">Cambiar clave</h2>
+        <button type="button" class="account-modal-close" id="accountPasswordModalClose" aria-label="Cerrar">x</button>
+      </div>
+      <form class="account-modal-form" id="accountPasswordForm">
+        <div class="account-modal-status" id="accountPasswordStatus" hidden></div>
+        <div class="account-modal-grid">
+          <div class="account-field">
+            <label for="accountPasswordName">Nombre</label>
+            <input id="accountPasswordName" name="usuario_nombre" type="text" readonly disabled />
+          </div>
+          <div class="account-field">
+            <label for="accountPasswordLogin">Usuario</label>
+            <input id="accountPasswordLogin" name="usuario_login" type="text" readonly disabled />
+          </div>
+        </div>
+        <div class="account-field">
+          <label for="accountPasswordNew">Clave nueva</label>
+          <input id="accountPasswordNew" name="password_nueva" type="password" maxlength="12" autocomplete="new-password" required />
+        </div>
+        <div class="account-field">
+          <label for="accountPasswordConfirm">Confirmar clave</label>
+          <input id="accountPasswordConfirm" name="password_confirm" type="password" maxlength="12" autocomplete="new-password" required />
+        </div>
+        <div class="account-modal-actions">
+          <button type="button" class="account-btn account-btn-secondary" id="accountPasswordCancel">Cancelar</button>
+          <button type="submit" class="account-btn account-btn-primary" id="accountPasswordSubmit">Guardar clave</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    window.CA_PRINT_PREFS_URL = "{% url 'ajustes:preferencias_impresora' %}";
+    window.CA_QZ_CERT_URL = "{% url 'core:qz_certificate' %}";
+    window.CA_QZ_SIGN_URL = "{% url 'core:qz_sign' %}";
+    window.CA_CSRF_TOKEN = "{{ csrf_token }}";
+  </script>
+  <script src="{% static 'core/qz-tray.js' %}?v=20260525a"></script>
+  <script src="{% static 'core/local_print.js' %}?v=20260530qzperf1"></script>
+  <script src="{% static 'core/app.js' %}?v=20260525qz2"></script>
+  <script>
+    (function () {
+      if (!("serviceWorker" in navigator)) {
+        return;
+      }
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("{% url 'service_worker' %}", { scope: "/" }).catch(function () {});
+      });
+    })();
+  </script>
 </body>
 </html>

@@ -1,0 +1,30 @@
+{% extends "core/base.html" %}
+
+{% block content %}
+<h2 class="page-title">Integraciones</h2>
+<p class="page-subtitle">Selecciona la conexion externa que quieres configurar.</p>
+
+<div class="card-grid">
+  {% if submodules.whatsapp %}
+  <div class="info-card">
+    <h3>WhatsApp</h3>
+    <p>Configura Meta WhatsApp Cloud API para cartas de aviso y mensajes del sistema.</p>
+    <a href="{% url 'ajustes:whatsapp' %}">Abrir integracion</a>
+  </div>
+  {% endif %}
+  {% if submodules.facturacion_electronica %}
+  <div class="info-card">
+    <h3>Facturacion electronica</h3>
+    <p>Prepara e-CF DGII, secuencias, certificados y seguimiento documental.</p>
+    <a href="{% url 'ajustes:facturacion_electronica' %}">Abrir integracion</a>
+  </div>
+  {% endif %}
+  {% if submodules.reportes_transunion %}
+  <div class="info-card">
+    <h3>Reportes TransUnion</h3>
+    <p>Gestiona la configuracion y el acceso a reportes de credito TransUnion.</p>
+    <a href="{% url 'ajustes:reportes_transunion' %}">Abrir integracion</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
