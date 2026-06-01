@@ -131,18 +131,6 @@
     cursor: pointer;
   }
 
-  .pa-create-btn {
-    min-height: 48px;
-    border: 1px solid #0f6edc;
-    border-radius: 7px;
-    background: #0f6edc;
-    color: #fff;
-    font: inherit;
-    font-size: 12px;
-    font-weight: 900;
-    cursor: pointer;
-  }
-
   .pa-checks {
     display: grid;
     gap: 4px;
@@ -180,6 +168,99 @@
     font: inherit;
     font-size: 12px;
     line-height: 1.45;
+  }
+
+  .pa-entry-section {
+    display: grid;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5edf6;
+    background: #fbfdff;
+  }
+
+  .pa-entry-section[hidden] {
+    display: none;
+  }
+
+  .pa-action-detail-section[hidden] {
+    display: none;
+  }
+
+  .pa-contract-dates[hidden] {
+    display: none;
+  }
+
+  .pa-section-title {
+    margin: 0;
+    color: #123b65;
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+
+  .pa-entry-grid {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(260px, 0.65fr);
+    gap: 12px;
+    align-items: end;
+  }
+
+  .pa-check-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 16px;
+  }
+
+  .pa-entry-salary {
+    display: grid;
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+  }
+
+  .pa-entry-salary label {
+    color: #334155;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .pa-entry-salary input {
+    width: 100%;
+    height: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 3px 6px;
+    color: #0f172a;
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .pa-change-grid {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(260px, 0.45fr);
+    gap: 14px;
+    align-items: end;
+  }
+
+  .pa-change-salary {
+    display: grid;
+    gap: 6px;
+  }
+
+  .pa-change-salary[hidden],
+  .pa-change-row[hidden] {
+    display: none;
+  }
+
+  .pa-change-salary .pa-row {
+    grid-template-columns: 110px minmax(0, 1fr);
+  }
+
+  .pa-change-note {
+    min-height: 18px;
+    color: #b45309;
+    font-size: 11px;
+    font-weight: 700;
   }
 
   .pa-photo-side {
@@ -254,6 +335,108 @@
     text-decoration: none;
   }
 
+  .pa-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.38);
+  }
+
+  .pa-modal-backdrop.open {
+    display: flex;
+  }
+
+  .pa-modal {
+    width: min(920px, 96vw);
+    max-height: 86vh;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .pa-modal-head,
+  .pa-modal-search {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid #d6e1f1;
+  }
+
+  .pa-modal-head {
+    justify-content: space-between;
+    background: #f1f6fc;
+  }
+
+  .pa-modal-head h3 {
+    margin: 0;
+    color: #123b65;
+    font-size: 15px;
+  }
+
+  .pa-modal-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .pa-modal-actions .pa-action {
+    display: grid;
+    place-items: center;
+    text-decoration: none;
+  }
+
+  .pa-modal-search input {
+    flex: 1 1 auto;
+    height: 32px;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 6px 8px;
+    font: inherit;
+  }
+
+  .pa-modal-body {
+    overflow: auto;
+  }
+
+  .pa-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+  }
+
+  .pa-table th,
+  .pa-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5edf6;
+    text-align: left;
+    font-size: 12px;
+  }
+
+  .pa-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fbff;
+    color: #334155;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  .pa-table tbody tr {
+    cursor: pointer;
+  }
+
+  .pa-table tbody tr:hover {
+    background: #eaf2ff;
+  }
+
   @media (max-width: 980px) {
     .pa-layout,
     .pa-top-grid {
@@ -266,6 +449,10 @@
 
     .pa-photo-side {
       border-top: 1px solid #d6e1f1;
+    }
+
+    .pa-change-grid {
+      grid-template-columns: 1fr;
     }
   }
 
@@ -305,48 +492,207 @@
 
   <section class="pa-shell">
     <div class="pa-tabs" role="tablist" aria-label="Estados de acciones de personal">
-      <button type="button" class="pa-tab is-active">Maestro de Acciones</button>
-      <button type="button" class="pa-tab">Acciones Pendientes</button>
-      <button type="button" class="pa-tab">Acciones Aprobadas</button>
-      <button type="button" class="pa-tab">Acciones Aplicadas</button>
-      <button type="button" class="pa-tab">Acciones Canceladas</button>
-      <button type="button" class="pa-tab">General &lt;Todas&gt;</button>
+      <button type="button" class="pa-tab is-active" data-pa-tab="MAESTRO">Maestro de Acciones</button>
+      <button type="button" class="pa-tab" data-pa-tab="PENDIENTE">Acciones Pendientes</button>
+      <button type="button" class="pa-tab" data-pa-tab="APROBADAS">Acciones Aprobadas</button>
+      <button type="button" class="pa-tab" data-pa-tab="APLICADA">Acciones Aplicadas</button>
+      <button type="button" class="pa-tab" data-pa-tab="CANCELADA">Acciones Canceladas</button>
+      <button type="button" class="pa-tab" data-pa-tab="">General &lt;Todas&gt;</button>
     </div>
 
-    <div class="pa-layout">
+    <div id="pa_actions_panel" class="pa-modal-body" hidden>
+      <table class="pa-table">
+        <thead><tr><th>No.</th><th>Empleado</th><th>Fecha</th><th>F. efectiva</th><th>Tipo</th><th>Motivo</th><th>Estatus</th></tr></thead>
+        <tbody id="pa_actions_panel_body">
+          <tr><td colspan="7">Selecciona una pestana para consultar acciones.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="pa_form_layout" class="pa-layout">
       <div class="pa-form-area">
         <div class="pa-top-grid">
           <div class="pa-mini-grid">
             <div class="pa-row">
               <label for="pa_codigo">Cod. Empleado</label>
               <div class="pa-employee-pick">
-                <input id="pa_codigo" />
+                <input id="pa_codigo" readonly />
                 <button type="button" class="pa-pick-btn" title="Buscar empleado">...</button>
               </div>
             </div>
             <div class="pa-row"><label for="pa_nombres">Nombres</label><input id="pa_nombres" readonly /></div>
             <div class="pa-row"><label for="pa_apellidos">Apellidos</label><input id="pa_apellidos" readonly /></div>
             <div class="pa-row"><label for="pa_cedula">Cedula</label><input id="pa_cedula" readonly /></div>
-            <div class="pa-row"><label for="pa_departamento">Departamento</label><select id="pa_departamento"><option></option></select></div>
-            <div class="pa-row"><label for="pa_cargo">Cargo</label><select id="pa_cargo"><option></option></select></div>
+            <div class="pa-row">
+              <label for="pa_departamento">Departamento</label>
+              <select id="pa_departamento" disabled>
+                <option value=""></option>
+                {% for d in departamentos %}
+                <option value="{{ d.descripcion|default:d.ceco|escape }}">{{ d.descripcion|default:d.ceco }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="pa-row">
+              <label for="pa_cargo">Cargo</label>
+              <select id="pa_cargo" disabled>
+                <option value=""></option>
+                <option>Propietario/a</option>
+                <option>Encargado/a</option>
+                <option>Cajero/a</option>
+                <option>Vendedor/a</option>
+                <option>Contable</option>
+                <option>Chofer</option>
+                <option>Gestor de cobros</option>
+              </select>
+            </div>
             <div class="pa-row two">
               <label for="pa_salario_actual">Salario actual</label><input id="pa_salario_actual" readonly />
               <label for="pa_fecha_ingreso">Fecha de ingreso</label><input id="pa_fecha_ingreso" type="date" readonly />
             </div>
-            <div class="pa-row"><label for="pa_nomina_actual">Nomina actual</label><select id="pa_nomina_actual"><option></option></select></div>
+            <div class="pa-row"><label for="pa_nomina_actual">Nomina actual</label><select id="pa_nomina_actual" disabled><option></option></select></div>
           </div>
 
           <div class="pa-mini-grid">
             <div class="pa-row"><label for="pa_no">No.</label><input id="pa_no" readonly /></div>
-            <div class="pa-row"><label for="pa_fecha">Fecha</label><input id="pa_fecha" type="date" /></div>
+            <div class="pa-row"><label for="pa_fecha">Fecha</label><input id="pa_fecha" type="date" readonly /></div>
             <div class="pa-row"><label for="pa_estatus">Estatus</label><input id="pa_estatus" readonly /></div>
             <div class="pa-row"><label for="pa_fecha_efectiva">Fecha efectiva</label><input id="pa_fecha_efectiva" type="date" /></div>
             <div class="pa-checks">
               <div class="pa-check"><input id="pa_afecta_nomina" type="checkbox" /><label for="pa_afecta_nomina">Afecta nomina</label></div>
               <div class="pa-check"><input id="pa_aplicado" type="checkbox" /><label for="pa_aplicado">Aplicado</label></div>
             </div>
-            <div class="pa-row"><label for="pa_tipo_accion">Tipo accion</label><select id="pa_tipo_accion"><option></option></select></div>
-            <button type="button" class="pa-create-btn">Crear Empleado</button>
+            <div class="pa-row">
+              <label for="pa_tipo_accion">Tipo accion</label>
+              <select id="pa_tipo_accion">
+                <option value=""></option>
+                <option value="ENTRADA">ENTRADA</option>
+                <option value="CAMBIO">CAMBIO</option>
+                <option value="SALIDA">SALIDA</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="pa_entry_section" class="pa-entry-section" hidden>
+          <h3 class="pa-section-title">Entrada</h3>
+          <div class="pa-entry-grid">
+            <div class="pa-mini-grid">
+              <div class="pa-row">
+                <label for="pa_entrada_motivo">Motivo</label>
+                <select id="pa_entrada_motivo">
+                  <option value=""></option>
+                  <option value="NUEVO INGRESO">NUEVO INGRESO</option>
+                  <option value="NOMBRAMIENTO DEFINITIVO">NOMBRAMIENTO DEFINITIVO</option>
+                  <option value="CONTRATO">CONTRATO</option>
+                  <option value="TEMPORERO">TEMPORERO</option>
+                </select>
+              </div>
+              <div id="pa_contract_dates" class="pa-row two pa-contract-dates" hidden>
+                <label for="pa_contrato_fecha_inicio">Inicio contrato</label><input id="pa_contrato_fecha_inicio" type="date" disabled />
+                <label for="pa_contrato_fecha_fin">Fin contrato</label><input id="pa_contrato_fecha_fin" type="date" disabled />
+              </div>
+              <div class="pa-row"><label for="pa_entrada_nomina">Nomina</label><select id="pa_entrada_nomina"><option>SIN ASIGNAR</option></select></div>
+              <h4 class="pa-section-title">Motivo de Nombramiento</h4>
+              <div class="pa-check-grid">
+                <div class="pa-check"><input id="pa_creacion_nueva" name="pa_motivo_nombramiento" value="CREACION NUEVA" type="radio" /><label for="pa_creacion_nueva">Creacion Nueva</label></div>
+                <div class="pa-check"><input id="pa_vacante_despido" name="pa_motivo_nombramiento" value="VACANTE POR DESPIDO" type="radio" /><label for="pa_vacante_despido">Vacante por despido</label></div>
+                <div class="pa-check"><input id="pa_vacante_traslado" name="pa_motivo_nombramiento" value="VACANTE POR TRASLADO" type="radio" /><label for="pa_vacante_traslado">Vacante por Traslado</label></div>
+                <div class="pa-check"><input id="pa_vacante_licencia" name="pa_motivo_nombramiento" value="VACANTE POR LICENCIA" type="radio" /><label for="pa_vacante_licencia">Vacante por Licencia</label></div>
+              </div>
+            </div>
+            <div class="pa-entry-salary">
+              <label for="pa_salario_propuesto">Salario propuesto</label>
+              <input id="pa_salario_propuesto" type="number" min="0" step="0.01" />
+            </div>
+          </div>
+        </div>
+
+        <div id="pa_exit_section" class="pa-entry-section pa-action-detail-section" hidden>
+          <h3 class="pa-section-title">Salida</h3>
+          <div class="pa-mini-grid">
+            <div class="pa-row">
+              <label for="pa_salida_motivo">Motivo</label>
+              <select id="pa_salida_motivo">
+                <option value=""></option>
+                <option value="RENUNCIA">RENUNCIA</option>
+                <option value="DESPIDO">DESPIDO</option>
+                <option value="FIN DE CONTRATO">FIN DE CONTRATO</option>
+                <option value="PREAVISO">PREAVISO</option>
+                <option value="DESAHUCIO">DESAHUCIO</option>
+                <option value="JUBILACION">JUBILACION</option>
+                <option value="MUERTE">MUERTE</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="pa_change_section" class="pa-entry-section pa-action-detail-section" hidden>
+          <h3 class="pa-section-title">Cambio</h3>
+          <div class="pa-change-grid">
+            <div class="pa-mini-grid">
+              <div class="pa-row">
+                <label for="pa_cambio_motivo">Motivo</label>
+                <select id="pa_cambio_motivo">
+                  <option value=""></option>
+                  <option value="AUMENTO DE SALARIO">AUMENTO DE SALARIO</option>
+                  <option value="TRASLADO">TRASLADO</option>
+                  <option value="PROMOCION">PROMOCION</option>
+                  <option value="SUSPENCION">SUSPENCION</option>
+                  <option value="VACACIONES">VACACIONES</option>
+                  <option value="LICENCIA MEDICA">LICENCIA MEDICA</option>
+                  <option value="CAMBIO DE NOMINA">CAMBIO DE NOMINA</option>
+                </select>
+              </div>
+              <div id="pa_cambio_suspension_dates" class="pa-row two pa-change-row" hidden>
+                <label for="pa_cambio_suspension_desde">Desde</label><input id="pa_cambio_suspension_desde" type="date" disabled />
+                <label for="pa_cambio_suspension_hasta">Hasta</label><input id="pa_cambio_suspension_hasta" type="date" disabled />
+              </div>
+              <div id="pa_cambio_vacaciones_dates" class="pa-row two pa-change-row" hidden>
+                <label for="pa_cambio_vacaciones_desde">Desde</label><input id="pa_cambio_vacaciones_desde" type="date" disabled />
+                <label for="pa_cambio_vacaciones_hasta">Hasta</label><input id="pa_cambio_vacaciones_hasta" type="date" disabled />
+              </div>
+              <div id="pa_cambio_vacaciones_summary" class="pa-row two pa-change-row" hidden>
+                <label for="pa_cambio_vacaciones_disponibles">Disponibles</label><input id="pa_cambio_vacaciones_disponibles" type="text" readonly />
+                <label for="pa_cambio_vacaciones_solicitados">Solicitados</label><input id="pa_cambio_vacaciones_solicitados" type="text" readonly />
+              </div>
+              <div id="pa_cambio_vacaciones_note" class="pa-change-note" hidden></div>
+              <div id="pa_cambio_licencia_medica_dates" class="pa-row two pa-change-row" hidden>
+                <label for="pa_cambio_licencia_medica_desde">Desde</label><input id="pa_cambio_licencia_medica_desde" type="date" disabled />
+                <label for="pa_cambio_licencia_medica_hasta">Hasta</label><input id="pa_cambio_licencia_medica_hasta" type="date" disabled />
+              </div>
+              <div id="pa_cambio_licencia_medica_summary" class="pa-row pa-change-row" hidden>
+                <label for="pa_cambio_licencia_medica_dias">Cantidad dias</label><input id="pa_cambio_licencia_medica_dias" type="text" readonly />
+              </div>
+              <div id="pa_cambio_departamento_row" class="pa-row pa-change-row">
+                <label for="pa_cambio_departamento">Depto.</label>
+                <select id="pa_cambio_departamento" disabled>
+                  <option value=""></option>
+                  {% for d in departamentos %}
+                  <option value="{{ d.descripcion|default:d.ceco|escape }}">{{ d.descripcion|default:d.ceco }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div id="pa_cambio_cargo_row" class="pa-row pa-change-row">
+                <label for="pa_cambio_cargo">Cargo</label>
+                <select id="pa_cambio_cargo" disabled>
+                  <option value=""></option>
+                  <option>Propietario/a</option>
+                  <option>Encargado/a</option>
+                  <option>Cajero/a</option>
+                  <option>Vendedor/a</option>
+                  <option>Contable</option>
+                  <option>Chofer</option>
+                  <option>Gestor de cobros</option>
+                </select>
+              </div>
+              <div id="pa_cambio_nomina_row" class="pa-row"><label for="pa_cambio_nomina">Nomina</label><select id="pa_cambio_nomina" disabled><option>SIN ASIGNAR</option></select></div>
+            </div>
+            <div id="pa_cambio_salario_panel" class="pa-change-salary" hidden>
+              <div class="pa-row"><label for="pa_cambio_salario_actual">Salario actual</label><input id="pa_cambio_salario_actual" type="text" readonly /></div>
+              <div class="pa-row"><label for="pa_cambio_porcentaje">% aumento</label><input id="pa_cambio_porcentaje" type="text" readonly /></div>
+              <div class="pa-row"><label for="pa_cambio_salario_propuesto">Salario propuesto</label><input id="pa_cambio_salario_propuesto" type="number" min="0" step="0.01" disabled /></div>
+              <div class="pa-row"><label for="pa_cambio_diferencia">Diferencia</label><input id="pa_cambio_diferencia" type="text" readonly /></div>
+            </div>
           </div>
         </div>
 
@@ -365,13 +711,675 @@
 
   <footer class="pa-footer">
     <div class="pa-footer-group">
-      <button type="button" class="pa-action">Nuevo</button>
-      <button type="button" class="pa-action">Buscar</button>
-      <button type="button" class="pa-action is-muted" disabled>Cancelar</button>
-      <button type="button" class="pa-action" disabled>Grabar</button>
+      <button id="pa_btn_nuevo" type="button" class="pa-action">Nuevo</button>
+      <button id="pa_btn_buscar_accion" type="button" class="pa-action">Buscar</button>
+      <button id="pa_btn_cancelar" type="button" class="pa-action is-muted" disabled>Cancelar</button>
+      <button id="pa_btn_grabar" type="button" class="pa-action" disabled>Grabar</button>
       <button type="button" class="pa-action is-muted" disabled>Imprimir</button>
     </div>
     <a href="{% url 'empleados:index' %}" class="pa-action is-muted pa-close-link">Cerrar</a>
   </footer>
 </div>
+
+<div id="pa_action_backdrop" class="pa-modal-backdrop" aria-hidden="true">
+  <div class="pa-modal" role="dialog" aria-modal="true" aria-labelledby="pa_action_search_title">
+    <div class="pa-modal-head">
+      <h3 id="pa_action_search_title">Buscar acciones de personal</h3>
+      <button id="pa_action_close" type="button" class="pa-action is-muted">Cerrar</button>
+    </div>
+    <div class="pa-modal-search">
+      <input id="pa_action_q" type="search" placeholder="Empleado, tipo o motivo" />
+      <button id="pa_action_search" type="button" class="pa-action">Buscar</button>
+    </div>
+    <div class="pa-modal-body">
+      <table class="pa-table">
+        <thead><tr><th>No.</th><th>Empleado</th><th>Fecha</th><th>F. efectiva</th><th>Tipo</th><th>Motivo</th><th>Estatus</th></tr></thead>
+        <tbody id="pa_action_body">
+          <tr><td colspan="7">Pulsa Buscar para consultar acciones.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="pa_employee_backdrop" class="pa-modal-backdrop" aria-hidden="true">
+  <div class="pa-modal" role="dialog" aria-modal="true" aria-labelledby="pa_employee_search_title">
+    <div class="pa-modal-head">
+      <h3 id="pa_employee_search_title">Seleccionar empleado</h3>
+      <div class="pa-modal-actions">
+        <a href="{% url 'empleados:maestro' %}" class="pa-action">Crear Empleado</a>
+        <button id="pa_employee_close" type="button" class="pa-action is-muted">Cerrar</button>
+      </div>
+    </div>
+    <div class="pa-modal-search">
+      <input id="pa_employee_q" type="search" placeholder="Codigo, nombre, cedula o cargo" />
+      <button id="pa_employee_search" type="button" class="pa-action">Buscar</button>
+    </div>
+    <div class="pa-modal-body">
+      <table class="pa-table">
+        <thead>
+          <tr>
+            <th>Codigo</th>
+            <th>Nombre</th>
+            <th>Cedula</th>
+            <th>Cargo</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="pa_employee_body">
+          <tr><td colspan="5">Pulsa Buscar para consultar empleados.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const urls = {
+      buscar: "{% url 'empleados:buscar' %}",
+      detalleTemplate: "{% url 'empleados:detalle' 0 %}",
+      accionesListar: "{% url 'empleados:acciones_personal_listar' %}",
+      accionDetalleTemplate: "{% url 'empleados:acciones_personal_detalle' 0 %}",
+      accionGuardar: "{% url 'empleados:acciones_personal_guardar' %}",
+    };
+    const nationalHolidays = new Set({{ national_holidays_json|safe }});
+    const btnNuevo = document.getElementById("pa_btn_nuevo");
+    const btnBuscarAccion = document.getElementById("pa_btn_buscar_accion");
+    const btnCancelar = document.getElementById("pa_btn_cancelar");
+    const btnGrabar = document.getElementById("pa_btn_grabar");
+    const pickButton = document.querySelector(".pa-pick-btn");
+    const backdrop = document.getElementById("pa_employee_backdrop");
+    const searchInput = document.getElementById("pa_employee_q");
+    const searchBody = document.getElementById("pa_employee_body");
+    const actionBackdrop = document.getElementById("pa_action_backdrop");
+    const actionSearchInput = document.getElementById("pa_action_q");
+    const actionBody = document.getElementById("pa_action_body");
+    const actionsPanel = document.getElementById("pa_actions_panel");
+    const actionsPanelBody = document.getElementById("pa_actions_panel_body");
+    const formLayout = document.getElementById("pa_form_layout");
+    const tabButtons = Array.from(document.querySelectorAll("[data-pa-tab]"));
+    const fechaField = document.getElementById("pa_fecha");
+    const tipoAccionField = document.getElementById("pa_tipo_accion");
+    const entrySection = document.getElementById("pa_entry_section");
+    const exitSection = document.getElementById("pa_exit_section");
+    const changeSection = document.getElementById("pa_change_section");
+    const entradaMotivoField = document.getElementById("pa_entrada_motivo");
+    const cambioMotivoField = document.getElementById("pa_cambio_motivo");
+    const cambioDepartamentoField = document.getElementById("pa_cambio_departamento");
+    const cambioDepartamentoRow = document.getElementById("pa_cambio_departamento_row");
+    const cambioCargoField = document.getElementById("pa_cambio_cargo");
+    const cambioCargoRow = document.getElementById("pa_cambio_cargo_row");
+    const cambioNominaField = document.getElementById("pa_cambio_nomina");
+    const cambioNominaRow = document.getElementById("pa_cambio_nomina_row");
+    const cambioSuspensionDates = document.getElementById("pa_cambio_suspension_dates");
+    const cambioSuspensionDesdeField = document.getElementById("pa_cambio_suspension_desde");
+    const cambioSuspensionHastaField = document.getElementById("pa_cambio_suspension_hasta");
+    const cambioVacacionesDates = document.getElementById("pa_cambio_vacaciones_dates");
+    const cambioVacacionesSummary = document.getElementById("pa_cambio_vacaciones_summary");
+    const cambioVacacionesDesdeField = document.getElementById("pa_cambio_vacaciones_desde");
+    const cambioVacacionesHastaField = document.getElementById("pa_cambio_vacaciones_hasta");
+    const cambioVacacionesDisponiblesField = document.getElementById("pa_cambio_vacaciones_disponibles");
+    const cambioVacacionesSolicitadosField = document.getElementById("pa_cambio_vacaciones_solicitados");
+    const cambioVacacionesNote = document.getElementById("pa_cambio_vacaciones_note");
+    const cambioLicenciaMedicaDates = document.getElementById("pa_cambio_licencia_medica_dates");
+    const cambioLicenciaMedicaSummary = document.getElementById("pa_cambio_licencia_medica_summary");
+    const cambioLicenciaMedicaDesdeField = document.getElementById("pa_cambio_licencia_medica_desde");
+    const cambioLicenciaMedicaHastaField = document.getElementById("pa_cambio_licencia_medica_hasta");
+    const cambioLicenciaMedicaDiasField = document.getElementById("pa_cambio_licencia_medica_dias");
+    const cambioSalarioPanel = document.getElementById("pa_cambio_salario_panel");
+    const cambioSalarioActualField = document.getElementById("pa_cambio_salario_actual");
+    const cambioSalarioPropuestoField = document.getElementById("pa_cambio_salario_propuesto");
+    const cambioPorcentajeField = document.getElementById("pa_cambio_porcentaje");
+    const cambioDiferenciaField = document.getElementById("pa_cambio_diferencia");
+    const contractDates = document.getElementById("pa_contract_dates");
+    const contractStartField = document.getElementById("pa_contrato_fecha_inicio");
+    const contractEndField = document.getElementById("pa_contrato_fecha_fin");
+    let employeeVacationDays = 0;
+    let selectedEmployeeId = "";
+    let currentEmployeeActive = false;
+
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[char]));
+    }
+
+    function getCsrfToken() {
+      const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+      return match ? decodeURIComponent(match[1]) : "";
+    }
+
+    function setSelectValue(selectId, value) {
+      const select = document.getElementById(selectId);
+      const text = String(value || "").trim();
+      if (!select) return;
+      const existingOption = Array.from(select.options).find((option) => {
+        const optionValue = String(option.value || "").trim();
+        const optionText = String(option.textContent || "").trim();
+        return optionValue.toUpperCase() === text.toUpperCase() || optionText.toUpperCase() === text.toUpperCase();
+      });
+      if (existingOption) {
+        select.value = existingOption.value;
+        return;
+      }
+      if (text) {
+        const option = document.createElement("option");
+        option.value = text;
+        option.textContent = text;
+        select.appendChild(option);
+      }
+      select.value = text;
+    }
+
+    function todayValue() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function parseAmount(value) {
+      const normalized = String(value || "").replace(/,/g, "").trim();
+      const amount = Number(normalized);
+      return Number.isFinite(amount) ? amount : 0;
+    }
+
+    function formatAmount(value) {
+      return Number(value || 0).toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+
+    function currentYearBounds() {
+      const year = new Date().getFullYear();
+      return {
+        min: `${year}-01-01`,
+        max: `${year}-12-31`,
+      };
+    }
+
+    function parseDateValue(value) {
+      if (!value) return null;
+      const parts = String(value).split("-").map((item) => Number(item));
+      if (parts.length !== 3 || parts.some((item) => !Number.isFinite(item))) return null;
+      return new Date(parts[0], parts[1] - 1, parts[2]);
+    }
+
+    function dateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function countVacationDays(fromValue, toValue) {
+      const fromDate = parseDateValue(fromValue);
+      const toDate = parseDateValue(toValue);
+      if (!fromDate || !toDate || toDate < fromDate) return 0;
+      let total = 0;
+      const cursor = new Date(fromDate);
+      while (cursor <= toDate) {
+        const key = dateKey(cursor);
+        if (cursor.getDay() !== 0 && !nationalHolidays.has(key)) total += 1;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      return total;
+    }
+
+    function countCalendarDays(fromValue, toValue) {
+      const fromDate = parseDateValue(fromValue);
+      const toDate = parseDateValue(toValue);
+      if (!fromDate || !toDate || toDate < fromDate) return 0;
+      const msPerDay = 24 * 60 * 60 * 1000;
+      return Math.floor((toDate - fromDate) / msPerDay) + 1;
+    }
+
+    function calculateSalaryChange() {
+      const currentSalary = parseAmount(document.getElementById("pa_salario_actual").value);
+      const hasProposedSalary = String(cambioSalarioPropuestoField.value || "").trim() !== "";
+      const proposedSalary = parseAmount(cambioSalarioPropuestoField.value);
+      const difference = proposedSalary - currentSalary;
+      cambioSalarioActualField.value = formatAmount(currentSalary);
+      cambioDiferenciaField.value = hasProposedSalary ? formatAmount(difference) : "";
+      cambioPorcentajeField.value = currentSalary && hasProposedSalary ? `${formatAmount((difference / currentSalary) * 100)}%` : "";
+    }
+
+    function syncVacationDates() {
+      const bounds = currentYearBounds();
+      [cambioVacacionesDesdeField, cambioVacacionesHastaField].forEach((field) => {
+        field.min = bounds.min;
+        field.max = bounds.max;
+      });
+      if (cambioVacacionesDesdeField.value && cambioVacacionesHastaField.value && cambioVacacionesHastaField.value < cambioVacacionesDesdeField.value) {
+        cambioVacacionesHastaField.value = cambioVacacionesDesdeField.value;
+      }
+      cambioVacacionesHastaField.min = cambioVacacionesDesdeField.value || bounds.min;
+      const requestedDays = countVacationDays(cambioVacacionesDesdeField.value, cambioVacacionesHastaField.value);
+      cambioVacacionesDisponiblesField.value = String(employeeVacationDays || 0);
+      cambioVacacionesSolicitadosField.value = requestedDays ? String(requestedDays) : "";
+      const exceedsAvailable = requestedDays > (employeeVacationDays || 0);
+      const noVacationDays = employeeVacationDays <= 0;
+      const message = exceedsAvailable
+        ? `El rango seleccionado supera los ${employeeVacationDays} dias disponibles.`
+        : noVacationDays
+          ? "Este empleado no tiene dias de vacaciones disponibles registrados."
+          : "";
+      cambioVacacionesNote.textContent = message;
+      cambioVacacionesNote.hidden = !message;
+      cambioVacacionesHastaField.setCustomValidity(exceedsAvailable ? message : "");
+    }
+
+    function syncMedicalLeaveDates() {
+      if (cambioLicenciaMedicaDesdeField.value && cambioLicenciaMedicaHastaField.value && cambioLicenciaMedicaHastaField.value < cambioLicenciaMedicaDesdeField.value) {
+        cambioLicenciaMedicaHastaField.value = cambioLicenciaMedicaDesdeField.value;
+      }
+      cambioLicenciaMedicaHastaField.min = cambioLicenciaMedicaDesdeField.value || "";
+      const requestedDays = countCalendarDays(cambioLicenciaMedicaDesdeField.value, cambioLicenciaMedicaHastaField.value);
+      cambioLicenciaMedicaDiasField.value = requestedDays ? String(requestedDays) : "";
+    }
+
+    function setSectionEnabled(section, enabled) {
+      Array.from(section.querySelectorAll("input, select, textarea, button")).forEach((field) => {
+        field.disabled = !enabled;
+      });
+    }
+
+    function syncTipoAccion() {
+      const actionType = tipoAccionField.value;
+      entrySection.hidden = actionType !== "ENTRADA";
+      exitSection.hidden = actionType !== "SALIDA";
+      changeSection.hidden = actionType !== "CAMBIO";
+      setSectionEnabled(entrySection, actionType === "ENTRADA");
+      setSectionEnabled(exitSection, actionType === "SALIDA");
+      setSectionEnabled(changeSection, actionType === "CAMBIO");
+      syncEntradaMotivo();
+      syncCambioMotivo();
+    }
+
+    function syncActionAvailability() {
+      Array.from(tipoAccionField.options).forEach((option) => {
+        if (!option.value) return;
+        option.disabled = currentEmployeeActive ? option.value === "ENTRADA" : option.value !== "ENTRADA";
+      });
+      if (selectedEmployeeId && tipoAccionField.selectedOptions[0] && tipoAccionField.selectedOptions[0].disabled) {
+        tipoAccionField.value = "";
+      }
+      btnGrabar.disabled = !selectedEmployeeId;
+      btnCancelar.disabled = !selectedEmployeeId;
+      syncTipoAccion();
+    }
+
+    function syncEntradaMotivo() {
+      const isContract = !entrySection.hidden && ["CONTRATO", "CONTRATADO"].includes(entradaMotivoField.value);
+      contractDates.hidden = !isContract;
+      contractStartField.disabled = !isContract;
+      contractEndField.disabled = !isContract;
+      if (!isContract) {
+        contractStartField.value = "";
+        contractEndField.value = "";
+      }
+    }
+
+    function setChangeFieldEnabled(field, enabled) {
+      field.disabled = !enabled;
+    }
+
+    function syncCambioMotivo() {
+      const motivo = cambioMotivoField.value;
+      const isChange = tipoAccionField.value === "CAMBIO";
+      const isSalaryIncrease = motivo === "AUMENTO DE SALARIO";
+      const isSuspension = motivo === "SUSPENCION";
+      const isVacation = motivo === "VACACIONES";
+      const isMedicalLeave = motivo === "LICENCIA MEDICA";
+      const allowsSalaryChange = ["AUMENTO DE SALARIO", "PROMOCION"].includes(motivo);
+      const enablesAllPositionFields = ["TRASLADO", "PROMOCION"].includes(motivo);
+      const enablesNominaOnly = ["AUMENTO DE SALARIO", "CAMBIO DE NOMINA", "SUSPENCION", "VACACIONES"].includes(motivo);
+      cambioDepartamentoRow.hidden = !enablesAllPositionFields;
+      cambioCargoRow.hidden = !enablesAllPositionFields;
+      cambioNominaRow.hidden = !(enablesAllPositionFields || enablesNominaOnly);
+      cambioSuspensionDates.hidden = !(isChange && isSuspension);
+      cambioVacacionesDates.hidden = !(isChange && isVacation);
+      cambioVacacionesSummary.hidden = !(isChange && isVacation);
+      cambioLicenciaMedicaDates.hidden = !(isChange && isMedicalLeave);
+      cambioLicenciaMedicaSummary.hidden = !(isChange && isMedicalLeave);
+      cambioSalarioPanel.hidden = !(isChange && allowsSalaryChange);
+      setChangeFieldEnabled(cambioDepartamentoField, isChange && enablesAllPositionFields);
+      setChangeFieldEnabled(cambioCargoField, isChange && enablesAllPositionFields);
+      setChangeFieldEnabled(cambioNominaField, isChange && (enablesAllPositionFields || enablesNominaOnly));
+      cambioSuspensionDesdeField.disabled = !(isChange && isSuspension);
+      cambioSuspensionHastaField.disabled = !(isChange && isSuspension);
+      if (!isSuspension) {
+        cambioSuspensionDesdeField.value = "";
+        cambioSuspensionHastaField.value = "";
+      }
+      cambioVacacionesDesdeField.disabled = !(isChange && isVacation);
+      cambioVacacionesHastaField.disabled = !(isChange && isVacation);
+      if (!isVacation) {
+        cambioVacacionesDesdeField.value = "";
+        cambioVacacionesHastaField.value = "";
+        cambioVacacionesNote.textContent = "";
+        cambioVacacionesNote.hidden = true;
+        cambioVacacionesHastaField.setCustomValidity("");
+      }
+      cambioLicenciaMedicaDesdeField.disabled = !(isChange && isMedicalLeave);
+      cambioLicenciaMedicaHastaField.disabled = !(isChange && isMedicalLeave);
+      if (!isMedicalLeave) {
+        cambioLicenciaMedicaDesdeField.value = "";
+        cambioLicenciaMedicaHastaField.value = "";
+        cambioLicenciaMedicaDiasField.value = "";
+      }
+      cambioSalarioPropuestoField.disabled = !(isChange && allowsSalaryChange);
+      if (!allowsSalaryChange) cambioSalarioPropuestoField.value = "";
+      calculateSalaryChange();
+      syncVacationDates();
+      syncMedicalLeaveDates();
+    }
+
+    function openEmployeeModal() {
+      backdrop.classList.add("open");
+      backdrop.setAttribute("aria-hidden", "false");
+      searchInput.focus();
+      searchInput.select();
+      fetchEmployees();
+    }
+
+    function closeEmployeeModal() {
+      backdrop.classList.remove("open");
+      backdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function renderEmployeeRows(rows) {
+      if (!rows.length) {
+        searchBody.innerHTML = "<tr><td colspan='5'>No se encontraron empleados.</td></tr>";
+        return;
+      }
+      searchBody.innerHTML = rows.map((row) => `
+        <tr data-id="${row.id_empleado}">
+          <td>${escapeHtml(row.codigo)}</td>
+          <td>${escapeHtml(row.nombre)}</td>
+          <td>${escapeHtml(row.cedula)}</td>
+          <td>${escapeHtml(row.cargo)}</td>
+          <td>${escapeHtml(row.estado)}</td>
+        </tr>
+      `).join("");
+      Array.from(searchBody.querySelectorAll("tr[data-id]")).forEach((row) => {
+        row.addEventListener("dblclick", () => loadEmployee(row.dataset.id));
+      });
+    }
+
+    function renderActionRows(rows, body) {
+      if (!rows.length) {
+        body.innerHTML = "<tr><td colspan='7'>No se encontraron acciones.</td></tr>";
+        return;
+      }
+      body.innerHTML = rows.map((row) => `
+        <tr data-id="${row.id_accion}">
+          <td>${escapeHtml(row.id_accion)}</td>
+          <td>${escapeHtml(row.empleado)}</td>
+          <td>${escapeHtml(row.fecha)}</td>
+          <td>${escapeHtml(row.fecha_efectiva)}</td>
+          <td>${escapeHtml(row.tipo_accion)}</td>
+          <td>${escapeHtml(row.motivo)}</td>
+          <td>${escapeHtml(row.estatus)}</td>
+        </tr>
+      `).join("");
+      Array.from(body.querySelectorAll("tr[data-id]")).forEach((row) => {
+        row.addEventListener("dblclick", () => loadAction(row.dataset.id));
+      });
+    }
+
+    async function fetchActions(targetBody, estatus) {
+      targetBody.innerHTML = "<tr><td colspan='7'>Buscando acciones...</td></tr>";
+      const params = new URLSearchParams();
+      if (estatus) params.set("estatus", estatus);
+      if (targetBody === actionBody && actionSearchInput.value) params.set("q", actionSearchInput.value);
+      try {
+        const res = await fetch(`${urls.accionesListar}?${params.toString()}`, {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          targetBody.innerHTML = "<tr><td colspan='7'>No se pudo consultar acciones.</td></tr>";
+          return;
+        }
+        renderActionRows(data.results || [], targetBody);
+      } catch (error) {
+        targetBody.innerHTML = "<tr><td colspan='7'>Error de conexion.</td></tr>";
+      }
+    }
+
+    async function fetchEmployees() {
+      searchBody.innerHTML = "<tr><td colspan='5'>Buscando empleados...</td></tr>";
+      try {
+        const q = searchInput.value || "";
+        const res = await fetch(`${urls.buscar}?q=${encodeURIComponent(q)}`, {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          searchBody.innerHTML = "<tr><td colspan='5'>No se pudo consultar empleados.</td></tr>";
+          return;
+        }
+        renderEmployeeRows(data.results || []);
+      } catch (error) {
+        searchBody.innerHTML = "<tr><td colspan='5'>Error de conexion.</td></tr>";
+      }
+    }
+
+    async function loadEmployee(id) {
+      if (!id) return;
+      try {
+        const url = urls.detalleTemplate.replace(/0\/$/, `${id}/`);
+        const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.empleado) {
+          searchBody.innerHTML = "<tr><td colspan='5'>No se pudo cargar el empleado.</td></tr>";
+          return;
+        }
+        fillEmployee(data.empleado);
+        closeEmployeeModal();
+      } catch (error) {
+        searchBody.innerHTML = "<tr><td colspan='5'>Error de conexion cargando el empleado.</td></tr>";
+      }
+    }
+
+    async function loadAction(id) {
+      if (!id) return;
+      try {
+        const url = urls.accionDetalleTemplate.replace(/0\/$/, `${id}/`);
+        const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.accion || !data.empleado) return;
+        fillEmployee(data.empleado);
+        fillAction(data.accion);
+        closeActionModal();
+        activateTab("MAESTRO");
+      } catch (error) {}
+    }
+
+    function fillEmployee(emp) {
+      selectedEmployeeId = emp.id_empleado || "";
+      currentEmployeeActive = String(emp.estado || "").trim().toUpperCase() === "ACTIVO";
+      document.getElementById("pa_codigo").value = emp.codigo || "";
+      document.getElementById("pa_nombres").value = emp.nombres || "";
+      document.getElementById("pa_apellidos").value = emp.apellidos || "";
+      document.getElementById("pa_cedula").value = emp.cedula || "";
+      document.getElementById("pa_salario_actual").value = emp.salario_base || "";
+      employeeVacationDays = Math.max(0, Math.min(120, Number(emp.dias_vacaciones || 0) || 0));
+      document.getElementById("pa_fecha_ingreso").value = emp.fecha_ingreso || "";
+      document.getElementById("pa_estatus").value = emp.estado || "";
+      setSelectValue("pa_departamento", emp.departamento || "");
+      setSelectValue("pa_cargo", emp.cargo || "");
+      setSelectValue("pa_nomina_actual", emp.nomina || emp.nomina_actual || "SIN ASIGNAR");
+      setSelectValue("pa_cambio_departamento", emp.departamento || "");
+      setSelectValue("pa_cambio_cargo", emp.cargo || "");
+      setSelectValue("pa_cambio_nomina", emp.nomina || emp.nomina_actual || "SIN ASIGNAR");
+      cambioSalarioPropuestoField.value = "";
+      syncActionAvailability();
+      syncCambioMotivo();
+    }
+
+    function fillAction(action) {
+      document.getElementById("pa_no").value = action.id_accion || "";
+      fechaField.value = action.fecha || todayValue();
+      document.getElementById("pa_fecha_efectiva").value = action.fecha_efectiva || "";
+      document.getElementById("pa_estatus").value = action.estatus || "";
+      document.getElementById("pa_afecta_nomina").checked = !!action.afecta_nomina;
+      document.getElementById("pa_aplicado").checked = !!action.aplicado;
+      tipoAccionField.value = action.tipo_accion || "";
+      entradaMotivoField.value = action.entrada_motivo || "";
+      setSelectValue("pa_entrada_nomina", action.entrada_nomina || "SIN ASIGNAR");
+      document.querySelectorAll("[name='pa_motivo_nombramiento']").forEach((field) => {
+        field.checked = field.value === action.motivo_nombramiento;
+      });
+      contractStartField.value = action.contrato_fecha_inicio || "";
+      contractEndField.value = action.contrato_fecha_fin || "";
+      document.getElementById("pa_salario_propuesto").value = action.salario_propuesto || "";
+      document.getElementById("pa_salida_motivo").value = action.salida_motivo || "";
+      cambioMotivoField.value = action.cambio_motivo || "";
+      setSelectValue("pa_cambio_departamento", action.cambio_departamento || "");
+      setSelectValue("pa_cambio_cargo", action.cambio_cargo || "");
+      setSelectValue("pa_cambio_nomina", action.cambio_nomina || "SIN ASIGNAR");
+      cambioSalarioPropuestoField.value = action.cambio_salario_propuesto || "";
+      cambioSuspensionDesdeField.value = action.cambio_motivo === "SUSPENCION" ? action.fecha_desde || "" : "";
+      cambioSuspensionHastaField.value = action.cambio_motivo === "SUSPENCION" ? action.fecha_hasta || "" : "";
+      cambioVacacionesDesdeField.value = action.cambio_motivo === "VACACIONES" ? action.fecha_desde || "" : "";
+      cambioVacacionesHastaField.value = action.cambio_motivo === "VACACIONES" ? action.fecha_hasta || "" : "";
+      cambioLicenciaMedicaDesdeField.value = action.cambio_motivo === "LICENCIA MEDICA" ? action.fecha_desde || "" : "";
+      cambioLicenciaMedicaHastaField.value = action.cambio_motivo === "LICENCIA MEDICA" ? action.fecha_hasta || "" : "";
+      document.getElementById("pa_comentario").value = action.comentario || "";
+      syncTipoAccion();
+    }
+
+    function clearForm() {
+      selectedEmployeeId = "";
+      currentEmployeeActive = false;
+      employeeVacationDays = 0;
+      document.querySelectorAll("#pa_form_layout input, #pa_form_layout select, #pa_form_layout textarea").forEach((field) => {
+        if (field.type === "checkbox" || field.type === "radio") field.checked = false;
+        else field.value = "";
+      });
+      fechaField.value = todayValue();
+      document.getElementById("pa_estatus").value = "";
+      syncActionAvailability();
+    }
+
+    function collectActionPayload() {
+      const cambioMotivo = cambioMotivoField.value;
+      return {
+        id_empleado: selectedEmployeeId,
+        fecha: fechaField.value,
+        fecha_efectiva: document.getElementById("pa_fecha_efectiva").value,
+        tipo_accion: tipoAccionField.value,
+        afecta_nomina: document.getElementById("pa_afecta_nomina").checked,
+        comentario: document.getElementById("pa_comentario").value || "",
+        entrada_motivo: entradaMotivoField.value,
+        entrada_nomina: document.getElementById("pa_entrada_nomina").value,
+        motivo_nombramiento: (document.querySelector("[name='pa_motivo_nombramiento']:checked") || {}).value || "",
+        contrato_fecha_inicio: contractStartField.value,
+        contrato_fecha_fin: contractEndField.value,
+        salario_propuesto: document.getElementById("pa_salario_propuesto").value,
+        salida_motivo: document.getElementById("pa_salida_motivo").value,
+        cambio_motivo: cambioMotivo,
+        cambio_departamento: cambioDepartamentoField.value,
+        cambio_cargo: cambioCargoField.value,
+        cambio_nomina: cambioNominaField.value,
+        cambio_salario_propuesto: cambioSalarioPropuestoField.value,
+        fecha_desde: cambioMotivo === "SUSPENCION" ? cambioSuspensionDesdeField.value : cambioMotivo === "VACACIONES" ? cambioVacacionesDesdeField.value : cambioMotivo === "LICENCIA MEDICA" ? cambioLicenciaMedicaDesdeField.value : "",
+        fecha_hasta: cambioMotivo === "SUSPENCION" ? cambioSuspensionHastaField.value : cambioMotivo === "VACACIONES" ? cambioVacacionesHastaField.value : cambioMotivo === "LICENCIA MEDICA" ? cambioLicenciaMedicaHastaField.value : "",
+        cantidad_dias: cambioMotivo === "VACACIONES" ? cambioVacacionesSolicitadosField.value : cambioMotivo === "LICENCIA MEDICA" ? cambioLicenciaMedicaDiasField.value : "",
+      };
+    }
+
+    async function saveAction() {
+      try {
+        const res = await fetch(urls.accionGuardar, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: JSON.stringify(collectActionPayload()),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.detail || "No se pudo guardar la accion.");
+          return;
+        }
+        fillEmployee(data.empleado);
+        fillAction(data.accion);
+        alert("Accion guardada correctamente.");
+      } catch (error) {
+        alert("Error de conexion guardando la accion.");
+      }
+    }
+
+    function openActionModal() {
+      actionBackdrop.classList.add("open");
+      actionBackdrop.setAttribute("aria-hidden", "false");
+      actionSearchInput.focus();
+      fetchActions(actionBody, "");
+    }
+
+    function closeActionModal() {
+      actionBackdrop.classList.remove("open");
+      actionBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function activateTab(status) {
+      tabButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.paTab === status));
+      const showForm = status === "MAESTRO";
+      formLayout.hidden = !showForm;
+      actionsPanel.hidden = showForm;
+      if (!showForm) fetchActions(actionsPanelBody, status === "APROBADAS" ? "" : status);
+    }
+
+    btnNuevo.addEventListener("click", openEmployeeModal);
+    pickButton.addEventListener("click", openEmployeeModal);
+    btnBuscarAccion.addEventListener("click", openActionModal);
+    btnCancelar.addEventListener("click", clearForm);
+    btnGrabar.addEventListener("click", saveAction);
+    tipoAccionField.addEventListener("change", syncTipoAccion);
+    entradaMotivoField.addEventListener("change", syncEntradaMotivo);
+    cambioMotivoField.addEventListener("change", syncCambioMotivo);
+    cambioSalarioPropuestoField.addEventListener("input", calculateSalaryChange);
+    cambioVacacionesDesdeField.addEventListener("change", syncVacationDates);
+    cambioVacacionesHastaField.addEventListener("change", syncVacationDates);
+    cambioLicenciaMedicaDesdeField.addEventListener("change", syncMedicalLeaveDates);
+    cambioLicenciaMedicaHastaField.addEventListener("change", syncMedicalLeaveDates);
+    tabButtons.forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.paTab)));
+    document.getElementById("pa_action_close").addEventListener("click", closeActionModal);
+    document.getElementById("pa_action_search").addEventListener("click", () => fetchActions(actionBody, ""));
+    actionSearchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        fetchActions(actionBody, "");
+      }
+    });
+    actionBackdrop.addEventListener("click", (event) => {
+      if (event.target === actionBackdrop) closeActionModal();
+    });
+    document.getElementById("pa_employee_close").addEventListener("click", closeEmployeeModal);
+    document.getElementById("pa_employee_search").addEventListener("click", fetchEmployees);
+    searchInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        fetchEmployees();
+      }
+    });
+    backdrop.addEventListener("click", (event) => {
+      if (event.target === backdrop) closeEmployeeModal();
+    });
+    fechaField.value = todayValue();
+    syncTipoAccion();
+  })();
+</script>
 {% endblock %}

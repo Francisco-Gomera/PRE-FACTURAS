@@ -69,6 +69,27 @@ def _format_money(value):
     return f"{_to_decimal(value):,.2f}"
 
 
+def _notification_sort_timestamp(value):
+    if not value:
+        return ""
+    if hasattr(value, "hour") and hasattr(value, "minute"):
+        try:
+            return timezone.localtime(value).isoformat()
+        except Exception:
+            return value.isoformat() if hasattr(value, "isoformat") else str(value)
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value).strip()
+
+
+def _notification_id_sort_value(value):
+    text = str(value or "").strip()
+    try:
+        return (1, int(text))
+    except (TypeError, ValueError):
+        return (0, text)
+
+
 def _stringify_doc(value):
     if value is None:
         return ""
@@ -186,6 +207,7 @@ def _serialize_solicitud_existencia(solicitud):
         "item_count": len(items),
         "creado_en": timezone.localtime(solicitud.creado_en).strftime("%d/%m/%Y %I:%M %p") if solicitud.creado_en else "",
         "created_at": timezone.localtime(solicitud.creado_en).strftime("%d/%m/%Y %I:%M %p") if solicitud.creado_en else "",
+        "sort_timestamp": _notification_sort_timestamp(solicitud.creado_en),
         "created_by_name": str(solicitud.creada_por_nombre or "").strip(),
         "created_by_login": str(solicitud.creada_por_login or "").strip(),
         "origin_module": str(solicitud.origen_modulo or "").strip(),
@@ -274,6 +296,7 @@ def _serialize_acuerdo_notification(acuerdo, today):
         "resumen": resumen,
         "items_count": 1,
         "creado_en": compromiso.strftime("%d/%m/%Y"),
+        "sort_timestamp": _notification_sort_timestamp(getattr(acuerdo, "fecha_creacion", None) or compromiso),
         "url": reverse("cobros:acuerdos") + f"?edit={getattr(acuerdo, 'id_acuerdo', '')}",
         "priority": 120 if days_delta > 0 else 110,
     }
@@ -357,6 +380,7 @@ def _load_agreement_payment_notifications(limit=12):
                 "resumen": resumen,
                 "items_count": 1,
                 "creado_en": _fmt_date_flexible(fecha_evento) if fecha_evento else "",
+                "sort_timestamp": _notification_sort_timestamp(fecha_evento),
                 "url": reverse("cobros:acuerdos") + (f"?edit={acuerdo_id}" if acuerdo_id else ""),
                 "priority": 130,
             }
@@ -2115,8 +2139,9 @@ def solicitudes_existencia_resumen_view(request):
     results = sorted(
         visible_results,
         key=lambda item: (
+            str(item.get("sort_timestamp") or ""),
             int(item.get("priority") or (100 if item.get("notification_type") == "stock_request" else 0)),
-            str(item.get("id") or ""),
+            _notification_id_sort_value(item.get("id")),
         ),
         reverse=True,
     )[:12]

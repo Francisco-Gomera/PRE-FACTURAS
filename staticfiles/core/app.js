@@ -215,7 +215,6 @@
   let notificationSocketConnected = false;
   let notificationReconnectHandle = null;
   let notificationPermissionAsked = false;
-  let notificationPermissionPrompt = null;
   let notificationToastHost = null;
   let chatNotificationSocket = null;
   let chatNotificationSocketConnected = false;
@@ -452,6 +451,22 @@
     }
   };
 
+  const parseNotificationSortTime = (item) => {
+    const raw = String(item?.sort_timestamp || item?.created_at_iso || item?.creado_en || item?.created_at || "").trim();
+    if (!raw) return 0;
+    const direct = Date.parse(raw);
+    if (Number.isFinite(direct)) return direct;
+    const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?:\s*([AP]\.?M\.?))?)?/i);
+    if (!match) return 0;
+    let hour = Number(match[4] || 0);
+    const minute = Number(match[5] || 0);
+    const meridian = String(match[6] || "").replace(/\./g, "").toUpperCase();
+    if (meridian === "PM" && hour < 12) hour += 12;
+    if (meridian === "AM" && hour === 12) hour = 0;
+    const parsed = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]), hour, minute).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
   const mergeNotificationResults = (serverPayload) => {
     const payload = serverPayload && typeof serverPayload === "object" ? { ...serverPayload } : { allowed: false, count: 0, results: [] };
     const serverItems = Array.isArray(payload.results) ? payload.results : [];
@@ -463,10 +478,12 @@
       combinedMap.set(key, item);
     });
     const combined = Array.from(combinedMap.values()).sort((a, b) => {
-      const aDate = String(a?.creado_en || a?.created_at || "").trim();
-      const bDate = String(b?.creado_en || b?.created_at || "").trim();
-      if (aDate === bDate) return String(b?.id || "").localeCompare(String(a?.id || ""));
-      return aDate > bDate ? -1 : 1;
+      const timeDiff = parseNotificationSortTime(b) - parseNotificationSortTime(a);
+      if (timeDiff) return timeDiff;
+      const aId = Number(a?.id || 0);
+      const bId = Number(b?.id || 0);
+      if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) return bId - aId;
+      return String(b?.id || "").localeCompare(String(a?.id || ""));
     });
     payload.allowed = Boolean(payload.allowed || localChatItems.length);
     payload.results = combined;
@@ -530,12 +547,12 @@
     if (getNotificationType(item) === "chat_message") {
       const referencia = String(item?.referencia || "").trim();
       const resumen = String(item?.resumen || "").trim();
-      return [referencia, resumen].filter(Boolean).join(" Â· ").slice(0, 240);
+      return [referencia, resumen].filter(Boolean).join(" - ").slice(0, 240);
     }
     const cliente = String(item?.cliente || "").trim();
     const referencia = String(item?.referencia || "").trim();
     const resumen = String(item?.resumen || "").trim();
-    return [cliente, referencia, resumen].filter(Boolean).join(" Â· ").slice(0, 240);
+    return [cliente, referencia, resumen].filter(Boolean).join(" - ").slice(0, 240);
   };
 
   const playIncomingNotificationTone = () => {
@@ -613,71 +630,6 @@
     return Notification.permission || "default";
   };
 
-  const isStandaloneWebApp = () => {
-    try {
-      return window.matchMedia?.("(display-mode: standalone)")?.matches || !!window.navigator?.standalone;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const ensureNotificationPermissionPrompt = () => {
-    if (!notificationMenu || !notificationList) return null;
-    if (notificationPermissionPrompt) return notificationPermissionPrompt;
-    notificationPermissionPrompt = document.createElement("div");
-    notificationPermissionPrompt.className = "topbar-notification-permission";
-    notificationPermissionPrompt.innerHTML = [
-      '<div class="topbar-notification-permission-copy">',
-        '<strong data-notification-permission-title>Activar notificaciones</strong>',
-        '<span data-notification-permission-text>Permite avisos del sistema para recibir mensajes del chat.</span>',
-      "</div>",
-      '<button type="button" data-notification-permission-btn>Activar</button>',
-    ].join("");
-    notificationMenu.insertBefore(notificationPermissionPrompt, notificationList);
-    const button = notificationPermissionPrompt.querySelector("[data-notification-permission-btn]");
-    button?.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const permission = await ensureNotificationPermission({ force: true });
-      updateNotificationPermissionPrompt(permission);
-    });
-    return notificationPermissionPrompt;
-  };
-
-  const updateNotificationPermissionPrompt = (permission) => {
-    const prompt = ensureNotificationPermissionPrompt();
-    if (!prompt) return;
-    permission = permission || notificationPermissionValue();
-    const title = prompt.querySelector("[data-notification-permission-title]");
-    const text = prompt.querySelector("[data-notification-permission-text]");
-    const button = prompt.querySelector("[data-notification-permission-btn]");
-    if (permission === "granted") {
-      prompt.hidden = true;
-      return;
-    }
-    prompt.hidden = false;
-    if (permission === "denied") {
-      if (title) title.textContent = "Notificaciones bloqueadas";
-      if (text) text.textContent = "Activalas desde Configuracion > Notificaciones > CA ERP.";
-      if (button) button.hidden = true;
-      return;
-    }
-    if (permission === "unsupported") {
-      if (title) title.textContent = "Abre la app desde el icono";
-      if (text) text.textContent = isStandaloneWebApp()
-        ? "Este navegador no permite avisos del sistema para esta app."
-        : "En iPhone, abre CA ERP desde la pantalla de inicio para activar avisos.";
-      if (button) button.hidden = true;
-      return;
-    }
-    if (title) title.textContent = "Activar notificaciones";
-    if (text) text.textContent = "Toca Activar y acepta el permiso de iOS para recibir mensajes del chat.";
-    if (button) {
-      button.hidden = false;
-      button.textContent = "Activar";
-    }
-  };
-
   const ensureNotificationPermission = async (options = {}) => {
     if (!("Notification" in window)) return "unsupported";
     if (Notification.permission === "granted" || Notification.permission === "denied") {
@@ -688,13 +640,9 @@
     }
     notificationPermissionAsked = true;
     try {
-      const permission = await Notification.requestPermission();
-      updateNotificationPermissionPrompt(permission);
-      return permission;
+      return await Notification.requestPermission();
     } catch (error) {
-      const permission = Notification.permission || "default";
-      updateNotificationPermissionPrompt(permission);
-      return permission;
+      return Notification.permission || "default";
     }
   };
 
@@ -870,9 +818,9 @@
             `<div class="topbar-notification-meta">${escapeHtml(cliente || (itemType === "chat_message" ? String(item?.sender_name || "Sin remitente").trim() : "Sin cliente"))}</div>` +
             `<div class="topbar-notification-meta">${escapeHtml(referencia || (itemType === "chat_message" ? "Chat Interno" : "Desde facturacion"))}</div>` +
             `<div class="topbar-notification-summary">${escapeHtml(resumen || "Notificacion pendiente.")}</div>` +
-            `<div class="topbar-notification-time">${escapeHtml(created || "")}${isRead ? " Â· Leida" : ""}</div>` +
+            `<div class="topbar-notification-time">${escapeHtml(created || "")}${isRead ? " - Leida" : ""}</div>` +
           `</button>` +
-          `<button type="button" class="topbar-notification-more" data-id="${escapeHtml(itemId)}" data-key="${escapeHtml(itemKey)}" data-type="${escapeHtml(itemType)}" data-delete-mode="${escapeHtml(deleteMode)}" aria-label="Acciones de notificacion">â€¢â€¢â€¢</button>` +
+          `<button type="button" class="topbar-notification-more" data-id="${escapeHtml(itemId)}" data-key="${escapeHtml(itemKey)}" data-type="${escapeHtml(itemType)}" data-delete-mode="${escapeHtml(deleteMode)}" aria-label="Acciones de notificacion">...</button>` +
         `</div>`
       );
     }).join("");
@@ -1347,7 +1295,6 @@
   const openNotifications = async () => {
     if (!notificationMenu || !notificationToggle) return;
     positionNotificationSurfaces();
-    updateNotificationPermissionPrompt();
     notificationsOpen = true;
     notificationMenu.classList.add("open");
     notificationMenu.setAttribute("aria-hidden", "false");

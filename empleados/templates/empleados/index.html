@@ -597,6 +597,7 @@
           </div>
           <div class="emp-row"><label for="emp_supervisor">Supervisor</label><input id="emp_supervisor" data-field="supervisor" maxlength="120" /></div>
           <div class="emp-row"><label for="emp_sucursal">Sucursal</label><input id="emp_sucursal" data-field="sucursal" maxlength="100" /></div>
+          <div class="emp-row"><label for="emp_dias_vacaciones">Dias vacaciones</label><input id="emp_dias_vacaciones" data-field="dias_vacaciones" type="number" min="0" max="120" step="1" /></div>
           <div class="emp-row two">
             <label for="emp_tipo_empleado">Tipo empleado</label>
             <select id="emp_tipo_empleado" data-field="tipo_empleado">
@@ -655,7 +656,7 @@
 
       <div id="emp_panel_nomina" class="emp-general-layout emp-tab-panel" role="tabpanel" hidden>
         <div class="emp-mini-grid">
-          <div class="emp-row"><label for="emp_salario_base">Salario base</label><input id="emp_salario_base" data-field="salario_base" type="number" min="0" step="0.01" /></div>
+          <div class="emp-row"><label for="emp_salario_base">Salario base</label><input id="emp_salario_base" data-field="salario_base" type="number" min="0" step="0.01" readonly aria-readonly="true" tabindex="-1" /></div>
           <div class="emp-row">
             <label for="emp_forma_pago">Forma de pago</label>
             <select id="emp_forma_pago" data-field="forma_pago">
@@ -871,7 +872,7 @@
     const fields = Array.from(form.querySelectorAll("[data-field]"));
     const tabButtons = Array.from(document.querySelectorAll("[data-tab-target]"));
     const tabPanels = Array.from(document.querySelectorAll(".emp-tab-panel"));
-    const readonlyMasterFields = ["id_empleado", "estado", "fecha_ingreso"];
+    const readonlyMasterFields = ["id_empleado", "estado", "fecha_ingreso", "salario_base"];
     const editableFields = fields.filter((field) => !readonlyMasterFields.includes(field.dataset.field));
     const btnNuevo = document.getElementById("btn_emp_nuevo");
     const btnBuscar = document.getElementById("btn_emp_buscar");
@@ -1283,10 +1284,6 @@
           setStatus(message, "error");
           return;
         }
-      }
-      if (String(payload.salario_base || "").trim() && !isNumericValue(payload.salario_base)) {
-        setStatus("El salario base solo acepta valores numericos.", "error");
-        return;
       }
       if (String(payload.cuenta_bancaria || "").trim() && !isDigitsOnly(payload.cuenta_bancaria)) {
         setStatus("La cuenta bancaria solo acepta valores numericos.", "error");

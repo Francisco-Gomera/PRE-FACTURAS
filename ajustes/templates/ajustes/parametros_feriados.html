@@ -1,0 +1,203 @@
+{% extends "core/base.html" %}
+
+{% block head_extra %}
+<style>
+  .holiday-page {
+    display: grid;
+    gap: 14px;
+  }
+
+  .holiday-toolbar,
+  .holiday-form,
+  .holiday-table-wrap {
+    border: 1px solid #d8e2ef;
+    border-radius: 8px;
+    background: #fff;
+    padding: 12px;
+  }
+
+  .holiday-toolbar,
+  .holiday-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: end;
+  }
+
+  .holiday-field {
+    display: grid;
+    gap: 4px;
+  }
+
+  .holiday-field label {
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .holiday-field input {
+    height: 32px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 5px 8px;
+    font: inherit;
+    font-size: 13px;
+  }
+
+  .holiday-check {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    min-height: 32px;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .holiday-btn {
+    min-width: 92px;
+    height: 32px;
+    border: 1px solid #0f6edc;
+    border-radius: 7px;
+    background: #0f6edc;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+    text-decoration: none;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+
+  .holiday-btn.secondary {
+    border-color: #cbd5e1;
+    background: #e7eef8;
+    color: #123b65;
+  }
+
+  .holiday-status {
+    color: #0f6d63;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .holiday-status.error {
+    color: #b42318;
+  }
+
+  .holiday-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .holiday-table th,
+  .holiday-table td {
+    padding: 8px;
+    border-bottom: 1px solid #e5edf6;
+    text-align: left;
+    font-size: 12px;
+    vertical-align: middle;
+  }
+
+  .holiday-table th {
+    color: #334155;
+    background: #f8fbff;
+    font-size: 11px;
+    text-transform: uppercase;
+  }
+
+  .holiday-table input[type="date"],
+  .holiday-table input[type="text"] {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 4px 7px;
+    font: inherit;
+    font-size: 12px;
+  }
+
+  @media (max-width: 760px) {
+    .holiday-table-wrap {
+      overflow-x: auto;
+    }
+
+    .holiday-table {
+      min-width: 760px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="holiday-page">
+  <div>
+    <h2 class="page-title">Feriados nacionales</h2>
+    <p class="page-subtitle">Fechas no laborables usadas para calcular vacaciones.</p>
+  </div>
+
+  <form class="holiday-toolbar" method="get">
+    <div class="holiday-field">
+      <label for="holiday_year">Ano</label>
+      <input id="holiday_year" type="number" name="year" min="1900" max="2100" value="{{ year }}" />
+    </div>
+    <button class="holiday-btn secondary" type="submit">Filtrar</button>
+    <a class="holiday-btn secondary" href="{% url 'ajustes:parametros' %}">Volver</a>
+    {% if status == "ok" %}
+    <span class="holiday-status">Feriado guardado.</span>
+    {% elif status %}
+    <span class="holiday-status error">No se pudo guardar. Revisa la fecha y evita duplicados.</span>
+    {% endif %}
+  </form>
+
+  <form class="holiday-form" method="post" action="{% url 'ajustes:guardar_feriado' %}">
+    {% csrf_token %}
+    <div class="holiday-field">
+      <label for="new_holiday_fecha">Fecha</label>
+      <input id="new_holiday_fecha" type="date" name="fecha" required />
+    </div>
+    <div class="holiday-field" style="flex: 1 1 260px;">
+      <label for="new_holiday_descripcion">Descripcion</label>
+      <input id="new_holiday_descripcion" type="text" name="descripcion" maxlength="160" required />
+    </div>
+    <label class="holiday-check"><input type="checkbox" name="no_laborable" checked /> No laborable</label>
+    <label class="holiday-check"><input type="checkbox" name="activo" checked /> Activo</label>
+    <button class="holiday-btn" type="submit">Agregar</button>
+  </form>
+
+  <div class="holiday-table-wrap">
+    <table class="holiday-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Descripcion</th>
+          <th>No laborable</th>
+          <th>Activo</th>
+          <th>Accion</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for feriado in feriados %}
+        <tr>
+          <td><input form="holiday_form_{{ feriado.id_feriado }}" type="date" name="fecha" value="{{ feriado.fecha|date:'Y-m-d' }}" required /></td>
+          <td><input form="holiday_form_{{ feriado.id_feriado }}" type="text" name="descripcion" value="{{ feriado.descripcion }}" maxlength="160" required /></td>
+          <td><input form="holiday_form_{{ feriado.id_feriado }}" type="checkbox" name="no_laborable" {% if feriado.no_laborable %}checked{% endif %} /></td>
+          <td><input form="holiday_form_{{ feriado.id_feriado }}" type="checkbox" name="activo" {% if feriado.activo %}checked{% endif %} /></td>
+          <td>
+            <form id="holiday_form_{{ feriado.id_feriado }}" method="post" action="{% url 'ajustes:guardar_feriado' %}">
+              {% csrf_token %}
+              <input type="hidden" name="id_feriado" value="{{ feriado.id_feriado }}" />
+              <button class="holiday-btn" type="submit">Guardar</button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5">No hay feriados registrados para este ano.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

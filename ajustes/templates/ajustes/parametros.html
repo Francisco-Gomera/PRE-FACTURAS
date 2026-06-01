@@ -26,5 +26,12 @@
     <a href="{% url 'ajustes:parametros_sectores' %}">Gestionar sectores</a>
   </div>
   {% endif %}
+  {% if submodules.feriados %}
+  <div class="info-card">
+    <h3>Feriados nacionales</h3>
+    <p>Fechas no laborables usadas para calcular vacaciones y acciones de personal.</p>
+    <a href="{% url 'ajustes:parametros_feriados' %}">Gestionar feriados</a>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

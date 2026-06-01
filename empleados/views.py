@@ -1,18 +1,20 @@
 import json
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from datetime import datetime
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_http_methods
 
 from ajustes.permissions import has_perm
+from ajustes.models import FeriadoNacional
 from core.views import _base_context, render_denied
 from inventario.views import _load_departamento_rows
 
-from .models import EmpleadoEstudio, EmpleadoExperienciaLaboral, EmpleadoNomina
+from .models import EmpleadoAccionPersonal, EmpleadoEstudio, EmpleadoExperienciaLaboral, EmpleadoNomina
 
 
 DATE_FIELDS = {"fecha_nacimiento"}
@@ -77,6 +79,7 @@ def _employee_payload(record):
     for field in TEXT_FIELDS:
         data[field] = getattr(record, field) or ""
     data["salario_base"] = str(record.salario_base) if record.salario_base is not None else ""
+    data["dias_vacaciones"] = record.dias_vacaciones or 0
     data["estado"] = record.estado or ""
     for field in DATE_FIELDS:
         value = getattr(record, field)
@@ -123,13 +126,195 @@ def _parse_date(value):
 
 
 def _parse_decimal(value):
-    text = str(value or "").strip().replace(",", "")
+    text = str(value or "").replace(",", "").strip()
     if not text:
         return None
     try:
         return Decimal(text)
-    except InvalidOperation:
+    except (InvalidOperation, ValueError):
         return None
+
+
+def _parse_int(value):
+    try:
+        return int(str(value or "").strip())
+    except (TypeError, ValueError):
+        return 0
+
+
+def _is_active_employee(record):
+    return str(record.estado or "").strip().upper() == "ACTIVO"
+
+
+def _fmt_date(value):
+    return value.strftime("%Y-%m-%d") if value else ""
+
+
+def _fmt_decimal(value):
+    return str(value) if value is not None else ""
+
+
+def _accion_payload(record):
+    empleado = record.empleado
+    return {
+        "id_accion": record.id_accion,
+        "id_empleado": empleado.id_empleado,
+        "empleado_codigo": empleado.codigo,
+        "empleado_nombre": f"{empleado.nombres} {empleado.apellidos}".strip(),
+        "fecha": _fmt_date(record.fecha),
+        "fecha_efectiva": _fmt_date(record.fecha_efectiva),
+        "estatus": record.estatus,
+        "tipo_accion": record.tipo_accion,
+        "afecta_nomina": bool(record.afecta_nomina),
+        "aplicado": bool(record.aplicado),
+        "comentario": record.comentario or "",
+        "entrada_motivo": record.entrada_motivo or "",
+        "entrada_nomina": record.entrada_nomina or "",
+        "motivo_nombramiento": record.motivo_nombramiento or "",
+        "contrato_fecha_inicio": _fmt_date(record.contrato_fecha_inicio),
+        "contrato_fecha_fin": _fmt_date(record.contrato_fecha_fin),
+        "salario_propuesto": _fmt_decimal(record.salario_propuesto),
+        "salida_motivo": record.salida_motivo or "",
+        "cambio_motivo": record.cambio_motivo or "",
+        "cambio_departamento": record.cambio_departamento or "",
+        "cambio_cargo": record.cambio_cargo or "",
+        "cambio_nomina": record.cambio_nomina or "",
+        "cambio_salario_actual": _fmt_decimal(record.cambio_salario_actual),
+        "cambio_salario_propuesto": _fmt_decimal(record.cambio_salario_propuesto),
+        "cambio_porcentaje": _fmt_decimal(record.cambio_porcentaje),
+        "cambio_diferencia": _fmt_decimal(record.cambio_diferencia),
+        "fecha_desde": _fmt_date(record.fecha_desde),
+        "fecha_hasta": _fmt_date(record.fecha_hasta),
+        "cantidad_dias": record.cantidad_dias or "",
+    }
+
+
+def _accion_list_payload(record):
+    return {
+        "id_accion": record.id_accion,
+        "fecha": _fmt_date(record.fecha),
+        "fecha_efectiva": _fmt_date(record.fecha_efectiva),
+        "estatus": record.estatus,
+        "tipo_accion": record.tipo_accion,
+        "motivo": record.entrada_motivo or record.salida_motivo or record.cambio_motivo or "",
+        "empleado": f"{record.empleado.codigo} - {record.empleado.nombres} {record.empleado.apellidos}".strip(),
+    }
+
+
+def _apply_personal_action(record):
+    empleado = record.empleado
+    if record.tipo_accion == EmpleadoAccionPersonal.TIPO_ENTRADA:
+        empleado.estado = "Activo"
+        if record.salario_propuesto is not None:
+            empleado.salario_base = record.salario_propuesto
+        if record.fecha_efectiva:
+            empleado.fecha_ingreso = record.fecha_efectiva
+    elif record.tipo_accion == EmpleadoAccionPersonal.TIPO_SALIDA:
+        empleado.estado = "Inactivo"
+    elif record.tipo_accion == EmpleadoAccionPersonal.TIPO_CAMBIO:
+        if record.cambio_departamento:
+            empleado.departamento = record.cambio_departamento
+        if record.cambio_cargo:
+            empleado.cargo = record.cambio_cargo
+        if record.cambio_salario_propuesto is not None:
+            empleado.salario_base = record.cambio_salario_propuesto
+    empleado.save()
+
+
+def _clean_action_payload(payload, empleado):
+    tipo_accion = str(payload.get("tipo_accion") or "").strip().upper()
+    fecha = _parse_date(payload.get("fecha")) or timezone.localdate()
+    fecha_efectiva = _parse_date(payload.get("fecha_efectiva"))
+    if not fecha_efectiva:
+        raise ValueError("Debe indicar una fecha efectiva.")
+    if tipo_accion not in {
+        EmpleadoAccionPersonal.TIPO_ENTRADA,
+        EmpleadoAccionPersonal.TIPO_CAMBIO,
+        EmpleadoAccionPersonal.TIPO_SALIDA,
+    }:
+        raise ValueError("Debe seleccionar un tipo de accion.")
+
+    empleado_activo = _is_active_employee(empleado)
+    if empleado_activo and tipo_accion == EmpleadoAccionPersonal.TIPO_ENTRADA:
+        raise ValueError("Un empleado activo solo permite acciones de Cambio o Salida.")
+    if not empleado_activo and tipo_accion != EmpleadoAccionPersonal.TIPO_ENTRADA:
+        raise ValueError("Un empleado inactivo solo permite acciones de Entrada.")
+
+    today = timezone.localdate()
+    estatus = (
+        EmpleadoAccionPersonal.ESTATUS_PENDIENTE
+        if fecha_efectiva <= today
+        else EmpleadoAccionPersonal.ESTATUS_APLICADA
+    )
+    data = {
+        "fecha": fecha,
+        "fecha_efectiva": fecha_efectiva,
+        "estatus": estatus,
+        "tipo_accion": tipo_accion,
+        "afecta_nomina": bool(payload.get("afecta_nomina")),
+        "aplicado": estatus == EmpleadoAccionPersonal.ESTATUS_APLICADA,
+        "comentario": str(payload.get("comentario") or "").strip(),
+    }
+
+    if tipo_accion == EmpleadoAccionPersonal.TIPO_ENTRADA:
+        data.update(
+            {
+                "entrada_motivo": str(payload.get("entrada_motivo") or "").strip(),
+                "entrada_nomina": str(payload.get("entrada_nomina") or "").strip(),
+                "motivo_nombramiento": str(payload.get("motivo_nombramiento") or "").strip(),
+                "contrato_fecha_inicio": _parse_date(payload.get("contrato_fecha_inicio")),
+                "contrato_fecha_fin": _parse_date(payload.get("contrato_fecha_fin")),
+                "salario_propuesto": _parse_decimal(payload.get("salario_propuesto")),
+            }
+        )
+        if not data["entrada_motivo"]:
+            raise ValueError("Debe seleccionar el motivo de entrada.")
+        if data["entrada_motivo"] == "CONTRATO" and (not data["contrato_fecha_inicio"] or not data["contrato_fecha_fin"]):
+            raise ValueError("Debe indicar inicio y fin del contrato.")
+    elif tipo_accion == EmpleadoAccionPersonal.TIPO_SALIDA:
+        data["salida_motivo"] = str(payload.get("salida_motivo") or "").strip()
+        if not data["salida_motivo"]:
+            raise ValueError("Debe seleccionar el motivo de salida.")
+    else:
+        motivo = str(payload.get("cambio_motivo") or "").strip()
+        data["cambio_motivo"] = motivo
+        if not motivo:
+            raise ValueError("Debe seleccionar el motivo del cambio.")
+        if motivo in {"TRASLADO", "PROMOCION"}:
+            data["cambio_departamento"] = str(payload.get("cambio_departamento") or "").strip()
+            data["cambio_cargo"] = str(payload.get("cambio_cargo") or "").strip()
+            data["cambio_nomina"] = str(payload.get("cambio_nomina") or "").strip()
+        if motivo in {"AUMENTO DE SALARIO", "PROMOCION"}:
+            proposed = _parse_decimal(payload.get("cambio_salario_propuesto"))
+            current = empleado.salario_base or Decimal("0")
+            if proposed is None:
+                raise ValueError("Debe indicar el salario propuesto.")
+            data["cambio_salario_actual"] = current
+            data["cambio_salario_propuesto"] = proposed
+            data["cambio_diferencia"] = proposed - current
+            data["cambio_porcentaje"] = ((proposed - current) / current * Decimal("100")) if current else None
+        if motivo in {"CAMBIO DE NOMINA", "SUSPENCION", "VACACIONES"}:
+            data["cambio_nomina"] = str(payload.get("cambio_nomina") or "").strip()
+        if motivo == "SUSPENCION":
+            data["fecha_desde"] = _parse_date(payload.get("fecha_desde"))
+            data["fecha_hasta"] = _parse_date(payload.get("fecha_hasta"))
+            if not data["fecha_desde"] or not data["fecha_hasta"]:
+                raise ValueError("Debe indicar las fechas de suspension.")
+        if motivo == "VACACIONES":
+            data["fecha_desde"] = _parse_date(payload.get("fecha_desde"))
+            data["fecha_hasta"] = _parse_date(payload.get("fecha_hasta"))
+            data["cantidad_dias"] = _parse_int(payload.get("cantidad_dias"))
+            if not data["fecha_desde"] or not data["fecha_hasta"]:
+                raise ValueError("Debe indicar las fechas de vacaciones.")
+            if data["cantidad_dias"] > (empleado.dias_vacaciones or 0):
+                raise ValueError("Los dias solicitados superan los dias disponibles.")
+        if motivo == "LICENCIA MEDICA":
+            data["fecha_desde"] = _parse_date(payload.get("fecha_desde"))
+            data["fecha_hasta"] = _parse_date(payload.get("fecha_hasta"))
+            data["cantidad_dias"] = _parse_int(payload.get("cantidad_dias"))
+            if not data["fecha_desde"] or not data["fecha_hasta"]:
+                raise ValueError("Debe indicar las fechas de licencia medica.")
+    return data
 
 
 def _clean_estudios(raw_items):
@@ -233,6 +418,9 @@ def acciones_personal(request):
     if denied:
         return denied
     ctx["page_title"] = "Acciones de Personal"
+    ctx["departamentos"] = _load_departamento_rows()
+    holiday_dates = FeriadoNacional.objects.filter(activo=True, no_laborable=True).values_list("fecha", flat=True)
+    ctx["national_holidays_json"] = json.dumps([item.strftime("%Y-%m-%d") for item in holiday_dates])
     return render(request, "empleados/acciones_personal.html", ctx)
 
 
@@ -281,6 +469,73 @@ def detalle(request, empleado_id):
     return JsonResponse({"empleado": _employee_payload(record)})
 
 
+@require_http_methods(["GET"])
+def acciones_personal_listar(request):
+    ctx, denied = _require_empleados_perm(request, "ver")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso para consultar acciones."}, status=403)
+    estatus = str(request.GET.get("estatus") or "").strip().upper()
+    query = str(request.GET.get("q") or "").strip()
+    records = EmpleadoAccionPersonal.objects.select_related("empleado").all()
+    if estatus in {
+        EmpleadoAccionPersonal.ESTATUS_PENDIENTE,
+        EmpleadoAccionPersonal.ESTATUS_APLICADA,
+        EmpleadoAccionPersonal.ESTATUS_CANCELADA,
+    }:
+        records = records.filter(estatus=estatus)
+    if query:
+        records = records.filter(
+            Q(empleado__codigo__icontains=query)
+            | Q(empleado__nombres__icontains=query)
+            | Q(empleado__apellidos__icontains=query)
+            | Q(tipo_accion__icontains=query)
+            | Q(entrada_motivo__icontains=query)
+            | Q(salida_motivo__icontains=query)
+            | Q(cambio_motivo__icontains=query)
+        )
+    records = records.order_by("-fecha", "-id_accion")[:200]
+    return JsonResponse({"results": [_accion_list_payload(item) for item in records]})
+
+
+@require_http_methods(["GET"])
+def acciones_personal_detalle(request, accion_id):
+    ctx, denied = _require_empleados_perm(request, "ver")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso para consultar acciones."}, status=403)
+    record = EmpleadoAccionPersonal.objects.select_related("empleado").filter(id_accion=accion_id).first()
+    if not record:
+        return JsonResponse({"detail": "Accion no encontrada."}, status=404)
+    return JsonResponse({"accion": _accion_payload(record), "empleado": _employee_payload(record.empleado)})
+
+
+@require_http_methods(["POST"])
+def acciones_personal_guardar(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "JSON invalido."}, status=400)
+    ctx, denied = _require_empleados_perm(request, "crear")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso para guardar acciones."}, status=403)
+    empleado_id = _parse_int(payload.get("id_empleado"))
+    empleado = EmpleadoNomina.objects.filter(id_empleado=empleado_id).first()
+    if not empleado:
+        return JsonResponse({"detail": "Debe seleccionar un empleado."}, status=400)
+    try:
+        data = _clean_action_payload(payload, empleado)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    try:
+        with transaction.atomic():
+            record = EmpleadoAccionPersonal.objects.create(empleado=empleado, **data)
+            if record.aplicado:
+                _apply_personal_action(record)
+                record.empleado.refresh_from_db()
+    except Exception as exc:
+        return JsonResponse({"detail": f"No se pudo guardar la accion: {exc}"}, status=500)
+    return JsonResponse({"ok": True, "accion": _accion_payload(record), "empleado": _employee_payload(record.empleado)})
+
+
 @require_http_methods(["POST"])
 def guardar(request):
     try:
@@ -306,6 +561,12 @@ def guardar(request):
     if cuenta_bancaria and not cuenta_bancaria.isdigit():
         return JsonResponse({"detail": "La cuenta bancaria solo acepta valores numericos."}, status=400)
     try:
+        dias_vacaciones = int(payload.get("dias_vacaciones") or 0)
+    except (TypeError, ValueError):
+        return JsonResponse({"detail": "Los dias de vacaciones deben ser un valor numerico."}, status=400)
+    if dias_vacaciones < 0 or dias_vacaciones > 120:
+        return JsonResponse({"detail": "Los dias de vacaciones deben estar entre 0 y 120."}, status=400)
+    try:
         estudios = _clean_estudios(payload.get("estudios"))
         experiencias = _clean_experiencias(payload.get("experiencias_laborales"))
     except ValueError as exc:
@@ -324,13 +585,7 @@ def guardar(request):
         setattr(record, field, value)
     for field in DATE_FIELDS:
         setattr(record, field, _parse_date(payload.get(field)))
-    salario_text = str(payload.get("salario_base") or "").strip()
-    salario_base = _parse_decimal(salario_text)
-    if salario_text and salario_base is None:
-        return JsonResponse({"detail": "El salario base debe ser un numero valido."}, status=400)
-    if salario_base is not None and salario_base < 0:
-        return JsonResponse({"detail": "El salario base no puede ser negativo."}, status=400)
-    record.salario_base = salario_base
+    record.dias_vacaciones = dias_vacaciones
     record.poncha = bool(payload.get("poncha"))
     horarios = payload.get("horarios") if isinstance(payload.get("horarios"), dict) else {}
     if record.poncha and not _has_any_schedule(horarios):

@@ -485,52 +485,6 @@ button {
   font-size: 12px;
 }
 
-.topbar-notification-permission {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 10px 0;
-  padding: 10px;
-  border: 1px solid #c9d9ef;
-  border-radius: 12px;
-  background: #f4f8ff;
-  color: #294a75;
-}
-
-.topbar-notification-permission[hidden] {
-  display: none;
-}
-
-.topbar-notification-permission-copy {
-  min-width: 0;
-  display: grid;
-  gap: 3px;
-}
-
-.topbar-notification-permission-copy strong {
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-.topbar-notification-permission-copy span {
-  font-size: 11px;
-  line-height: 1.35;
-  color: #5f7699;
-}
-
-.topbar-notification-permission button {
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #0f6edc;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
 .topbar-notification-list {
   display: grid;
   gap: 8px;

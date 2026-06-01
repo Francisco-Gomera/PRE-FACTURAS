@@ -173,6 +173,20 @@ class FormatoImpresionConfig(models.Model):
         ordering = ["documento"]
 
 
+class FeriadoNacional(models.Model):
+    id_feriado = models.AutoField(db_column="ID_FERIADO", primary_key=True)
+    fecha = models.DateField(db_column="FECHA", unique=True)
+    descripcion = models.CharField(db_column="DESCRIPCION", max_length=160)
+    no_laborable = models.BooleanField(db_column="NO_LABORABLE", default=True)
+    activo = models.BooleanField(db_column="ACTIVO", default=True)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "AJUSTE_FERIADO_NACIONAL"
+        ordering = ["fecha"]
+
+
 class FacturacionElectronicaConfig(models.Model):
     id_config = models.AutoField(db_column="ID_CONFIG", primary_key=True)
     habilitado = models.BooleanField(db_column="HABILITADO", default=False)

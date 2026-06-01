@@ -24,6 +24,7 @@ from .models import (
     FacturacionElectronicaDocumento,
     FacturacionElectronicaEvento,
     FacturacionElectronicaSecuencia,
+    FeriadoNacional,
     FormatoImpresionConfig,
     ImpresoraConfig,
     SegModulo,
@@ -810,10 +811,70 @@ def parametros_view(request):
         "empresa": puede_ver_parametros or has_perm(usuario_id, "ajustes", "ver_parametros_empresa"),
         "sistema_impresion": puede_ver_parametros or has_perm(usuario_id, "ajustes", "ver_parametros_sistema"),
         "sectores": puede_ver_parametros or has_perm(usuario_id, "ajustes", "ver_sectores"),
+        "feriados": puede_ver_parametros,
     }
     if not (puede_ver_parametros or any(ctx["submodules"].values())):
         return render_denied(request, active_nav="ajustes")
     return render(request, "ajustes/parametros.html", ctx)
+
+
+def parametros_feriados_view(request):
+    ctx = _base_context(request, page_title="Parametros - Feriados nacionales", active_nav="ajustes")
+    if not ctx:
+        return redirect("login")
+    usuario_id = ctx["auth_payload"]["usuario_id"]
+    if not has_perm(usuario_id, "ajustes", "ver_parametros"):
+        return render_denied(request, active_nav="ajustes")
+    year = _to_int(request.GET.get("year"), timezone.localdate().year)
+    if year < 1900 or year > 2100:
+        year = timezone.localdate().year
+    ctx["year"] = year
+    ctx["feriados"] = FeriadoNacional.objects.filter(fecha__year=year).order_by("fecha")
+    ctx["status"] = request.GET.get("status", "")
+    return render(request, "ajustes/parametros_feriados.html", ctx)
+
+
+@require_http_methods(["POST"])
+def guardar_feriado_view(request):
+    ctx = _base_context(request, page_title="Parametros - Feriados nacionales", active_nav="ajustes")
+    if not ctx:
+        return redirect("login")
+    usuario_id = ctx["auth_payload"]["usuario_id"]
+    if not has_perm(usuario_id, "ajustes", "ver_parametros"):
+        return render_denied(request, active_nav="ajustes")
+    feriado_id = _to_int(request.POST.get("id_feriado"), 0)
+    fecha_text = (request.POST.get("fecha") or "").strip()
+    descripcion = (request.POST.get("descripcion") or "").strip()
+    year = timezone.localdate().year
+    try:
+        fecha = datetime.strptime(fecha_text, "%Y-%m-%d").date()
+        year = fecha.year
+    except ValueError:
+        return redirect(f"{reverse('ajustes:parametros_feriados')}?status=fecha")
+    if not descripcion:
+        return redirect(f"{reverse('ajustes:parametros_feriados')}?year={year}&status=descripcion")
+    no_laborable = bool(request.POST.get("no_laborable"))
+    activo = bool(request.POST.get("activo"))
+    try:
+        if feriado_id:
+            feriado = FeriadoNacional.objects.filter(id_feriado=feriado_id).first()
+            if not feriado:
+                return redirect(f"{reverse('ajustes:parametros_feriados')}?year={year}&status=notfound")
+            feriado.fecha = fecha
+            feriado.descripcion = descripcion
+            feriado.no_laborable = no_laborable
+            feriado.activo = activo
+            feriado.save()
+        else:
+            FeriadoNacional.objects.create(
+                fecha=fecha,
+                descripcion=descripcion,
+                no_laborable=no_laborable,
+                activo=activo,
+            )
+    except Exception:
+        return redirect(f"{reverse('ajustes:parametros_feriados')}?year={year}&status=duplicado")
+    return redirect(f"{reverse('ajustes:parametros_feriados')}?year={year}&status=ok")
 
 
 def _load_formatos_impresion():

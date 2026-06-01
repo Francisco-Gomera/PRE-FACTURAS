@@ -30,6 +30,7 @@ class EmpleadoNomina(models.Model):
     clase_empleado = models.CharField(db_column="CLASE_EMPLEADO", max_length=30, blank=True)
     departamento = models.CharField(db_column="DEPARTAMENTO", max_length=100, blank=True)
     cargo = models.CharField(db_column="CARGO", max_length=80, blank=True)
+    dias_vacaciones = models.PositiveSmallIntegerField(db_column="DIAS_VACACIONES", default=0)
     supervisor = models.CharField(db_column="SUPERVISOR", max_length=120, blank=True)
     sucursal = models.CharField(db_column="SUCURSAL", max_length=100, blank=True)
     tipo_empleado = models.CharField(db_column="TIPO_EMPLEADO", max_length=30, blank=True)
@@ -92,3 +93,55 @@ class EmpleadoExperienciaLaboral(models.Model):
     class Meta:
         db_table = "EMPLEADO_EXPERIENCIA_LABORAL"
         ordering = ["desde", "id_experiencia"]
+
+
+class EmpleadoAccionPersonal(models.Model):
+    ESTATUS_PENDIENTE = "PENDIENTE"
+    ESTATUS_APLICADA = "APLICADA"
+    ESTATUS_CANCELADA = "CANCELADA"
+    TIPO_ENTRADA = "ENTRADA"
+    TIPO_CAMBIO = "CAMBIO"
+    TIPO_SALIDA = "SALIDA"
+
+    id_accion = models.AutoField(db_column="ID_ACCION", primary_key=True)
+    empleado = models.ForeignKey(
+        EmpleadoNomina,
+        db_column="ID_EMPLEADO",
+        on_delete=models.PROTECT,
+        related_name="acciones_personal",
+    )
+    fecha = models.DateField(db_column="FECHA")
+    fecha_efectiva = models.DateField(db_column="FECHA_EFECTIVA")
+    estatus = models.CharField(db_column="ESTATUS", max_length=20, default=ESTATUS_PENDIENTE)
+    tipo_accion = models.CharField(db_column="TIPO_ACCION", max_length=20)
+    afecta_nomina = models.BooleanField(db_column="AFECTA_NOMINA", default=False)
+    aplicado = models.BooleanField(db_column="APLICADO", default=False)
+    comentario = models.TextField(db_column="COMENTARIO", blank=True)
+
+    entrada_motivo = models.CharField(db_column="ENTRADA_MOTIVO", max_length=80, blank=True)
+    entrada_nomina = models.CharField(db_column="ENTRADA_NOMINA", max_length=80, blank=True)
+    motivo_nombramiento = models.CharField(db_column="MOTIVO_NOMBRAMIENTO", max_length=80, blank=True)
+    contrato_fecha_inicio = models.DateField(db_column="CONTRATO_FECHA_INICIO", blank=True, null=True)
+    contrato_fecha_fin = models.DateField(db_column="CONTRATO_FECHA_FIN", blank=True, null=True)
+    salario_propuesto = models.DecimalField(db_column="SALARIO_PROPUESTO", max_digits=12, decimal_places=2, blank=True, null=True)
+
+    salida_motivo = models.CharField(db_column="SALIDA_MOTIVO", max_length=80, blank=True)
+
+    cambio_motivo = models.CharField(db_column="CAMBIO_MOTIVO", max_length=80, blank=True)
+    cambio_departamento = models.CharField(db_column="CAMBIO_DEPARTAMENTO", max_length=100, blank=True)
+    cambio_cargo = models.CharField(db_column="CAMBIO_CARGO", max_length=80, blank=True)
+    cambio_nomina = models.CharField(db_column="CAMBIO_NOMINA", max_length=80, blank=True)
+    cambio_salario_actual = models.DecimalField(db_column="CAMBIO_SALARIO_ACTUAL", max_digits=12, decimal_places=2, blank=True, null=True)
+    cambio_salario_propuesto = models.DecimalField(db_column="CAMBIO_SALARIO_PROPUESTO", max_digits=12, decimal_places=2, blank=True, null=True)
+    cambio_porcentaje = models.DecimalField(db_column="CAMBIO_PORCENTAJE", max_digits=8, decimal_places=2, blank=True, null=True)
+    cambio_diferencia = models.DecimalField(db_column="CAMBIO_DIFERENCIA", max_digits=12, decimal_places=2, blank=True, null=True)
+    fecha_desde = models.DateField(db_column="FECHA_DESDE", blank=True, null=True)
+    fecha_hasta = models.DateField(db_column="FECHA_HASTA", blank=True, null=True)
+    cantidad_dias = models.PositiveSmallIntegerField(db_column="CANTIDAD_DIAS", blank=True, null=True)
+
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "EMPLEADO_ACCION_PERSONAL"
+        ordering = ["-fecha", "-id_accion"]
