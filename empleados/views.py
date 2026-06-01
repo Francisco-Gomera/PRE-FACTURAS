@@ -228,6 +228,14 @@ def maestro(request):
     return render(request, "empleados/index.html", ctx)
 
 
+def acciones_personal(request):
+    ctx, denied = _require_empleados_perm(request, "ver")
+    if denied:
+        return denied
+    ctx["page_title"] = "Acciones de Personal"
+    return render(request, "empleados/acciones_personal.html", ctx)
+
+
 @require_http_methods(["GET"])
 def buscar(request):
     ctx, denied = _require_empleados_perm(request, "ver")

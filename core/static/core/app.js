@@ -215,6 +215,7 @@
   let notificationSocketConnected = false;
   let notificationReconnectHandle = null;
   let notificationPermissionAsked = false;
+  let notificationPermissionPrompt = null;
   let notificationToastHost = null;
   let chatNotificationSocket = null;
   let chatNotificationSocketConnected = false;
@@ -607,24 +608,98 @@
     }, 5200);
   };
 
-  const ensureNotificationPermission = async () => {
+  const notificationPermissionValue = () => {
+    if (!("Notification" in window)) return "unsupported";
+    return Notification.permission || "default";
+  };
+
+  const isStandaloneWebApp = () => {
+    try {
+      return window.matchMedia?.("(display-mode: standalone)")?.matches || !!window.navigator?.standalone;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  const ensureNotificationPermissionPrompt = () => {
+    if (!notificationMenu || !notificationList) return null;
+    if (notificationPermissionPrompt) return notificationPermissionPrompt;
+    notificationPermissionPrompt = document.createElement("div");
+    notificationPermissionPrompt.className = "topbar-notification-permission";
+    notificationPermissionPrompt.innerHTML = [
+      '<div class="topbar-notification-permission-copy">',
+        '<strong data-notification-permission-title>Activar notificaciones</strong>',
+        '<span data-notification-permission-text>Permite avisos del sistema para recibir mensajes del chat.</span>',
+      "</div>",
+      '<button type="button" data-notification-permission-btn>Activar</button>',
+    ].join("");
+    notificationMenu.insertBefore(notificationPermissionPrompt, notificationList);
+    const button = notificationPermissionPrompt.querySelector("[data-notification-permission-btn]");
+    button?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const permission = await ensureNotificationPermission({ force: true });
+      updateNotificationPermissionPrompt(permission);
+    });
+    return notificationPermissionPrompt;
+  };
+
+  const updateNotificationPermissionPrompt = (permission) => {
+    const prompt = ensureNotificationPermissionPrompt();
+    if (!prompt) return;
+    permission = permission || notificationPermissionValue();
+    const title = prompt.querySelector("[data-notification-permission-title]");
+    const text = prompt.querySelector("[data-notification-permission-text]");
+    const button = prompt.querySelector("[data-notification-permission-btn]");
+    if (permission === "granted") {
+      prompt.hidden = true;
+      return;
+    }
+    prompt.hidden = false;
+    if (permission === "denied") {
+      if (title) title.textContent = "Notificaciones bloqueadas";
+      if (text) text.textContent = "Activalas desde Configuracion > Notificaciones > CA ERP.";
+      if (button) button.hidden = true;
+      return;
+    }
+    if (permission === "unsupported") {
+      if (title) title.textContent = "Abre la app desde el icono";
+      if (text) text.textContent = isStandaloneWebApp()
+        ? "Este navegador no permite avisos del sistema para esta app."
+        : "En iPhone, abre CA ERP desde la pantalla de inicio para activar avisos.";
+      if (button) button.hidden = true;
+      return;
+    }
+    if (title) title.textContent = "Activar notificaciones";
+    if (text) text.textContent = "Toca Activar y acepta el permiso de iOS para recibir mensajes del chat.";
+    if (button) {
+      button.hidden = false;
+      button.textContent = "Activar";
+    }
+  };
+
+  const ensureNotificationPermission = async (options = {}) => {
     if (!("Notification" in window)) return "unsupported";
     if (Notification.permission === "granted" || Notification.permission === "denied") {
       return Notification.permission;
     }
-    if (notificationPermissionAsked) {
+    if (notificationPermissionAsked && !options.force) {
       return Notification.permission;
     }
     notificationPermissionAsked = true;
     try {
-      return await Notification.requestPermission();
+      const permission = await Notification.requestPermission();
+      updateNotificationPermissionPrompt(permission);
+      return permission;
     } catch (error) {
-      return Notification.permission || "default";
+      const permission = Notification.permission || "default";
+      updateNotificationPermissionPrompt(permission);
+      return permission;
     }
   };
 
   const showSystemNotification = async (item) => {
-    if (!item) return;
+    if (!item) return "";
     const title = buildNotificationTitle(item);
     const body = buildNotificationBody(item);
     const targetUrl = String(item?.url || "/").trim() || "/";
@@ -639,7 +714,7 @@
     }
     if (permission !== "granted") {
       showNotificationToast(item);
-      return true;
+      return "fallback";
     }
     try {
       const registration = await navigator.serviceWorker?.getRegistration?.();
@@ -653,7 +728,7 @@
           vibrate: [120, 60, 140],
           data: { url: targetUrl },
         });
-        return true;
+        return "native";
       }
     } catch (error) {
       // Fall back to Notification below.
@@ -676,12 +751,12 @@
         window.location.href = targetUrl;
         notice.close();
       };
-      return true;
+      return "native";
     } catch (error) {
       showNotificationToast(item);
-      return true;
+      return "fallback";
     }
-    return false;
+    return "";
   };
 
   const postNotificationState = async (url, payload) => {
@@ -729,13 +804,15 @@
     if (!newItems.length) return;
     const deliveredServerItems = [];
     for (const item of newItems.slice(0, 3)) {
-      const shown = await showSystemNotification(item);
-      if (shown) {
+      const deliveryMode = await showSystemNotification(item);
+      if (deliveryMode) {
         if (isServerManagedNotification(item)) {
-          deliveredServerItems.push({
-            notification_type: getNotificationType(item),
-            notification_id: String(item?.id || "").trim(),
-          });
+          if (deliveryMode === "native") {
+            deliveredServerItems.push({
+              notification_type: getNotificationType(item),
+              notification_id: String(item?.id || "").trim(),
+            });
+          }
         } else {
           deliveredIds.add(getNotificationKey(item));
         }
@@ -955,8 +1032,8 @@
       await fetchNotifications();
       return;
     }
-    const shown = await showSystemNotification(item);
-    if (shown && notificationDeliveredUrl && isServerManagedNotification(item)) {
+    const deliveryMode = await showSystemNotification(item);
+    if (deliveryMode === "native" && notificationDeliveredUrl && isServerManagedNotification(item)) {
       await postNotificationState(notificationDeliveredUrl, {
         items: [{
           notification_type: getNotificationType(item),
@@ -1270,6 +1347,7 @@
   const openNotifications = async () => {
     if (!notificationMenu || !notificationToggle) return;
     positionNotificationSurfaces();
+    updateNotificationPermissionPrompt();
     notificationsOpen = true;
     notificationMenu.classList.add("open");
     notificationMenu.setAttribute("aria-hidden", "false");

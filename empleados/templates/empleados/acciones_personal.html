@@ -1,0 +1,377 @@
+{% extends "core/base.html" %}
+
+{% block head_extra %}
+<style>
+  .pa-page {
+    display: grid;
+    gap: 8px;
+    padding-bottom: 74px;
+  }
+
+  .pa-titlebar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .pa-shell {
+    border: 1px solid #d6e1f1;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .pa-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 10px;
+    border-bottom: 1px solid #d6e1f1;
+    background: #edf4fc;
+    overflow-x: auto;
+  }
+
+  .pa-tab {
+    min-height: 30px;
+    padding: 7px 10px;
+    border: 1px solid #cbd5e1;
+    border-bottom: none;
+    border-radius: 7px 7px 0 0;
+    background: #f4f7fb;
+    color: #64748b;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .pa-tab.is-active {
+    background: #fff;
+    color: #0f172a;
+  }
+
+  .pa-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 160px;
+    min-height: 510px;
+  }
+
+  .pa-form-area {
+    display: grid;
+    grid-template-rows: auto minmax(220px, 1fr);
+    border-right: 1px solid #d6e1f1;
+  }
+
+  .pa-top-grid {
+    display: grid;
+    grid-template-columns: minmax(360px, 1.2fr) minmax(220px, 0.8fr);
+    gap: 12px;
+    padding: 10px;
+    border-bottom: 1px solid #e5edf6;
+  }
+
+  .pa-mini-grid {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+  }
+
+  .pa-row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .pa-row.two {
+    grid-template-columns: 96px minmax(0, 1fr) 90px minmax(0, 1fr);
+  }
+
+  .pa-row label,
+  .pa-check label {
+    color: #334155;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .pa-row input,
+  .pa-row select {
+    width: 100%;
+    min-width: 0;
+    height: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 3px 6px;
+    color: #0f172a;
+    font: inherit;
+    font-size: 12px;
+    background: #fff;
+  }
+
+  .pa-row input[readonly] {
+    background: #f8fafc;
+    color: #64748b;
+  }
+
+  .pa-employee-pick {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 34px;
+    gap: 5px;
+  }
+
+  .pa-pick-btn {
+    width: 34px;
+    height: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: #f8fbff;
+    color: #123b65;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .pa-create-btn {
+    min-height: 48px;
+    border: 1px solid #0f6edc;
+    border-radius: 7px;
+    background: #0f6edc;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+
+  .pa-checks {
+    display: grid;
+    gap: 4px;
+    padding-left: 102px;
+  }
+
+  .pa-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 22px;
+  }
+
+  .pa-comment {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .pa-comment label {
+    color: #334155;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .pa-comment textarea {
+    width: 100%;
+    min-height: 250px;
+    resize: vertical;
+    border: 1px solid #cbd5e1;
+    border-radius: 7px;
+    padding: 8px;
+    color: #0f172a;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .pa-photo-side {
+    display: grid;
+    grid-template-rows: 160px auto;
+    align-content: start;
+    background: #fbfdff;
+  }
+
+  .pa-photo-box {
+    border-bottom: 1px solid #d6e1f1;
+    background: #f8fafc;
+  }
+
+  .pa-photo-label {
+    padding: 10px;
+    text-align: center;
+    color: #0f172a;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .pa-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid #d6e1f1;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
+  }
+
+  .pa-footer-group {
+    display: flex;
+    gap: 6px;
+  }
+
+  .pa-action {
+    min-width: 96px;
+    height: 38px;
+    border: 1px solid #0f6edc;
+    border-radius: 8px;
+    padding: 0 12px;
+    background: #0f6edc;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .pa-action.is-muted {
+    border-color: #cbd5e1;
+    background: #e7eef8;
+    color: #123b65;
+  }
+
+  .pa-action:disabled {
+    border-color: #cbd5e1;
+    background: #dbe4f0;
+    color: #7c8da3;
+    cursor: not-allowed;
+  }
+
+  .pa-close-link {
+    display: grid;
+    place-items: center;
+    text-decoration: none;
+  }
+
+  @media (max-width: 980px) {
+    .pa-layout,
+    .pa-top-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .pa-form-area {
+      border-right: none;
+    }
+
+    .pa-photo-side {
+      border-top: 1px solid #d6e1f1;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .pa-titlebar,
+    .pa-row,
+    .pa-row.two {
+      grid-template-columns: 1fr;
+    }
+
+    .pa-checks {
+      padding-left: 0;
+    }
+
+    .pa-footer,
+    .pa-footer-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .pa-action {
+      width: 100%;
+      min-width: 0;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="pa-page">
+  <div class="pa-titlebar">
+    <div>
+      <h2 class="page-title">Acciones de Personal</h2>
+      <p class="page-subtitle">Registro y seguimiento de movimientos del empleado.</p>
+    </div>
+  </div>
+
+  <section class="pa-shell">
+    <div class="pa-tabs" role="tablist" aria-label="Estados de acciones de personal">
+      <button type="button" class="pa-tab is-active">Maestro de Acciones</button>
+      <button type="button" class="pa-tab">Acciones Pendientes</button>
+      <button type="button" class="pa-tab">Acciones Aprobadas</button>
+      <button type="button" class="pa-tab">Acciones Aplicadas</button>
+      <button type="button" class="pa-tab">Acciones Canceladas</button>
+      <button type="button" class="pa-tab">General &lt;Todas&gt;</button>
+    </div>
+
+    <div class="pa-layout">
+      <div class="pa-form-area">
+        <div class="pa-top-grid">
+          <div class="pa-mini-grid">
+            <div class="pa-row">
+              <label for="pa_codigo">Cod. Empleado</label>
+              <div class="pa-employee-pick">
+                <input id="pa_codigo" />
+                <button type="button" class="pa-pick-btn" title="Buscar empleado">...</button>
+              </div>
+            </div>
+            <div class="pa-row"><label for="pa_nombres">Nombres</label><input id="pa_nombres" readonly /></div>
+            <div class="pa-row"><label for="pa_apellidos">Apellidos</label><input id="pa_apellidos" readonly /></div>
+            <div class="pa-row"><label for="pa_cedula">Cedula</label><input id="pa_cedula" readonly /></div>
+            <div class="pa-row"><label for="pa_departamento">Departamento</label><select id="pa_departamento"><option></option></select></div>
+            <div class="pa-row"><label for="pa_cargo">Cargo</label><select id="pa_cargo"><option></option></select></div>
+            <div class="pa-row two">
+              <label for="pa_salario_actual">Salario actual</label><input id="pa_salario_actual" readonly />
+              <label for="pa_fecha_ingreso">Fecha de ingreso</label><input id="pa_fecha_ingreso" type="date" readonly />
+            </div>
+            <div class="pa-row"><label for="pa_nomina_actual">Nomina actual</label><select id="pa_nomina_actual"><option></option></select></div>
+          </div>
+
+          <div class="pa-mini-grid">
+            <div class="pa-row"><label for="pa_no">No.</label><input id="pa_no" readonly /></div>
+            <div class="pa-row"><label for="pa_fecha">Fecha</label><input id="pa_fecha" type="date" /></div>
+            <div class="pa-row"><label for="pa_estatus">Estatus</label><input id="pa_estatus" readonly /></div>
+            <div class="pa-row"><label for="pa_fecha_efectiva">Fecha efectiva</label><input id="pa_fecha_efectiva" type="date" /></div>
+            <div class="pa-checks">
+              <div class="pa-check"><input id="pa_afecta_nomina" type="checkbox" /><label for="pa_afecta_nomina">Afecta nomina</label></div>
+              <div class="pa-check"><input id="pa_aplicado" type="checkbox" /><label for="pa_aplicado">Aplicado</label></div>
+            </div>
+            <div class="pa-row"><label for="pa_tipo_accion">Tipo accion</label><select id="pa_tipo_accion"><option></option></select></div>
+            <button type="button" class="pa-create-btn">Crear Empleado</button>
+          </div>
+        </div>
+
+        <div class="pa-comment">
+          <label for="pa_comentario">Comentario o Justificacion</label>
+          <textarea id="pa_comentario"></textarea>
+        </div>
+      </div>
+
+      <aside class="pa-photo-side">
+        <div class="pa-photo-box"></div>
+        <div class="pa-photo-label">FOTOGRAFIA</div>
+      </aside>
+    </div>
+  </section>
+
+  <footer class="pa-footer">
+    <div class="pa-footer-group">
+      <button type="button" class="pa-action">Nuevo</button>
+      <button type="button" class="pa-action">Buscar</button>
+      <button type="button" class="pa-action is-muted" disabled>Cancelar</button>
+      <button type="button" class="pa-action" disabled>Grabar</button>
+      <button type="button" class="pa-action is-muted" disabled>Imprimir</button>
+    </div>
+    <a href="{% url 'empleados:index' %}" class="pa-action is-muted pa-close-link">Cerrar</a>
+  </footer>
+</div>
+{% endblock %}
