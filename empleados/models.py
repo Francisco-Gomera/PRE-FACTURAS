@@ -131,6 +131,9 @@ class EmpleadoAccionPersonal(models.Model):
     cambio_departamento = models.CharField(db_column="CAMBIO_DEPARTAMENTO", max_length=100, blank=True)
     cambio_cargo = models.CharField(db_column="CAMBIO_CARGO", max_length=80, blank=True)
     cambio_nomina = models.CharField(db_column="CAMBIO_NOMINA", max_length=80, blank=True)
+    cambio_departamento_anterior = models.CharField(db_column="CAMBIO_DEPARTAMENTO_ANTERIOR", max_length=100, blank=True)
+    cambio_cargo_anterior = models.CharField(db_column="CAMBIO_CARGO_ANTERIOR", max_length=80, blank=True)
+    cambio_nomina_anterior = models.CharField(db_column="CAMBIO_NOMINA_ANTERIOR", max_length=80, blank=True)
     cambio_salario_actual = models.DecimalField(db_column="CAMBIO_SALARIO_ACTUAL", max_digits=12, decimal_places=2, blank=True, null=True)
     cambio_salario_propuesto = models.DecimalField(db_column="CAMBIO_SALARIO_PROPUESTO", max_digits=12, decimal_places=2, blank=True, null=True)
     cambio_porcentaje = models.DecimalField(db_column="CAMBIO_PORCENTAJE", max_digits=8, decimal_places=2, blank=True, null=True)
@@ -145,3 +148,24 @@ class EmpleadoAccionPersonal(models.Model):
     class Meta:
         db_table = "EMPLEADO_ACCION_PERSONAL"
         ordering = ["-fecha", "-id_accion"]
+
+
+class EmpleadoVacacionBalance(models.Model):
+    id_balance = models.AutoField(db_column="ID_BALANCE", primary_key=True)
+    empleado = models.ForeignKey(
+        EmpleadoNomina,
+        db_column="ID_EMPLEADO",
+        on_delete=models.CASCADE,
+        related_name="balances_vacaciones",
+    )
+    ano = models.PositiveSmallIntegerField(db_column="ANO")
+    dias_disponibles = models.PositiveSmallIntegerField(db_column="DIAS_DISPONIBLES", default=0)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "EMPLEADO_VACACION_BALANCE"
+        constraints = [
+            models.UniqueConstraint(fields=["empleado", "ano"], name="uq_empleado_vacacion_balance"),
+        ]
+        ordering = ["-ano", "empleado_id"]

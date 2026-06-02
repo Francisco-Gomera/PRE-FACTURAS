@@ -56,6 +56,11 @@
     min-height: 510px;
   }
 
+  .pa-layout[hidden],
+  #pa_actions_panel[hidden] {
+    display: none;
+  }
+
   .pa-form-area {
     display: grid;
     grid-template-rows: auto minmax(220px, 1fr);
@@ -406,6 +411,68 @@
     overflow: auto;
   }
 
+  .pa-message-modal {
+    width: min(430px, 94vw);
+    grid-template-rows: auto auto;
+  }
+
+  .pa-message-body {
+    padding: 16px;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .pa-preview-modal {
+    width: min(900px, 94vw);
+    height: min(600px, 90vh);
+    grid-template-rows: auto 1fr;
+  }
+
+  .pa-preview-body {
+    padding: 16px;
+    overflow: auto;
+    background-color: #ffffff;
+    color: #334155;
+    font-size: 12px;
+  }
+
+  .pa-context-menu {
+    position: fixed;
+    z-index: 1100;
+    min-width: 112px;
+    padding: 6px;
+    border: 1px solid #bfd3ef;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ffffff, #eef5ff);
+    box-shadow: 0 18px 34px rgba(15, 63, 120, 0.18);
+    display: none;
+  }
+
+  .pa-context-menu.open {
+    display: block;
+  }
+
+  .pa-context-menu button {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid #c6d8f1;
+    border-radius: 9px;
+    background: linear-gradient(180deg, #fefeff, #eaf3ff);
+    color: #113963;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .pa-context-menu button:hover {
+    background: linear-gradient(180deg, #1f7aed, #125ec3);
+    border-color: #1a66ce;
+    color: #ffffff;
+  }
+
   .pa-table {
     width: 100%;
     min-width: 720px;
@@ -494,7 +561,6 @@
     <div class="pa-tabs" role="tablist" aria-label="Estados de acciones de personal">
       <button type="button" class="pa-tab is-active" data-pa-tab="MAESTRO">Maestro de Acciones</button>
       <button type="button" class="pa-tab" data-pa-tab="PENDIENTE">Acciones Pendientes</button>
-      <button type="button" class="pa-tab" data-pa-tab="APROBADAS">Acciones Aprobadas</button>
       <button type="button" class="pa-tab" data-pa-tab="APLICADA">Acciones Aplicadas</button>
       <button type="button" class="pa-tab" data-pa-tab="CANCELADA">Acciones Canceladas</button>
       <button type="button" class="pa-tab" data-pa-tab="">General &lt;Todas&gt;</button>
@@ -557,10 +623,6 @@
             <div class="pa-row"><label for="pa_fecha">Fecha</label><input id="pa_fecha" type="date" readonly /></div>
             <div class="pa-row"><label for="pa_estatus">Estatus</label><input id="pa_estatus" readonly /></div>
             <div class="pa-row"><label for="pa_fecha_efectiva">Fecha efectiva</label><input id="pa_fecha_efectiva" type="date" /></div>
-            <div class="pa-checks">
-              <div class="pa-check"><input id="pa_afecta_nomina" type="checkbox" /><label for="pa_afecta_nomina">Afecta nomina</label></div>
-              <div class="pa-check"><input id="pa_aplicado" type="checkbox" /><label for="pa_aplicado">Aplicado</label></div>
-            </div>
             <div class="pa-row">
               <label for="pa_tipo_accion">Tipo accion</label>
               <select id="pa_tipo_accion">
@@ -584,6 +646,7 @@
                   <option value="NUEVO INGRESO">NUEVO INGRESO</option>
                   <option value="NOMBRAMIENTO DEFINITIVO">NOMBRAMIENTO DEFINITIVO</option>
                   <option value="CONTRATO">CONTRATO</option>
+                  <option value="CONTRATADO">CONTRATADO</option>
                   <option value="TEMPORERO">TEMPORERO</option>
                 </select>
               </div>
@@ -774,6 +837,33 @@
   </div>
 </div>
 
+<div id="pa_message_backdrop" class="pa-modal-backdrop" aria-hidden="true">
+  <div class="pa-modal pa-message-modal" role="dialog" aria-modal="true" aria-labelledby="pa_message_title">
+    <div class="pa-modal-head">
+      <h3 id="pa_message_title">Mensaje</h3>
+      <button id="pa_message_close" type="button" class="pa-action is-muted">Cerrar</button>
+    </div>
+    <div id="pa_message_body" class="pa-message-body"></div>
+  </div>
+</div>
+
+<div id="pa_preview_backdrop" class="pa-modal-backdrop" aria-hidden="true">
+  <div class="pa-modal pa-preview-modal" role="dialog" aria-modal="true" aria-labelledby="pa_preview_title">
+    <div class="pa-modal-head">
+      <h3 id="pa_preview_title">Vista Previa de Acción</h3>
+      <div class="pa-modal-actions">
+        <button id="pa_preview_print" type="button" class="pa-action">Imprimir</button>
+        <button id="pa_preview_close" type="button" class="pa-action is-muted">Cerrar</button>
+      </div>
+    </div>
+    <div id="pa_preview_body" class="pa-preview-body"></div>
+  </div>
+</div>
+
+<div id="pa_status_context_menu" class="pa-context-menu" aria-hidden="true">
+  <button id="pa_status_context_cancel" type="button">Cancelar</button>
+</div>
+
 <script>
   (function () {
     const urls = {
@@ -782,6 +872,7 @@
       accionesListar: "{% url 'empleados:acciones_personal_listar' %}",
       accionDetalleTemplate: "{% url 'empleados:acciones_personal_detalle' 0 %}",
       accionGuardar: "{% url 'empleados:acciones_personal_guardar' %}",
+      accionCancelar: "{% url 'empleados:acciones_personal_cancelar' %}",
     };
     const nationalHolidays = new Set({{ national_holidays_json|safe }});
     const btnNuevo = document.getElementById("pa_btn_nuevo");
@@ -795,11 +886,23 @@
     const actionBackdrop = document.getElementById("pa_action_backdrop");
     const actionSearchInput = document.getElementById("pa_action_q");
     const actionBody = document.getElementById("pa_action_body");
+    const messageBackdrop = document.getElementById("pa_message_backdrop");
+    const messageTitle = document.getElementById("pa_message_title");
+    const messageBody = document.getElementById("pa_message_body");
+    const messageCloseButton = document.getElementById("pa_message_close");
+    const previewBackdrop = document.getElementById("pa_preview_backdrop");
+    const previewTitle = document.getElementById("pa_preview_title");
+    const previewBody = document.getElementById("pa_preview_body");
+    const previewCloseButton = document.getElementById("pa_preview_close");
+    const previewPrintButton = document.getElementById("pa_preview_print");
+    const statusContextMenu = document.getElementById("pa_status_context_menu");
+    const statusContextCancelButton = document.getElementById("pa_status_context_cancel");
     const actionsPanel = document.getElementById("pa_actions_panel");
     const actionsPanelBody = document.getElementById("pa_actions_panel_body");
     const formLayout = document.getElementById("pa_form_layout");
     const tabButtons = Array.from(document.querySelectorAll("[data-pa-tab]"));
     const fechaField = document.getElementById("pa_fecha");
+    const estatusField = document.getElementById("pa_estatus");
     const tipoAccionField = document.getElementById("pa_tipo_accion");
     const entrySection = document.getElementById("pa_entry_section");
     const exitSection = document.getElementById("pa_exit_section");
@@ -1003,6 +1106,14 @@
       syncCambioMotivo();
     }
 
+    function setFormReadOnly(isReadOnly) {
+      const formFields = document.querySelectorAll("#pa_form_layout input, #pa_form_layout select, #pa_form_layout textarea");
+      formFields.forEach((field) => {
+        if (field === pickButton) return;
+        field.disabled = isReadOnly;
+      });
+    }
+
     function syncActionAvailability() {
       Array.from(tipoAccionField.options).forEach((option) => {
         if (!option.value) return;
@@ -1083,6 +1194,7 @@
     }
 
     function openEmployeeModal() {
+      clearForm();
       backdrop.classList.add("open");
       backdrop.setAttribute("aria-hidden", "false");
       searchInput.focus();
@@ -1093,6 +1205,474 @@
     function closeEmployeeModal() {
       backdrop.classList.remove("open");
       backdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function showMessage(message, title = "Mensaje") {
+      messageTitle.textContent = title;
+      messageBody.textContent = message;
+      messageBackdrop.classList.add("open");
+      messageBackdrop.setAttribute("aria-hidden", "false");
+      messageCloseButton.focus();
+    }
+
+    function closeMessageModal() {
+      messageBackdrop.classList.remove("open");
+      messageBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function closePreviewModal() {
+      previewBackdrop.classList.remove("open");
+      previewBackdrop.setAttribute("aria-hidden", "true");
+    }
+
+    function printPreview() {
+      const printWindow = window.open("", "", "height=600,width=800");
+      printWindow.document.write(previewBody.innerHTML);
+      printWindow.document.close();
+      printWindow.print();
+    }
+
+    function hideStatusContextMenu() {
+      statusContextMenu.classList.remove("open");
+      statusContextMenu.setAttribute("aria-hidden", "true");
+      statusContextMenu.style.left = "-9999px";
+      statusContextMenu.style.top = "-9999px";
+    }
+
+    function showStatusContextMenu(event) {
+      const menuWidth = 128;
+      const menuHeight = 44;
+      const left = Math.min(event.clientX, window.innerWidth - menuWidth - 8);
+      const top = Math.min(event.clientY, window.innerHeight - menuHeight - 8);
+      statusContextMenu.style.left = `${Math.max(8, left)}px`;
+      statusContextMenu.style.top = `${Math.max(8, top)}px`;
+      statusContextMenu.classList.add("open");
+      statusContextMenu.setAttribute("aria-hidden", "false");
+    }
+
+    function openStatusContextMenu(event) {
+      const actionId = String(document.getElementById("pa_no").value || "").trim();
+      if (!actionId || String(estatusField.value || "").trim().toUpperCase() === "CANCELADA") {
+        hideStatusContextMenu();
+        return;
+      }
+      event.preventDefault();
+      showStatusContextMenu(event);
+    }
+
+    function buildCancellationMessage(data, actionId, actionType) {
+      const tipoAccion = String(data.tipo_accion || "").trim().toUpperCase();
+      const cambioMotivo = String(data.cambio_motivo || "").trim().toUpperCase();
+      
+      if (tipoAccion === "ENTRADA") {
+        return `Acción ${actionId} de entrada cancelada. El empleado vuelve a estado inactivo.`;
+      }
+      if (tipoAccion === "SALIDA") {
+        return `Acción ${actionId} de salida cancelada. El empleado vuelve a estado activo.`;
+      }
+      if (tipoAccion === "CAMBIO") {
+        if (cambioMotivo === "AUMENTO DE SALARIO") {
+          return `Acción ${actionId} de aumento de salario cancelada. El salario se restauró al valor anterior.`;
+        }
+        if (cambioMotivo === "TRASLADO") {
+          return `Acción ${actionId} de traslado cancelada. El departamento y cargo se restauraron a valores anteriores.`;
+        }
+        if (cambioMotivo === "PROMOCION") {
+          return `Acción ${actionId} de promoción cancelada. Salario, departamento y cargo se restauraron a valores anteriores.`;
+        }
+        if (cambioMotivo === "SUSPENCION") {
+          return `Acción ${actionId} de suspensión cancelada.`;
+        }
+        if (cambioMotivo === "VACACIONES") {
+          const diasDevueltos = Number(data.dias_devueltos || 0);
+          const diasTranscurridos = Number(data.dias_transcurridos || 0);
+          return `Acción ${actionId} de vacaciones cancelada. Días transcurridos: ${diasTranscurridos}. Días devueltos: ${diasDevueltos}.`;
+        }
+        if (cambioMotivo === "LICENCIA MEDICA") {
+          return `Acción ${actionId} de licencia médica cancelada.`;
+        }
+        if (cambioMotivo === "CAMBIO DE NOMINA") {
+          return `Acción ${actionId} de cambio de nómina cancelada.`;
+        }
+      }
+      return `Acción ${actionId} cancelada.`;
+    }
+
+    function buildPrintPreview(action, empleado) {
+      const tipoAccion = String(action.tipo_accion || "").trim().toUpperCase();
+      const cambioMotivo = String(action.cambio_motivo || "").trim().toUpperCase();
+      const fechaHoy = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      
+      // Formato A4 profesional
+      let html = `
+        <div style="font-family: Arial, sans-serif; margin: 0; padding: 20px; line-height: 1.4; max-width: 210mm; background: white;">
+          
+          <!-- ENCABEZADO -->
+          <div style="text-align: center; margin-bottom: 15px; border-bottom: 3px solid #000; padding-bottom: 10px;">
+            <div style="font-weight: bold; font-size: 14px; letter-spacing: 1px;">COMERCIAL ANITA</div>
+            <div style="font-size: 11px; margin-top: 2px;">Gestión Humana</div>
+          </div>
+          
+          <!-- TITULO Y ESTADO -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <div>
+              <div style="font-weight: bold; font-size: 13px;">ACCIÓN DE PERSONAL</div>
+              <div style="font-size: 11px; color: #666;">${escapeHtml(tipoAccion === "CAMBIO" ? cambioMotivo : tipoAccion)}</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: bold; font-size: 12px; color: #006600; border: 2px solid #006600; padding: 3px 8px;">
+                ${escapeHtml(action.estatus || "PENDIENTE")}
+              </div>
+              <div style="font-size: 10px; margin-top: 3px;">Fecha: ${escapeHtml(action.fecha)}</div>
+            </div>
+          </div>
+          
+          <!-- NUMERO Y DATOS PRINCIPALES -->
+          <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 11px;">
+            <div></div>
+            <div style="text-align: right;">
+              <div style="font-weight: bold;">No.: <span style="font-size: 12px;">${String(action.id_accion).padStart(6, '0')}</span></div>
+            </div>
+          </div>
+          
+          <!-- DATOS DEL EMPLEADO -->
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; border: 1px solid #000;">
+            <thead>
+              <tr style="background-color: #f0f0f0; border-bottom: 1px solid #000;">
+                <th colspan="4" style="text-align: left; padding: 6px; font-size: 11px; font-weight: bold; border-bottom: 2px solid #000;">Datos del Empleado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="border-bottom: 1px solid #000;">
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000; width: 15%;">Código</td>
+                <td style="padding: 4px 6px; font-size: 10px; border-right: 1px solid #000; width: 30%;">${escapeHtml(empleado.codigo || "")}</td>
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000; width: 20%;">Apellidos</td>
+                <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(empleado.apellidos || "")}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #000;">
+                <td style="padding: 4px 6px; font-size: 10px; border-right: 1px solid #000;"><span style="font-size: 9px; font-weight: bold;">Nombres</span></td>
+                <td style="padding: 4px 6px; font-size: 10px; border-right: 1px solid #000;">${escapeHtml(empleado.nombres || "")}</td>
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Cédula</td>
+                <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(empleado.cedula || "")}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #000;">
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Fecha de ingreso</td>
+                <td style="padding: 4px 6px; font-size: 10px; border-right: 1px solid #000;">${escapeHtml(empleado.fecha_ingreso || "")}</td>
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Departamento actual</td>
+                <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(empleado.departamento || "")}</td>
+              </tr>
+              <tr style="border-bottom: 1px solid #000;">
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Cargo o Posición actual</td>
+                <td colspan="3" style="padding: 4px 6px; font-size: 10px;">${escapeHtml(empleado.cargo || "")}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Salario actual $</td>
+                <td style="padding: 4px 6px; font-size: 10px; border-right: 1px solid #000; text-align: right;">${Number(empleado.salario_base || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Fecha efectiva</td>
+                <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_efectiva || "")}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nómina de pago actual</td>
+                <td style="padding: 4px 6px; font-size: 10px; border-right: 1px solid #000;">${escapeHtml(empleado.forma_pago || "")}</td>
+                <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Estatus</td>
+                <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(empleado.estado || "")}</td>
+              </tr>
+            </tbody>
+          </table>
+          
+          <!-- DATOS DEL CAMBIO/ACCION -->
+          <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+            <div style="flex: 1;">
+              <table style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
+                <thead>
+                  <tr style="background-color: #f0f0f0; border-bottom: 2px solid #000;">
+                    <th style="text-align: left; padding: 6px; font-size: 11px; font-weight: bold;">Datos del ${escapeHtml(tipoAccion === "CAMBIO" ? "Cambio" : tipoAccion)}</th>
+                  </tr>
+                </thead>
+                <tbody>
+      `;
+      
+      // Contenido específico según tipo de acción
+      if (tipoAccion === "ENTRADA") {
+        html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000; width: 40%;">Motivo</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.entrada_motivo)}</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nómina</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.entrada_nomina)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Salario Ofrecido</td>
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.salario_propuesto || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+        `;
+      } else if (tipoAccion === "SALIDA") {
+        html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Motivo</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.salida_motivo)}</td>
+                  </tr>
+        `;
+      } else if (tipoAccion === "CAMBIO") {
+        html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Motivo</td>
+                    <td style="padding: 4px 6px; font-size: 10px;"><strong style="color: #000;">■</strong> ${escapeHtml(cambioMotivo)}</td>
+                  </tr>
+        `;
+        if (cambioMotivo === "TRASLADO") {
+          html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nuevo Depto</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.cambio_departamento)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nuevo Cargo</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.cambio_cargo)}</td>
+                  </tr>
+          `;
+        } else if (cambioMotivo === "PROMOCION") {
+          html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nuevo Depto</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.cambio_departamento)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nuevo Cargo</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.cambio_cargo)}</td>
+                  </tr>
+          `;
+        } else if (cambioMotivo === "VACACIONES") {
+          html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Desde</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_desde)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Hasta</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_hasta)}</td>
+                  </tr>
+          `;
+        } else if (cambioMotivo === "SUSPENCION") {
+          html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Desde</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_desde)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Hasta</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_hasta)}</td>
+                  </tr>
+          `;
+        } else if (cambioMotivo === "LICENCIA MEDICA") {
+          html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Desde</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_desde)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Hasta</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_hasta)}</td>
+                  </tr>
+          `;
+        } else if (cambioMotivo === "CAMBIO DE NOMINA") {
+          html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nómina Anterior</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.cambio_nomina_anterior || "")}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Nueva Nómina</td>
+                    <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.cambio_nomina)}</td>
+                  </tr>
+          `;
+        }
+      }
+      
+      html += `
+                </tbody>
+              </table>
+            </div>
+            
+            <!-- DETALLE DEL CAMBIO (columna derecha) -->
+            <div style="flex: 1;">
+              <table style="width: 100%; border-collapse: collapse; border: 1px solid #000;">
+                <thead>
+                  <tr style="background-color: #f0f0f0; border-bottom: 2px solid #000;">
+                    <th style="text-align: left; padding: 6px; font-size: 11px; font-weight: bold;">Detalle del ${escapeHtml(tipoAccion === "CAMBIO" ? "cambio" : "movimiento")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+      `;
+      
+      // Detalles del cambio - lado derecho
+      if (tipoAccion === "CAMBIO" && cambioMotivo === "AUMENTO DE SALARIO") {
+        html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">Salario anterior:</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.cambio_salario_actual || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">% Aumento:</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.cambio_porcentaje || 0).toFixed(2)}%</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">Salario propuesto:</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right; font-weight: bold;">${Number(action.cambio_salario_propuesto || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px;">Diferencia Aum.:</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.cambio_diferencia || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+        `;
+      } else if (tipoAccion === "CAMBIO" && cambioMotivo === "PROMOCION") {
+        html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">Salario anterior:</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.cambio_salario_actual || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">Salario propuesto:</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right; font-weight: bold;">${Number(action.cambio_salario_propuesto || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">% Aumento:</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.cambio_porcentaje || 0).toFixed(2)}%</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 9px;">Diferencia Aum.:</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.cambio_diferencia || 0).toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  </tr>
+        `;
+      } else if (tipoAccion === "CAMBIO" && cambioMotivo === "VACACIONES") {
+        html += `
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">Días Disponibles:</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(empleado.vacaciones_disponibles || 0)}</td>
+                  </tr>
+                  <tr style="border-bottom: 1px solid #000;">
+                    <td style="padding: 4px 6px; font-size: 9px;">Días Solicitados:</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 10px; text-align: right;">${Number(action.cantidad_dias || 0)}</td>
+                  </tr>
+        `;
+      } else {
+        html += `
+                  <tr>
+                    <td style="padding: 4px 6px; font-size: 10px; color: #666;">---</td>
+                  </tr>
+        `;
+      }
+      
+      html += `
+                </tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- CHECKBOXES Y COMENTARIO -->
+          <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+            <div style="flex: 1;">
+              <div style="border: 1px solid #000; padding: 8px;">
+                <div style="font-size: 10px; margin-bottom: 6px;">
+                  <input type="checkbox" style="margin-right: 5px;" ${action.afecta_nomina ? "checked" : ""} disabled />
+                  <span style="font-weight: bold;">Afecta Nómina</span>
+                </div>
+                <div style="font-size: 10px;">
+                  <input type="checkbox" style="margin-right: 5px;" ${action.aplicado ? "checked" : ""} disabled />
+                  <span style="font-weight: bold;">Aplicado</span>
+                </div>
+              </div>
+            </div>
+            <div style="flex: 2;"></div>
+          </div>
+          
+          <!-- COMENTARIO O JUSTIFICACIÓN -->
+          <div style="margin-bottom: 20px;">
+            <div style="font-weight: bold; font-size: 11px; margin-bottom: 5px; border-bottom: 1px solid #000; padding-bottom: 3px;">
+              Comentario o Justificación
+            </div>
+            <div style="border: 1px solid #000; min-height: 80px; padding: 6px; font-size: 10px; background-color: #fafafa; word-wrap: break-word; white-space: pre-wrap;">
+              ${escapeHtml(action.comentario || "")}
+            </div>
+          </div>
+          
+          <!-- FIRMAS -->
+          <div style="display: flex; justify-content: space-between; margin-top: 30px; font-size: 10px;">
+            <div style="text-align: center; width: 45%;">
+              <div style="border-top: 1px solid #000; margin-top: 50px; padding-top: 3px;">
+                <strong>Enc. Gestión Humana</strong><br/>
+                <span style="font-size: 9px;">Elaborado</span>
+              </div>
+            </div>
+            <div style="width: 10%;"></div>
+            <div style="text-align: center; width: 45%;">
+              <div style="border-top: 1px solid #000; margin-top: 50px; padding-top: 3px;">
+                <strong>Dir. Administrativo(a)</strong><br/>
+                <span style="font-size: 9px;">Aprobado</span>
+              </div>
+            </div>
+          </div>
+          
+          <div style="text-align: center; font-size: 8px; color: #999; margin-top: 20px;">
+            ${fechaHoy} - ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })} a. m.
+          </div>
+        </div>
+      `;
+      
+      return html;
+    }
+
+    async function requestCancelCurrentAction() {
+      const actionId = String(document.getElementById("pa_no").value || "").trim();
+      const actionType = String(tipoAccionField.value || "").trim() || "sin tipo";
+      if (!actionId) {
+        showMessage("Debe cargar una accion de personal antes de cancelar.", "Aviso");
+        return;
+      }
+      try {
+        const res = await fetch(urls.accionCancelar, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRFToken": getCsrfToken(),
+            "X-Requested-With": "XMLHttpRequest",
+          },
+          body: JSON.stringify({ id_accion: actionId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showMessage(data.detail || "No se pudo cancelar la accion.", "Aviso");
+          return;
+        }
+        if (data.empleado) fillEmployee(data.empleado);
+        if (data.accion) fillAction(data.accion);
+        const message = buildCancellationMessage(data, actionId, actionType);
+        showMessage(message, "Cancelar accion");
+      } catch (error) {
+        showMessage("Error de conexion cancelando la accion.", "Aviso");
+      }
     }
 
     function renderEmployeeRows(rows) {
@@ -1131,8 +1711,36 @@
         </tr>
       `).join("");
       Array.from(body.querySelectorAll("tr[data-id]")).forEach((row) => {
-        row.addEventListener("dblclick", () => loadAction(row.dataset.id));
+        row.addEventListener("dblclick", () => showActionPreview(row.dataset.id));
       });
+    }
+
+    async function showActionPreview(actionId) {
+      try {
+        const actionRes = await fetch(urls.accionDetalleTemplate.replace("0", actionId), {
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+        });
+        const data = await actionRes.json().catch(() => null);
+        if (!data || !data.accion) {
+          showMessage("No se pudo cargar el detalle de la acción.", "Aviso");
+          return;
+        }
+
+        const action = data.accion;
+        const empleado = data.empleado;
+        
+        if (!empleado) {
+          showMessage("No se pudo cargar los datos del empleado.", "Aviso");
+          return;
+        }
+
+        const previewHtml = buildPrintPreview(action, empleado);
+        previewBody.innerHTML = previewHtml;
+        previewBackdrop.classList.add("open");
+        previewBackdrop.setAttribute("aria-hidden", "false");
+      } catch (error) {
+        showMessage("Error al cargar la vista previa.", "Aviso");
+      }
     }
 
     async function fetchActions(targetBody, estatus) {
@@ -1176,6 +1784,7 @@
     async function loadEmployee(id) {
       if (!id) return;
       try {
+        clearForm();
         const url = urls.detalleTemplate.replace(/0\/$/, `${id}/`);
         const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
         const data = await res.json().catch(() => ({}));
@@ -1193,6 +1802,7 @@
     async function loadAction(id) {
       if (!id) return;
       try {
+        clearForm();
         const url = urls.accionDetalleTemplate.replace(/0\/$/, `${id}/`);
         const res = await fetch(url, { headers: { "X-Requested-With": "XMLHttpRequest" } });
         const data = await res.json().catch(() => ({}));
@@ -1212,7 +1822,7 @@
       document.getElementById("pa_apellidos").value = emp.apellidos || "";
       document.getElementById("pa_cedula").value = emp.cedula || "";
       document.getElementById("pa_salario_actual").value = emp.salario_base || "";
-      employeeVacationDays = Math.max(0, Math.min(120, Number(emp.dias_vacaciones || 0) || 0));
+      employeeVacationDays = Math.max(0, Math.min(120, Number(emp.vacaciones_disponibles ?? emp.dias_vacaciones ?? 0) || 0));
       document.getElementById("pa_fecha_ingreso").value = emp.fecha_ingreso || "";
       document.getElementById("pa_estatus").value = emp.estado || "";
       setSelectValue("pa_departamento", emp.departamento || "");
@@ -1231,8 +1841,6 @@
       fechaField.value = action.fecha || todayValue();
       document.getElementById("pa_fecha_efectiva").value = action.fecha_efectiva || "";
       document.getElementById("pa_estatus").value = action.estatus || "";
-      document.getElementById("pa_afecta_nomina").checked = !!action.afecta_nomina;
-      document.getElementById("pa_aplicado").checked = !!action.aplicado;
       tipoAccionField.value = action.tipo_accion || "";
       entradaMotivoField.value = action.entrada_motivo || "";
       setSelectValue("pa_entrada_nomina", action.entrada_nomina || "SIN ASIGNAR");
@@ -1256,6 +1864,11 @@
       cambioLicenciaMedicaHastaField.value = action.cambio_motivo === "LICENCIA MEDICA" ? action.fecha_hasta || "" : "";
       document.getElementById("pa_comentario").value = action.comentario || "";
       syncTipoAccion();
+      const isCanceled = String(action.estatus || "").trim().toUpperCase() === "CANCELADA";
+      const isApplied = !!action.aplicado;
+      const isReadOnly = isCanceled || isApplied;
+      btnGrabar.disabled = isReadOnly;
+      setFormReadOnly(isReadOnly);
     }
 
     function clearForm() {
@@ -1268,17 +1881,18 @@
       });
       fechaField.value = todayValue();
       document.getElementById("pa_estatus").value = "";
+      setFormReadOnly(false);
       syncActionAvailability();
     }
 
     function collectActionPayload() {
       const cambioMotivo = cambioMotivoField.value;
       return {
+        id_accion: document.getElementById("pa_no").value || "",
         id_empleado: selectedEmployeeId,
         fecha: fechaField.value,
         fecha_efectiva: document.getElementById("pa_fecha_efectiva").value,
         tipo_accion: tipoAccionField.value,
-        afecta_nomina: document.getElementById("pa_afecta_nomina").checked,
         comentario: document.getElementById("pa_comentario").value || "",
         entrada_motivo: entradaMotivoField.value,
         entrada_nomina: document.getElementById("pa_entrada_nomina").value,
@@ -1311,18 +1925,20 @@
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
-          alert(data.detail || "No se pudo guardar la accion.");
+          showMessage(data.detail || "No se pudo guardar la accion.", "Aviso");
           return;
         }
-        fillEmployee(data.empleado);
-        fillAction(data.accion);
-        alert("Accion guardada correctamente.");
+        activateTab("MAESTRO");
+        clearForm();
+        if (actionsPanel && !actionsPanel.hidden) fetchActions(actionsPanelBody, "");
+        showMessage("Accion guardada correctamente.", "Guardado");
       } catch (error) {
-        alert("Error de conexion guardando la accion.");
+        showMessage("Error de conexion guardando la accion.", "Aviso");
       }
     }
 
     function openActionModal() {
+      clearForm();
       actionBackdrop.classList.add("open");
       actionBackdrop.setAttribute("aria-hidden", "false");
       actionSearchInput.focus();
@@ -1339,7 +1955,7 @@
       const showForm = status === "MAESTRO";
       formLayout.hidden = !showForm;
       actionsPanel.hidden = showForm;
-      if (!showForm) fetchActions(actionsPanelBody, status === "APROBADAS" ? "" : status);
+      if (!showForm) fetchActions(actionsPanelBody, status);
     }
 
     btnNuevo.addEventListener("click", openEmployeeModal);
@@ -1358,6 +1974,14 @@
     tabButtons.forEach((button) => button.addEventListener("click", () => activateTab(button.dataset.paTab)));
     document.getElementById("pa_action_close").addEventListener("click", closeActionModal);
     document.getElementById("pa_action_search").addEventListener("click", () => fetchActions(actionBody, ""));
+    messageCloseButton.addEventListener("click", closeMessageModal);
+    previewCloseButton.addEventListener("click", closePreviewModal);
+    previewPrintButton.addEventListener("click", printPreview);
+    estatusField.addEventListener("contextmenu", openStatusContextMenu);
+    statusContextCancelButton.addEventListener("click", () => {
+      hideStatusContextMenu();
+      requestCancelCurrentAction();
+    });
     actionSearchInput.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
@@ -1367,6 +1991,17 @@
     actionBackdrop.addEventListener("click", (event) => {
       if (event.target === actionBackdrop) closeActionModal();
     });
+    messageBackdrop.addEventListener("click", (event) => {
+      if (event.target === messageBackdrop) closeMessageModal();
+    });
+    previewBackdrop.addEventListener("click", (event) => {
+      if (event.target === previewBackdrop) closePreviewModal();
+    });
+    document.addEventListener("click", (event) => {
+      if (statusContextMenu.contains(event.target)) return;
+      hideStatusContextMenu();
+    });
+    document.addEventListener("scroll", hideStatusContextMenu, true);
     document.getElementById("pa_employee_close").addEventListener("click", closeEmployeeModal);
     document.getElementById("pa_employee_search").addEventListener("click", fetchEmployees);
     searchInput.addEventListener("keydown", (event) => {

@@ -1,6 +1,6 @@
 import json
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.db import IntegrityError, transaction
 from django.db.models import Q
@@ -14,7 +14,13 @@ from ajustes.models import FeriadoNacional
 from core.views import _base_context, render_denied
 from inventario.views import _load_departamento_rows
 
-from .models import EmpleadoAccionPersonal, EmpleadoEstudio, EmpleadoExperienciaLaboral, EmpleadoNomina
+from .models import (
+    EmpleadoAccionPersonal,
+    EmpleadoEstudio,
+    EmpleadoExperienciaLaboral,
+    EmpleadoNomina,
+    EmpleadoVacacionBalance,
+)
 
 
 DATE_FIELDS = {"fecha_nacimiento"}
@@ -73,6 +79,31 @@ TEXT_FIELDS = [
     "observaciones",
 ]
 
+CONTRACT_ENTRY_MOTIVES = {"CONTRATO", "CONTRATADO"}
+ACTION_DETAIL_DEFAULTS = {
+    "entrada_motivo": "",
+    "entrada_nomina": "",
+    "motivo_nombramiento": "",
+    "contrato_fecha_inicio": None,
+    "contrato_fecha_fin": None,
+    "salario_propuesto": None,
+    "salida_motivo": "",
+    "cambio_motivo": "",
+    "cambio_departamento": "",
+    "cambio_cargo": "",
+    "cambio_nomina": "",
+    "cambio_departamento_anterior": "",
+    "cambio_cargo_anterior": "",
+    "cambio_nomina_anterior": "",
+    "cambio_salario_actual": None,
+    "cambio_salario_propuesto": None,
+    "cambio_porcentaje": None,
+    "cambio_diferencia": None,
+    "fecha_desde": None,
+    "fecha_hasta": None,
+    "cantidad_dias": None,
+}
+
 
 def _employee_payload(record):
     data = {"id_empleado": record.id_empleado}
@@ -80,6 +111,7 @@ def _employee_payload(record):
         data[field] = getattr(record, field) or ""
     data["salario_base"] = str(record.salario_base) if record.salario_base is not None else ""
     data["dias_vacaciones"] = record.dias_vacaciones or 0
+    data["vacaciones_disponibles"] = _get_vacation_balance(record).dias_disponibles
     data["estado"] = record.estado or ""
     for field in DATE_FIELDS:
         value = getattr(record, field)
@@ -140,6 +172,81 @@ def _parse_int(value):
         return int(str(value or "").strip())
     except (TypeError, ValueError):
         return 0
+
+
+def _get_vacation_balance(empleado, year=None, for_update=False):
+    year = year or timezone.localdate().year
+    previous_balance = (
+        EmpleadoVacacionBalance.objects.filter(empleado=empleado, ano__lt=year)
+        .order_by("-ano")
+        .first()
+    )
+    default_days = (previous_balance.dias_disponibles if previous_balance else 0) + (empleado.dias_vacaciones or 0)
+    queryset = EmpleadoVacacionBalance.objects
+    if for_update:
+        queryset = queryset.select_for_update()
+    balance, _ = queryset.get_or_create(
+        empleado=empleado,
+        ano=year,
+        defaults={"dias_disponibles": default_days},
+    )
+    return balance
+
+
+def _count_vacation_days(fecha_desde, fecha_hasta):
+    if not fecha_desde or not fecha_hasta or fecha_hasta < fecha_desde:
+        return 0
+    holidays = set(
+        FeriadoNacional.objects.filter(
+            activo=True,
+            no_laborable=True,
+            fecha__range=(fecha_desde, fecha_hasta),
+        ).values_list("fecha", flat=True)
+    )
+    total = 0
+    cursor = fecha_desde
+    while cursor <= fecha_hasta:
+        if cursor.weekday() != 6 and cursor not in holidays:
+            total += 1
+        cursor += timedelta(days=1)
+    return total
+
+
+def _discount_vacation_balance(record):
+    if not (
+        record.tipo_accion == EmpleadoAccionPersonal.TIPO_CAMBIO
+        and record.cambio_motivo == "VACACIONES"
+        and record.cantidad_dias
+        and record.fecha_desde
+    ):
+        return
+    balance = _get_vacation_balance(record.empleado, record.fecha_desde.year, for_update=True)
+    requested_days = int(record.cantidad_dias or 0)
+    if requested_days > (balance.dias_disponibles or 0):
+        raise ValueError("Los dias solicitados superan los dias disponibles.")
+    balance.dias_disponibles = (balance.dias_disponibles or 0) - requested_days
+    balance.save(update_fields=["dias_disponibles", "actualizado_en"])
+
+
+def _return_remaining_vacation_days(record):
+    if not (
+        record.tipo_accion == EmpleadoAccionPersonal.TIPO_CAMBIO
+        and record.cambio_motivo == "VACACIONES"
+        and record.fecha_desde
+        and record.fecha_hasta
+    ):
+        return 0
+    today = timezone.localdate()
+    if today > record.fecha_hasta:
+        remaining_days = 0
+    else:
+        remaining_from = max(today, record.fecha_desde)
+        remaining_days = _count_vacation_days(remaining_from, record.fecha_hasta)
+    if remaining_days > 0:
+        balance = _get_vacation_balance(record.empleado, record.fecha_desde.year, for_update=True)
+        balance.dias_disponibles = (balance.dias_disponibles or 0) + remaining_days
+        balance.save(update_fields=["dias_disponibles", "actualizado_en"])
+    return remaining_days
 
 
 def _is_active_employee(record):
@@ -219,6 +326,44 @@ def _apply_personal_action(record):
         if record.cambio_salario_propuesto is not None:
             empleado.salario_base = record.cambio_salario_propuesto
     empleado.save()
+    _discount_vacation_balance(record)
+
+
+def _reverse_change_action(record):
+    """Revierte los cambios de una acción de CAMBIO cancelada"""
+    empleado = record.empleado
+    motivo = str(record.cambio_motivo or "").strip().upper()
+    
+    if motivo == "AUMENTO DE SALARIO":
+        # Revertir aumento de salario
+        if record.cambio_salario_actual is not None:
+            empleado.salario_base = record.cambio_salario_actual
+    
+    elif motivo == "TRASLADO":
+        # Revertir departamento y cargo
+        if record.cambio_departamento_anterior:
+            empleado.departamento = record.cambio_departamento_anterior
+        if record.cambio_cargo_anterior:
+            empleado.cargo = record.cambio_cargo_anterior
+    
+    elif motivo == "PROMOCION":
+        # Revertir salario, departamento y cargo
+        if record.cambio_salario_actual is not None:
+            empleado.salario_base = record.cambio_salario_actual
+        if record.cambio_departamento_anterior:
+            empleado.departamento = record.cambio_departamento_anterior
+        if record.cambio_cargo_anterior:
+            empleado.cargo = record.cambio_cargo_anterior
+    
+    elif motivo == "CAMBIO DE NOMINA":
+        # No se aplica reversión de nómina (el cambio se registra en la acción pero no se modifica el empleado)
+        pass
+    
+    # SUSPENCION y LICENCIA MEDICA: solo cambian estado, no hay cambios a revertir
+    # VACACIONES: ya se maneja con _return_remaining_vacation_days
+    
+    empleado.save()
+
 
 
 def _clean_action_payload(payload, empleado):
@@ -242,11 +387,12 @@ def _clean_action_payload(payload, empleado):
 
     today = timezone.localdate()
     estatus = (
-        EmpleadoAccionPersonal.ESTATUS_PENDIENTE
+        EmpleadoAccionPersonal.ESTATUS_APLICADA
         if fecha_efectiva <= today
-        else EmpleadoAccionPersonal.ESTATUS_APLICADA
+        else EmpleadoAccionPersonal.ESTATUS_PENDIENTE
     )
     data = {
+        **ACTION_DETAIL_DEFAULTS,
         "fecha": fecha,
         "fecha_efectiva": fecha_efectiva,
         "estatus": estatus,
@@ -269,8 +415,12 @@ def _clean_action_payload(payload, empleado):
         )
         if not data["entrada_motivo"]:
             raise ValueError("Debe seleccionar el motivo de entrada.")
-        if data["entrada_motivo"] == "CONTRATO" and (not data["contrato_fecha_inicio"] or not data["contrato_fecha_fin"]):
+        if data["entrada_motivo"] in CONTRACT_ENTRY_MOTIVES and (
+            not data["contrato_fecha_inicio"] or not data["contrato_fecha_fin"]
+        ):
             raise ValueError("Debe indicar inicio y fin del contrato.")
+        if data["contrato_fecha_fin"] and data["contrato_fecha_inicio"] and data["contrato_fecha_fin"] < data["contrato_fecha_inicio"]:
+            raise ValueError("La fecha fin del contrato no puede ser menor que la fecha inicio.")
     elif tipo_accion == EmpleadoAccionPersonal.TIPO_SALIDA:
         data["salida_motivo"] = str(payload.get("salida_motivo") or "").strip()
         if not data["salida_motivo"]:
@@ -284,6 +434,9 @@ def _clean_action_payload(payload, empleado):
             data["cambio_departamento"] = str(payload.get("cambio_departamento") or "").strip()
             data["cambio_cargo"] = str(payload.get("cambio_cargo") or "").strip()
             data["cambio_nomina"] = str(payload.get("cambio_nomina") or "").strip()
+            # Guardar valores anteriores
+            data["cambio_departamento_anterior"] = empleado.departamento or ""
+            data["cambio_cargo_anterior"] = empleado.cargo or ""
         if motivo in {"AUMENTO DE SALARIO", "PROMOCION"}:
             proposed = _parse_decimal(payload.get("cambio_salario_propuesto"))
             current = empleado.salario_base or Decimal("0")
@@ -303,10 +456,29 @@ def _clean_action_payload(payload, empleado):
         if motivo == "VACACIONES":
             data["fecha_desde"] = _parse_date(payload.get("fecha_desde"))
             data["fecha_hasta"] = _parse_date(payload.get("fecha_hasta"))
-            data["cantidad_dias"] = _parse_int(payload.get("cantidad_dias"))
             if not data["fecha_desde"] or not data["fecha_hasta"]:
                 raise ValueError("Debe indicar las fechas de vacaciones.")
-            if data["cantidad_dias"] > (empleado.dias_vacaciones or 0):
+            if data["fecha_hasta"] < data["fecha_desde"]:
+                raise ValueError("La fecha hasta de vacaciones no puede ser menor que desde.")
+            if data["fecha_desde"].year != data["fecha_hasta"].year:
+                raise ValueError("Las vacaciones deben pertenecer al mismo ano.")
+            data["cantidad_dias"] = _count_vacation_days(data["fecha_desde"], data["fecha_hasta"])
+            if data["cantidad_dias"] <= 0:
+                raise ValueError("El rango de vacaciones no contiene dias laborables.")
+            accion_id = _parse_int(payload.get("id_accion"))
+            overlapping = EmpleadoAccionPersonal.objects.filter(
+                empleado=empleado,
+                tipo_accion=EmpleadoAccionPersonal.TIPO_CAMBIO,
+                cambio_motivo="VACACIONES",
+                fecha_desde__lte=data["fecha_hasta"],
+                fecha_hasta__gte=data["fecha_desde"],
+            ).exclude(estatus=EmpleadoAccionPersonal.ESTATUS_CANCELADA)
+            if accion_id:
+                overlapping = overlapping.exclude(id_accion=accion_id)
+            if overlapping.exists():
+                raise ValueError("El empleado ya tiene vacaciones asignadas dentro de ese rango de fechas.")
+            balance = _get_vacation_balance(empleado, data["fecha_desde"].year)
+            if data["cantidad_dias"] > (balance.dias_disponibles or 0):
                 raise ValueError("Los dias solicitados superan los dias disponibles.")
         if motivo == "LICENCIA MEDICA":
             data["fecha_desde"] = _parse_date(payload.get("fecha_desde"))
@@ -514,26 +686,99 @@ def acciones_personal_guardar(request):
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except json.JSONDecodeError:
         return JsonResponse({"detail": "JSON invalido."}, status=400)
-    ctx, denied = _require_empleados_perm(request, "crear")
+    accion_id = _parse_int(payload.get("id_accion"))
+    ctx, denied = _require_empleados_perm(request, "editar" if accion_id else "crear")
     if denied:
         return JsonResponse({"detail": "No tienes permiso para guardar acciones."}, status=403)
     empleado_id = _parse_int(payload.get("id_empleado"))
     empleado = EmpleadoNomina.objects.filter(id_empleado=empleado_id).first()
     if not empleado:
         return JsonResponse({"detail": "Debe seleccionar un empleado."}, status=400)
+    existing_record = None
+    was_applied = False
+    if accion_id:
+        existing_record = EmpleadoAccionPersonal.objects.select_related("empleado").filter(id_accion=accion_id).first()
+        if not existing_record:
+            return JsonResponse({"detail": "Accion no encontrada."}, status=404)
+        if existing_record.empleado_id != empleado.id_empleado:
+            return JsonResponse({"detail": "La accion cargada no pertenece al empleado seleccionado."}, status=400)
+        if existing_record.aplicado:
+            return JsonResponse({"detail": "Una accion aplicada no puede modificarse desde esta pantalla."}, status=400)
+        was_applied = bool(existing_record.aplicado)
     try:
         data = _clean_action_payload(payload, empleado)
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
     try:
         with transaction.atomic():
-            record = EmpleadoAccionPersonal.objects.create(empleado=empleado, **data)
-            if record.aplicado:
+            if existing_record:
+                for field, value in data.items():
+                    setattr(existing_record, field, value)
+                existing_record.save()
+                record = existing_record
+            else:
+                record = EmpleadoAccionPersonal.objects.create(empleado=empleado, **data)
+            if record.aplicado and not was_applied:
                 _apply_personal_action(record)
                 record.empleado.refresh_from_db()
     except Exception as exc:
         return JsonResponse({"detail": f"No se pudo guardar la accion: {exc}"}, status=500)
     return JsonResponse({"ok": True, "accion": _accion_payload(record), "empleado": _employee_payload(record.empleado)})
+
+
+@require_http_methods(["POST"])
+def acciones_personal_cancelar(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "JSON invalido."}, status=400)
+    ctx, denied = _require_empleados_perm(request, "editar")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso para cancelar acciones."}, status=403)
+    accion_id = _parse_int(payload.get("id_accion"))
+    if not accion_id:
+        return JsonResponse({"detail": "Debe indicar la accion a cancelar."}, status=400)
+    try:
+        with transaction.atomic():
+            record = (
+                EmpleadoAccionPersonal.objects.select_for_update()
+                .select_related("empleado")
+                .filter(id_accion=accion_id)
+                .first()
+            )
+            if not record:
+                return JsonResponse({"detail": "Accion no encontrada."}, status=404)
+            if record.estatus == EmpleadoAccionPersonal.ESTATUS_CANCELADA:
+                return JsonResponse({"detail": "La accion ya esta cancelada."}, status=400)
+            if record.estatus != EmpleadoAccionPersonal.ESTATUS_APLICADA:
+                return JsonResponse({"detail": "Solo se pueden cancelar acciones aplicadas desde esta opcion."}, status=400)
+            
+            returned_days = _return_remaining_vacation_days(record)
+            elapsed_days = max(0, int(record.cantidad_dias or 0) - returned_days)
+            
+            # Revertir cambios si es acción de CAMBIO
+            if record.tipo_accion == EmpleadoAccionPersonal.TIPO_CAMBIO:
+                _reverse_change_action(record)
+            
+            record.estatus = EmpleadoAccionPersonal.ESTATUS_CANCELADA
+            record.aplicado = False
+            record.save(update_fields=["estatus", "aplicado", "actualizado_en"])
+            record.empleado.refresh_from_db()
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
+    except Exception as exc:
+        return JsonResponse({"detail": f"No se pudo cancelar la accion: {exc}"}, status=500)
+    return JsonResponse(
+        {
+            "ok": True,
+            "accion": _accion_payload(record),
+            "empleado": _employee_payload(record.empleado),
+            "dias_devueltos": returned_days,
+            "dias_transcurridos": elapsed_days,
+            "tipo_accion": record.tipo_accion,
+            "cambio_motivo": record.cambio_motivo,
+        }
+    )
 
 
 @require_http_methods(["POST"])
