@@ -47,12 +47,26 @@ class EmpleadoNomina(models.Model):
     telefono_emergencia = models.CharField(db_column="TELEFONO_EMERGENCIA", max_length=30, blank=True)
     estado = models.CharField(db_column="ESTADO", max_length=30, default="Inactivo")
     observaciones = models.TextField(db_column="OBSERVACIONES", blank=True)
+    id_foto = models.IntegerField(db_column="ID_FOTO", blank=True, null=True)
     fecha_creacion = models.DateTimeField(db_column="FECHA_CREACION", auto_now_add=True)
     fecha_modificacion = models.DateTimeField(db_column="FECHA_MODIFICACION", auto_now=True)
 
     class Meta:
         db_table = "EMPLEADO_NOMINA"
         ordering = ["codigo"]
+
+
+class EmpleadoFoto(models.Model):
+    id_foto = models.AutoField(db_column="ID_FOTO", primary_key=True)
+    id_empleado = models.BigIntegerField(db_column="ID_EMPLEADO", unique=True)
+    foto = models.BinaryField(db_column="FOTO", blank=True, null=True)
+    foto_tipo = models.CharField(db_column="FOTO_TIPO", max_length=80, blank=True)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "EMPLEADO_FOTO"
+        ordering = ["id_empleado"]
 
 
 class EmpleadoEstudio(models.Model):

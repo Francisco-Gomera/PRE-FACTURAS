@@ -278,6 +278,16 @@
   .pa-photo-box {
     border-bottom: 1px solid #d6e1f1;
     background: #f8fafc;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pa-photo-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 
   .pa-photo-label {
@@ -766,7 +776,7 @@
       </div>
 
       <aside class="pa-photo-side">
-        <div class="pa-photo-box"></div>
+        <div id="pa_photo_preview" class="pa-photo-box"></div>
         <div class="pa-photo-label">FOTOGRAFIA</div>
       </aside>
     </div>
@@ -895,6 +905,7 @@
     const previewBody = document.getElementById("pa_preview_body");
     const previewCloseButton = document.getElementById("pa_preview_close");
     const previewPrintButton = document.getElementById("pa_preview_print");
+    const employeePhotoPreview = document.getElementById("pa_photo_preview");
     const statusContextMenu = document.getElementById("pa_status_context_menu");
     const statusContextCancelButton = document.getElementById("pa_status_context_cancel");
     const actionsPanel = document.getElementById("pa_actions_panel");
@@ -1225,18 +1236,59 @@
       previewBackdrop.setAttribute("aria-hidden", "true");
     }
 
-    function printPreview() {
+    function waitForPrintAssets(doc, timeoutMs = 2500) {
+      const images = Array.from(doc.images || []);
+      if (!images.length) return Promise.resolve();
+      const imagePromises = images.map((img) => {
+        if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+        return new Promise((resolve) => {
+          const finish = () => resolve();
+          img.addEventListener("load", finish, { once: true });
+          img.addEventListener("error", finish, { once: true });
+          if (img.decode) {
+            img.decode().then(finish).catch(() => {});
+          }
+        });
+      });
+      return Promise.race([
+        Promise.all(imagePromises),
+        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+      ]);
+    }
+
+    async function printPreview() {
       const printWindow = window.open("", "", "height=600,width=800");
-      printWindow.document.write(previewBody.innerHTML);
+      if (!printWindow) {
+        showMessage("El navegador bloqueo la ventana de impresion.", "Aviso");
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Accion de Personal</title></head><body>${previewBody.innerHTML}</body></html>`);
       printWindow.document.close();
+      await waitForPrintAssets(printWindow.document);
+      await new Promise((resolve) => printWindow.requestAnimationFrame(() => printWindow.requestAnimationFrame(resolve)));
+      printWindow.focus();
       printWindow.print();
     }
+
+    const printEmpresa = {
+      nombre: "{{ empresa.nombre|default:'COMERCIAL ANITA SRL'|escapejs }}",
+      direccion: "{{ empresa.direccion|default:''|escapejs }}",
+      telefono: "{{ empresa.tel1|default:''|escapejs }}",
+      logoB64: "{{ empresa.logo_b64|default:''|escapejs }}",
+      logoTipo: "{{ empresa.logo_tipo|default:'image/png'|escapejs }}",
+    };
 
     function hideStatusContextMenu() {
       statusContextMenu.classList.remove("open");
       statusContextMenu.setAttribute("aria-hidden", "true");
       statusContextMenu.style.left = "-9999px";
       statusContextMenu.style.top = "-9999px";
+    }
+
+    function setEmployeePhotoPreview(emp) {
+      const src = emp && emp.foto_b64 ? `data:${emp.foto_tipo || "image/png"};base64,${emp.foto_b64}` : "";
+      employeePhotoPreview.innerHTML = src ? `<img src="${escapeHtml(src)}" alt="" />` : "";
     }
 
     function showStatusContextMenu(event) {
@@ -1301,16 +1353,27 @@
     function buildPrintPreview(action, empleado) {
       const tipoAccion = String(action.tipo_accion || "").trim().toUpperCase();
       const cambioMotivo = String(action.cambio_motivo || "").trim().toUpperCase();
+      const estatusTexto = String(action.estatus || "PENDIENTE").trim().toUpperCase();
+      const estatusColor = estatusTexto === "CANCELADA" ? "#b91c1c" : "#15803d";
+      const logoSrc = printEmpresa.logoB64 ? `data:${printEmpresa.logoTipo || "image/png"};base64,${printEmpresa.logoB64}` : "";
+      const empleadoFotoSrc = empleado.foto_url || empleado.foto || (empleado.foto_b64 ? `data:${empleado.foto_tipo || "image/png"};base64,${empleado.foto_b64}` : "");
       const fechaHoy = new Date().toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' });
       
       // Formato A4 profesional
       let html = `
-        <div style="font-family: Arial, sans-serif; margin: 0; padding: 20px; line-height: 1.4; max-width: 210mm; background: white;">
+        <div style="font-family: Arial, sans-serif; margin: 0; padding: 18px 22px; line-height: 1.32; max-width: 210mm; background: white; color: #111827;">
           
           <!-- ENCABEZADO -->
-          <div style="text-align: center; margin-bottom: 15px; border-bottom: 3px solid #000; padding-bottom: 10px;">
-            <div style="font-weight: bold; font-size: 14px; letter-spacing: 1px;">COMERCIAL ANITA</div>
-            <div style="font-size: 11px; margin-top: 2px;">Gestión Humana</div>
+          <div style="display: grid; grid-template-columns: 86px minmax(0, 1fr) 110px; align-items: center; gap: 12px; margin-bottom: 10px; border-bottom: 3px solid #0f172a; padding-bottom: 8px;">
+            <div style="height: 54px; display: flex; align-items: center; justify-content: flex-start;">
+              ${logoSrc ? `<img src="${logoSrc}" alt="" style="max-width: 82px; max-height: 50px; object-fit: contain;" />` : ""}
+            </div>
+            <div style="text-align: center;">
+              <div style="font-weight: 800; font-size: 15px; letter-spacing: .4px;">${escapeHtml(printEmpresa.nombre || "COMERCIAL ANITA SRL")}</div>
+              <div style="font-size: 11px; font-weight: 700; margin-top: 2px;">Gestión Humana</div>
+              <div style="font-size: 9px; color: #475569; margin-top: 1px;">${escapeHtml(printEmpresa.direccion || "")}${printEmpresa.telefono ? " | Tel. " + escapeHtml(printEmpresa.telefono) : ""}</div>
+            </div>
+            <div style="text-align: right; font-size: 9px; color: #475569;">Fecha: ${escapeHtml(action.fecha || "")}</div>
           </div>
           
           <!-- TITULO Y ESTADO -->
@@ -1320,8 +1383,8 @@
               <div style="font-size: 11px; color: #666;">${escapeHtml(tipoAccion === "CAMBIO" ? cambioMotivo : tipoAccion)}</div>
             </div>
             <div style="text-align: right;">
-              <div style="font-weight: bold; font-size: 12px; color: #006600; border: 2px solid #006600; padding: 3px 8px;">
-                ${escapeHtml(action.estatus || "PENDIENTE")}
+              <div style="font-weight: bold; font-size: 13px; color: ${estatusColor}; border: 2px solid ${estatusColor}; padding: 3px 10px; min-width: 92px; text-align: center;">
+                ${escapeHtml(estatusTexto)}
               </div>
               <div style="font-size: 10px; margin-top: 3px;">Fecha: ${escapeHtml(action.fecha)}</div>
             </div>
@@ -1336,7 +1399,8 @@
           </div>
           
           <!-- DATOS DEL EMPLEADO -->
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; border: 1px solid #000;">
+          <div style="display: flex; gap: 10px; align-items: stretch; margin-bottom: 15px;">
+          <table style="flex: 1; width: 100%; border-collapse: collapse; border: 1px solid #000;">
             <thead>
               <tr style="background-color: #f0f0f0; border-bottom: 1px solid #000;">
                 <th colspan="4" style="text-align: left; padding: 6px; font-size: 11px; font-weight: bold; border-bottom: 2px solid #000;">Datos del Empleado</th>
@@ -1379,6 +1443,10 @@
               </tr>
             </tbody>
           </table>
+          <div style="width: 104px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; background: #fff; overflow: hidden;">
+            ${empleadoFotoSrc ? `<img src="${escapeHtml(empleadoFotoSrc)}" alt="" style="width: 100%; height: 100%; object-fit: cover;" />` : ""}
+          </div>
+          </div>
           
           <!-- DATOS DEL CAMBIO/ACCION -->
           <div style="display: flex; gap: 15px; margin-bottom: 15px;">
@@ -1591,23 +1659,6 @@
             </div>
           </div>
           
-          <!-- CHECKBOXES Y COMENTARIO -->
-          <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-            <div style="flex: 1;">
-              <div style="border: 1px solid #000; padding: 8px;">
-                <div style="font-size: 10px; margin-bottom: 6px;">
-                  <input type="checkbox" style="margin-right: 5px;" ${action.afecta_nomina ? "checked" : ""} disabled />
-                  <span style="font-weight: bold;">Afecta Nómina</span>
-                </div>
-                <div style="font-size: 10px;">
-                  <input type="checkbox" style="margin-right: 5px;" ${action.aplicado ? "checked" : ""} disabled />
-                  <span style="font-weight: bold;">Aplicado</span>
-                </div>
-              </div>
-            </div>
-            <div style="flex: 2;"></div>
-          </div>
-          
           <!-- COMENTARIO O JUSTIFICACIÓN -->
           <div style="margin-bottom: 20px;">
             <div style="font-weight: bold; font-size: 11px; margin-bottom: 5px; border-bottom: 1px solid #000; padding-bottom: 3px;">
@@ -1623,14 +1674,14 @@
             <div style="text-align: center; width: 45%;">
               <div style="border-top: 1px solid #000; margin-top: 50px; padding-top: 3px;">
                 <strong>Enc. Gestión Humana</strong><br/>
-                <span style="font-size: 9px;">Elaborado</span>
+                <span style="font-size: 9px;">Aprobacion</span>
               </div>
             </div>
             <div style="width: 10%;"></div>
             <div style="text-align: center; width: 45%;">
               <div style="border-top: 1px solid #000; margin-top: 50px; padding-top: 3px;">
-                <strong>Dir. Administrativo(a)</strong><br/>
-                <span style="font-size: 9px;">Aprobado</span>
+                <strong>Empleado</strong><br/>
+                <span style="font-size: 9px;">Firma</span>
               </div>
             </div>
           </div>
@@ -1642,6 +1693,348 @@
       `;
       
       return html;
+    }
+
+    function buildModernPrintPreview(action, empleado) {
+      const tipoAccion = String(action.tipo_accion || "").trim().toUpperCase();
+      const cambioMotivo = String(action.cambio_motivo || "").trim().toUpperCase();
+      const estatusTexto = String(action.estatus || "PENDIENTE").trim().toUpperCase();
+      const estatusClass = estatusTexto === "CANCELADA" ? "is-danger" : "is-ok";
+      const logoSrc = printEmpresa.logoB64 ? `data:${printEmpresa.logoTipo || "image/png"};base64,${printEmpresa.logoB64}` : "";
+      const empleadoFotoSrc = empleado.foto_url || empleado.foto || (empleado.foto_b64 ? `data:${empleado.foto_tipo || "image/png"};base64,${empleado.foto_b64}` : "");
+      const fechaHoy = new Date().toLocaleDateString("es-ES", { year: "numeric", month: "2-digit", day: "2-digit" });
+      const horaHoy = new Date().toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+      const docMotivo = tipoAccion === "CAMBIO" ? cambioMotivo : tipoAccion;
+      const fmtMoney = (value) => Number(value || 0).toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const fmtPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
+      const clean = (value, fallback = "-") => escapeHtml(String(value ?? "").trim() || fallback);
+      const field = (label, value, extraClass = "") => `
+        <div class="pa-print-field ${extraClass}">
+          <span>${escapeHtml(label)}</span>
+          <strong>${clean(value)}</strong>
+        </div>`;
+
+      const primaryFields = [];
+      const detailFields = [];
+
+      if (tipoAccion === "ENTRADA") {
+        primaryFields.push(
+          field("Motivo", action.entrada_motivo),
+          field("Nomina", action.entrada_nomina),
+          field("Motivo nombramiento", action.motivo_nombramiento),
+          field("Contrato desde", action.contrato_fecha_inicio),
+          field("Contrato hasta", action.contrato_fecha_fin)
+        );
+        detailFields.push(field("Salario ofrecido", fmtMoney(action.salario_propuesto), "is-amount"));
+      } else if (tipoAccion === "SALIDA") {
+        primaryFields.push(field("Motivo", action.salida_motivo, "is-wide"));
+        detailFields.push(field("Fecha efectiva", action.fecha_efectiva));
+      } else if (tipoAccion === "CAMBIO") {
+        primaryFields.push(field("Motivo", cambioMotivo, "is-wide"));
+        if (["TRASLADO", "PROMOCION"].includes(cambioMotivo)) {
+          primaryFields.push(
+            field("Departamento anterior", action.cambio_departamento_anterior || empleado.departamento),
+            field("Nuevo departamento", action.cambio_departamento),
+            field("Cargo anterior", action.cambio_cargo_anterior || empleado.cargo),
+            field("Nuevo cargo", action.cambio_cargo)
+          );
+        }
+        if (cambioMotivo === "CAMBIO DE NOMINA") {
+          primaryFields.push(
+            field("Nomina anterior", action.cambio_nomina_anterior),
+            field("Nueva nomina", action.cambio_nomina)
+          );
+        }
+        if (["VACACIONES", "SUSPENCION", "LICENCIA MEDICA"].includes(cambioMotivo)) {
+          primaryFields.push(
+            field("Desde", action.fecha_desde),
+            field("Hasta", action.fecha_hasta),
+            field("Cantidad de dias", action.cantidad_dias)
+          );
+        }
+        if (["AUMENTO DE SALARIO", "PROMOCION"].includes(cambioMotivo)) {
+          detailFields.push(
+            field("Salario anterior", fmtMoney(action.cambio_salario_actual), "is-amount"),
+            field("Salario propuesto", fmtMoney(action.cambio_salario_propuesto), "is-amount"),
+            field("% aumento", fmtPercent(action.cambio_porcentaje)),
+            field("Diferencia", fmtMoney(action.cambio_diferencia), "is-amount")
+          );
+        }
+        if (cambioMotivo === "VACACIONES") {
+          detailFields.push(
+            field("Dias disponibles", empleado.vacaciones_disponibles || 0),
+            field("Dias solicitados", action.cantidad_dias || 0)
+          );
+        }
+      }
+
+      if (!primaryFields.length) primaryFields.push(field("Detalle", docMotivo));
+      if (!detailFields.length) detailFields.push(field("Referencia", "Sin detalle adicional", "is-muted"));
+
+      return `
+        <style>
+          .pa-print-doc {
+            width: 210mm;
+            min-height: 287mm;
+            box-sizing: border-box;
+            margin: 0 auto;
+            padding: 13mm 13mm 10mm;
+            background: #fff;
+            color: #111827;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10.5px;
+            line-height: 1.28;
+          }
+          .pa-print-header {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 165px;
+            gap: 14px;
+            align-items: stretch;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+          }
+          .pa-print-brand {
+            display: grid;
+            grid-template-columns: 72px minmax(0, 1fr);
+            gap: 11px;
+            align-items: center;
+          }
+          .pa-print-logo {
+            width: 66px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #d6e1f1;
+            background: #f8fafc;
+          }
+          .pa-print-logo img { max-width: 62px; max-height: 52px; object-fit: contain; }
+          .pa-print-logo span { color: #94a3b8; font-size: 9px; font-weight: 800; }
+          .pa-print-brand h1 {
+            margin: 0 0 4px;
+            font-size: 18px;
+            line-height: 1.08;
+            letter-spacing: .3px;
+            text-transform: uppercase;
+          }
+          .pa-print-meta {
+            display: grid;
+            gap: 2px;
+            color: #475569;
+            font-size: 9.5px;
+          }
+          .pa-print-meta span, .pa-print-field span, .pa-print-docbox span {
+            color: #64748b;
+            font-size: 8.7px;
+            font-weight: 800;
+            text-transform: uppercase;
+          }
+          .pa-print-docbox {
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            padding: 9px;
+            display: grid;
+            gap: 5px;
+            align-content: center;
+          }
+          .pa-print-docbox h2 {
+            margin: 0 0 4px;
+            font-size: 15px;
+            text-transform: uppercase;
+            line-height: 1.1;
+          }
+          .pa-print-status {
+            display: inline-block;
+            width: max-content;
+            padding: 3px 9px;
+            border: 1px solid currentColor;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .5px;
+          }
+          .pa-print-status.is-ok { color: #15803d; background: #f0fdf4; }
+          .pa-print-status.is-danger { color: #b91c1c; background: #fef2f2; }
+          .pa-print-section {
+            border: 1px solid #d6e1f1;
+            margin-top: 9px;
+            break-inside: avoid;
+          }
+          .pa-print-section-title {
+            padding: 6px 8px;
+            border-bottom: 1px solid #d6e1f1;
+            background: #edf4fc;
+            color: #0f172a;
+            font-weight: 900;
+            font-size: 10px;
+            text-transform: uppercase;
+          }
+          .pa-print-body { padding: 8px; }
+          .pa-print-employee {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 86px;
+            gap: 9px;
+          }
+          .pa-print-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 6px;
+          }
+          .pa-print-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .pa-print-field {
+            min-height: 38px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            padding: 5px 6px;
+            box-sizing: border-box;
+            display: grid;
+            align-content: start;
+            gap: 3px;
+          }
+          .pa-print-field strong {
+            color: #0f172a;
+            font-size: 10.5px;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+          }
+          .pa-print-field.is-wide { grid-column: 1 / -1; }
+          .pa-print-field.is-amount strong { text-align: right; font-variant-numeric: tabular-nums; }
+          .pa-print-field.is-muted strong { color: #94a3b8; font-weight: 600; }
+          .pa-print-photo {
+            min-height: 122px;
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+          }
+          .pa-print-photo img { width: 100%; height: 100%; object-fit: cover; }
+          .pa-print-photo span {
+            color: #94a3b8;
+            font-size: 8px;
+            font-weight: 900;
+            text-transform: uppercase;
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+          }
+          .pa-print-action {
+            display: grid;
+            grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+            gap: 9px;
+          }
+          .pa-print-comment {
+            min-height: 96px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            padding: 8px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+          }
+          .pa-print-signatures {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 34mm;
+            margin-top: 28mm;
+            padding: 0 9mm;
+          }
+          .pa-print-signature {
+            text-align: center;
+            border-top: 1px solid #0f172a;
+            padding-top: 5px;
+          }
+          .pa-print-signature strong { display: block; font-size: 10px; }
+          .pa-print-signature span { color: #64748b; font-size: 9px; }
+          .pa-print-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10mm;
+            color: #64748b;
+            font-size: 8px;
+          }
+          @media print {
+            body { margin: 0; background: #fff; }
+            .pa-print-doc { margin: 0; width: auto; min-height: auto; }
+          }
+        </style>
+        <main class="pa-print-doc">
+          <header class="pa-print-header">
+            <section class="pa-print-brand">
+              <div class="pa-print-logo">
+                ${logoSrc ? `<img src="${logoSrc}" alt="" />` : "<span>LOGO</span>"}
+              </div>
+              <div>
+                <h1>${clean(printEmpresa.nombre || "COMERCIAL ANITA SRL")}</h1>
+                <div class="pa-print-meta">
+                  <div><span>Area:</span> Gestion Humana</div>
+                  <div><span>Direccion:</span> ${clean(printEmpresa.direccion)}</div>
+                  <div><span>Telefono:</span> ${clean(printEmpresa.telefono)}</div>
+                </div>
+              </div>
+            </section>
+            <section class="pa-print-docbox">
+              <h2>Accion de Personal</h2>
+              <div><span>No.:</span> <strong>${String(action.id_accion || "").padStart(6, "0")}</strong></div>
+              <div><span>Tipo:</span> ${clean(docMotivo)}</div>
+              <div><span>Fecha:</span> ${clean(action.fecha)}</div>
+              <div class="pa-print-status ${estatusClass}">${clean(estatusTexto)}</div>
+            </section>
+          </header>
+
+          <section class="pa-print-section">
+            <div class="pa-print-section-title">Datos del Empleado</div>
+            <div class="pa-print-body pa-print-employee">
+              <div class="pa-print-grid">
+                ${field("Codigo", empleado.codigo)}
+                ${field("Nombres", empleado.nombres)}
+                ${field("Apellidos", empleado.apellidos)}
+                ${field("Cedula", empleado.cedula)}
+                ${field("Fecha de ingreso", empleado.fecha_ingreso)}
+                ${field("Departamento actual", empleado.departamento)}
+                ${field("Cargo o posicion actual", empleado.cargo)}
+                ${field("Estatus", empleado.estado)}
+                ${field("Salario actual", fmtMoney(empleado.salario_base), "is-amount")}
+                ${field("Nomina de pago actual", empleado.forma_pago)}
+                ${field("Fecha efectiva", action.fecha_efectiva)}
+                ${field("Tipo de accion", tipoAccion)}
+              </div>
+              <div class="pa-print-photo">
+                ${empleadoFotoSrc ? `<img src="${escapeHtml(empleadoFotoSrc)}" alt="" />` : "<span>Fotografia</span>"}
+              </div>
+            </div>
+          </section>
+
+          <section class="pa-print-section">
+            <div class="pa-print-section-title">Datos de la Accion</div>
+            <div class="pa-print-body pa-print-action">
+              <div class="pa-print-grid two">${primaryFields.join("")}</div>
+              <div class="pa-print-grid two">${detailFields.join("")}</div>
+            </div>
+          </section>
+
+          <section class="pa-print-section">
+            <div class="pa-print-section-title">Comentario o Justificacion</div>
+            <div class="pa-print-body">
+              <div class="pa-print-comment">${clean(action.comentario, "")}</div>
+            </div>
+          </section>
+
+          <section class="pa-print-signatures">
+            <div class="pa-print-signature">
+              <strong>Enc. Gestion Humana</strong>
+              <span>Aprobacion</span>
+            </div>
+            <div class="pa-print-signature">
+              <strong>Empleado</strong>
+              <span>Firma</span>
+            </div>
+          </section>
+
+          <footer class="pa-print-footer">
+            <span>Accion de personal No. ${String(action.id_accion || "").padStart(6, "0")}</span>
+            <span>Impreso: ${fechaHoy} ${horaHoy}</span>
+          </footer>
+        </main>
+      `;
     }
 
     async function requestCancelCurrentAction() {
@@ -1711,7 +2104,13 @@
         </tr>
       `).join("");
       Array.from(body.querySelectorAll("tr[data-id]")).forEach((row) => {
-        row.addEventListener("dblclick", () => showActionPreview(row.dataset.id));
+        row.addEventListener("dblclick", () => {
+          if (body === actionBody) {
+            loadAction(row.dataset.id);
+            return;
+          }
+          showActionPreview(row.dataset.id);
+        });
       });
     }
 
@@ -1734,7 +2133,7 @@
           return;
         }
 
-        const previewHtml = buildPrintPreview(action, empleado);
+        const previewHtml = buildModernPrintPreview(action, empleado);
         previewBody.innerHTML = previewHtml;
         previewBackdrop.classList.add("open");
         previewBackdrop.setAttribute("aria-hidden", "false");
@@ -1831,6 +2230,7 @@
       setSelectValue("pa_cambio_departamento", emp.departamento || "");
       setSelectValue("pa_cambio_cargo", emp.cargo || "");
       setSelectValue("pa_cambio_nomina", emp.nomina || emp.nomina_actual || "SIN ASIGNAR");
+      setEmployeePhotoPreview(emp);
       cambioSalarioPropuestoField.value = "";
       syncActionAvailability();
       syncCambioMotivo();
@@ -1881,6 +2281,7 @@
       });
       fechaField.value = todayValue();
       document.getElementById("pa_estatus").value = "";
+      setEmployeePhotoPreview(null);
       setFormReadOnly(false);
       syncActionAvailability();
     }

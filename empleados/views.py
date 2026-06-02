@@ -14,6 +14,7 @@ from ajustes.models import FeriadoNacional
 from core.views import _base_context, render_denied
 from inventario.views import _load_departamento_rows
 
+from .employee_photos import get_employee_photo_data, save_employee_photo
 from .models import (
     EmpleadoAccionPersonal,
     EmpleadoEstudio,
@@ -122,6 +123,7 @@ def _employee_payload(record):
         data["horarios"] = json.loads(record.horarios_json or "{}")
     except json.JSONDecodeError:
         data["horarios"] = {}
+    data.update(get_employee_photo_data(record.id_empleado))
     data["estudios"] = [
         {
             "estudio_realizado": item.estudio_realizado or "",
@@ -143,6 +145,17 @@ def _employee_payload(record):
             "telefono": item.telefono or "",
         }
         for item in record.experiencias_laborales.all()
+    ]
+    acciones = [
+        _employee_action_payload(item)
+        for item in record.acciones_personal.all().order_by("-fecha", "-id_accion")
+    ]
+    data["acciones_personal"] = acciones
+    data["licencias_medicas"] = [
+        item
+        for item in acciones
+        if item.get("tipo_accion") == EmpleadoAccionPersonal.TIPO_CAMBIO
+        and str(item.get("motivo") or "").strip().upper() == "LICENCIA MEDICA"
     ]
     return data
 
@@ -305,6 +318,20 @@ def _accion_list_payload(record):
         "tipo_accion": record.tipo_accion,
         "motivo": record.entrada_motivo or record.salida_motivo or record.cambio_motivo or "",
         "empleado": f"{record.empleado.codigo} - {record.empleado.nombres} {record.empleado.apellidos}".strip(),
+    }
+
+
+def _employee_action_payload(record):
+    motivo = record.entrada_motivo or record.salida_motivo or record.cambio_motivo or ""
+    return {
+        "id_accion": record.id_accion,
+        "estatus": record.estatus or "",
+        "fecha": _fmt_date(record.fecha),
+        "fecha_efectiva": _fmt_date(record.fecha_efectiva),
+        "tipo_accion": record.tipo_accion or "",
+        "motivo": motivo,
+        "fecha_desde": _fmt_date(record.fecha_desde),
+        "fecha_hasta": _fmt_date(record.fecha_hasta),
     }
 
 
@@ -783,10 +810,18 @@ def acciones_personal_cancelar(request):
 
 @require_http_methods(["POST"])
 def guardar(request):
-    try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except json.JSONDecodeError:
-        return JsonResponse({"detail": "JSON invalido."}, status=400)
+    foto_file = None
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        try:
+            payload = json.loads(request.POST.get("payload") or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"detail": "JSON invalido."}, status=400)
+        foto_file = request.FILES.get("foto")
+    else:
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"detail": "JSON invalido."}, status=400)
 
     empleado_id = str(payload.get("id_empleado") or "").strip()
     creating = not bool(empleado_id)
@@ -816,6 +851,18 @@ def guardar(request):
         experiencias = _clean_experiencias(payload.get("experiencias_laborales"))
     except ValueError as exc:
         return JsonResponse({"detail": str(exc)}, status=400)
+
+    foto_bytes = None
+    foto_tipo = ""
+    if foto_file:
+        foto_tipo = (foto_file.content_type or "").lower()
+        if not foto_tipo.startswith("image/"):
+            return JsonResponse({"detail": "La foto debe ser una imagen valida."}, status=400)
+        if foto_file.size and foto_file.size > 2 * 1024 * 1024:
+            return JsonResponse({"detail": "La foto no puede exceder 2 MB."}, status=400)
+        foto_bytes = foto_file.read() or None
+        if not foto_bytes:
+            return JsonResponse({"detail": "La foto seleccionada esta vacia."}, status=400)
 
     record = None
     if empleado_id:
@@ -848,7 +895,11 @@ def guardar(request):
             EmpleadoExperienciaLaboral.objects.bulk_create(
                 [EmpleadoExperienciaLaboral(empleado=record, **item) for item in experiencias]
             )
+            if foto_bytes is not None and not save_employee_photo(record.id_empleado, foto_bytes, foto_tipo):
+                raise ValueError("No se pudo guardar la foto del empleado.")
     except IntegrityError:
         return JsonResponse({"detail": "Ya existe un empleado con ese codigo."}, status=400)
+    except ValueError as exc:
+        return JsonResponse({"detail": str(exc)}, status=400)
 
     return JsonResponse({"ok": True, "empleado": _employee_payload(record)})

@@ -414,6 +414,24 @@
 
   .emp-modal-body { overflow: auto; }
 
+  .emp-success-modal {
+    width: min(380px, 94vw);
+    grid-template-rows: auto auto;
+  }
+
+  .emp-success-body {
+    display: grid;
+    gap: 12px;
+    padding: 18px;
+  }
+
+  .emp-success-body p {
+    margin: 0;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
   .emp-table {
     width: 100%;
     border-collapse: collapse;
@@ -859,6 +877,18 @@
   </div>
 </div>
 
+<div id="emp_success_backdrop" class="emp-modal-backdrop" aria-hidden="true">
+  <div class="emp-modal emp-success-modal" role="dialog" aria-modal="true" aria-labelledby="emp_success_title">
+    <div class="emp-modal-head">
+      <h3 id="emp_success_title">Empleado registrado</h3>
+      <button id="btn_emp_success_close" type="button" class="emp-action is-muted">Cerrar</button>
+    </div>
+    <div class="emp-success-body">
+      <p id="emp_success_message">Empleado guardado correctamente.</p>
+    </div>
+  </div>
+</div>
+
 <script>
   (function () {
     const urls = {
@@ -881,6 +911,9 @@
     const searchBackdrop = document.getElementById("emp_search_backdrop");
     const searchBody = document.getElementById("emp_search_body");
     const searchInput = document.getElementById("emp_search_q");
+    const successBackdrop = document.getElementById("emp_success_backdrop");
+    const successMessage = document.getElementById("emp_success_message");
+    const successCloseButton = document.getElementById("btn_emp_success_close");
     const scheduleRows = Array.from(document.querySelectorAll("#emp_schedule_grid tr"));
     const ponchaField = document.getElementById("emp_poncha");
     const scheduleCard = document.getElementById("emp_schedule_card");
@@ -893,6 +926,8 @@
     const btnAddStudy = document.getElementById("btn_emp_add_study");
     const experienceBody = document.getElementById("emp_experience_body");
     const btnAddExperience = document.getElementById("btn_emp_add_experience");
+    const medicalLeavesBody = document.getElementById("emp_medical_leaves_body");
+    const personnelActionsBody = document.getElementById("emp_personnel_actions_body");
     const requiredEmployeeFields = [
       ["nombres", "Los nombres son obligatorios."],
       ["apellidos", "Los apellidos son obligatorios."],
@@ -915,6 +950,41 @@
       statusNode.textContent = message || "";
       statusNode.classList.toggle("is-error", type === "error");
       statusNode.classList.toggle("is-ok", type === "ok");
+    }
+
+    function setPhotoPreview(src) {
+      if (photoObjectUrl) {
+        URL.revokeObjectURL(photoObjectUrl);
+        photoObjectUrl = "";
+      }
+      photoInput.value = "";
+      if (!src) {
+        photoPreview.textContent = "Fotografia";
+        photoPreview.style.backgroundImage = "";
+        photoPreview.style.backgroundSize = "";
+        photoPreview.style.backgroundPosition = "";
+        return;
+      }
+      photoPreview.textContent = "";
+      photoPreview.style.backgroundImage = `url("${src}")`;
+      photoPreview.style.backgroundSize = "cover";
+      photoPreview.style.backgroundPosition = "center";
+    }
+
+    function openSuccessModal(message) {
+      successMessage.textContent = message || "Empleado guardado correctamente.";
+      successBackdrop.classList.add("open");
+      successBackdrop.setAttribute("aria-hidden", "false");
+      successCloseButton.focus();
+    }
+
+    function closeSuccessModal() {
+      successBackdrop.classList.remove("open");
+      successBackdrop.setAttribute("aria-hidden", "true");
+      clearForm();
+      setMode("idle");
+      setStatus("");
+      activateTab("emp_panel_generales");
     }
 
     function activateTab(targetId) {
@@ -1062,6 +1132,38 @@
       renderEmptyExperienceRow();
     }
 
+    function renderMedicalLeaves(rows) {
+      const items = Array.isArray(rows) ? rows : [];
+      if (!items.length) {
+        medicalLeavesBody.innerHTML = "<tr><td colspan='3'>No hay licencias medicas registradas.</td></tr>";
+        return;
+      }
+      medicalLeavesBody.innerHTML = items.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.motivo || "LICENCIA MEDICA")}</td>
+          <td>${escapeHtml(item.fecha_desde || item.fecha_efectiva || "")}</td>
+          <td>${escapeHtml(item.fecha_hasta || "")}</td>
+        </tr>
+      `).join("");
+    }
+
+    function renderPersonnelActions(rows) {
+      const items = Array.isArray(rows) ? rows : [];
+      if (!items.length) {
+        personnelActionsBody.innerHTML = "<tr><td colspan='5'>No hay acciones de personal registradas.</td></tr>";
+        return;
+      }
+      personnelActionsBody.innerHTML = items.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.id_accion || "")}</td>
+          <td>${escapeHtml(item.estatus || "")}</td>
+          <td>${escapeHtml(item.fecha || "")}</td>
+          <td>${escapeHtml(item.tipo_accion || "")}</td>
+          <td>${escapeHtml(item.motivo || "")}</td>
+        </tr>
+      `).join("");
+    }
+
     function setMode(nextMode) {
       mode = nextMode;
       const editing = mode === "new" || mode === "edit";
@@ -1095,17 +1197,11 @@
           input.value = "";
         });
       });
-      if (photoObjectUrl) {
-        URL.revokeObjectURL(photoObjectUrl);
-        photoObjectUrl = "";
-      }
-      photoInput.value = "";
-      photoPreview.textContent = "Fotografia";
-      photoPreview.style.backgroundImage = "";
-      photoPreview.style.backgroundSize = "";
-      photoPreview.style.backgroundPosition = "";
+      setPhotoPreview("");
       clearStudies();
       clearExperience();
+      renderMedicalLeaves([]);
+      renderPersonnelActions([]);
       syncPairState();
       syncScheduleState();
       syncStudiesState();
@@ -1198,6 +1294,9 @@
       clearExperience();
       (data.experiencias_laborales || []).forEach((item) => addExperienceRow(item));
       renderEmptyExperienceRow();
+      setPhotoPreview(data.foto_b64 ? `data:${data.foto_tipo || "image/png"};base64,${data.foto_b64}` : "");
+      renderMedicalLeaves(data.licencias_medicas || []);
+      renderPersonnelActions(data.acciones_personal || []);
       syncPairState();
       syncScheduleState();
       syncStudiesState();
@@ -1296,14 +1395,18 @@
       }
       btnGrabar.disabled = true;
       try {
+        const formData = new FormData();
+        formData.append("payload", JSON.stringify(payload));
+        if (photoInput.files && photoInput.files[0]) {
+          formData.append("foto", photoInput.files[0]);
+        }
         const res = await fetch(urls.guardar, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             "X-Requested-With": "XMLHttpRequest",
             "X-CSRFToken": csrfToken,
           },
-          body: JSON.stringify(payload),
+          body: formData,
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -1311,9 +1414,7 @@
           btnGrabar.disabled = false;
           return;
         }
-        fillForm(data.empleado || {});
-        setMode("edit");
-        setStatus("Empleado guardado correctamente.", "ok");
+        openSuccessModal("Empleado guardado correctamente.");
       } catch (error) {
         setStatus("Error de conexion guardando el empleado.", "error");
         btnGrabar.disabled = false;
@@ -1341,6 +1442,10 @@
       clearForm();
       setMode("idle");
       setStatus("");
+    });
+    successCloseButton.addEventListener("click", closeSuccessModal);
+    successBackdrop.addEventListener("click", (event) => {
+      if (event.target === successBackdrop) closeSuccessModal();
     });
     btnGrabar.addEventListener("click", saveEmployee);
     btnAddStudy.addEventListener("click", () => {
