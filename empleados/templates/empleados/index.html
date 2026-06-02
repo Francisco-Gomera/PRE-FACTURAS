@@ -926,6 +926,7 @@
     const btnAddStudy = document.getElementById("btn_emp_add_study");
     const experienceBody = document.getElementById("emp_experience_body");
     const btnAddExperience = document.getElementById("btn_emp_add_experience");
+    const permissionsBody = document.getElementById("emp_permissions_body");
     const medicalLeavesBody = document.getElementById("emp_medical_leaves_body");
     const personnelActionsBody = document.getElementById("emp_personnel_actions_body");
     const requiredEmployeeFields = [
@@ -1132,6 +1133,21 @@
       renderEmptyExperienceRow();
     }
 
+    function renderPermissions(rows) {
+      const items = Array.isArray(rows) ? rows : [];
+      if (!items.length) {
+        permissionsBody.innerHTML = "<tr><td colspan='3'>No hay permisos registrados.</td></tr>";
+        return;
+      }
+      permissionsBody.innerHTML = items.map((item) => `
+        <tr>
+          <td>${escapeHtml(item.motivo || "PERMISO")}</td>
+          <td>${escapeHtml(item.fecha_desde || item.fecha_efectiva || "")}</td>
+          <td>${escapeHtml(item.fecha_hasta || "")}</td>
+        </tr>
+      `).join("");
+    }
+
     function renderMedicalLeaves(rows) {
       const items = Array.isArray(rows) ? rows : [];
       if (!items.length) {
@@ -1200,6 +1216,7 @@
       setPhotoPreview("");
       clearStudies();
       clearExperience();
+      renderPermissions([]);
       renderMedicalLeaves([]);
       renderPersonnelActions([]);
       syncPairState();
@@ -1295,6 +1312,7 @@
       (data.experiencias_laborales || []).forEach((item) => addExperienceRow(item));
       renderEmptyExperienceRow();
       setPhotoPreview(data.foto_b64 ? `data:${data.foto_tipo || "image/png"};base64,${data.foto_b64}` : "");
+      renderPermissions(data.permisos || []);
       renderMedicalLeaves(data.licencias_medicas || []);
       renderPersonnelActions(data.acciones_personal || []);
       syncPairState();

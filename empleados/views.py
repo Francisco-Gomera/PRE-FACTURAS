@@ -157,6 +157,12 @@ def _employee_payload(record):
         if item.get("tipo_accion") == EmpleadoAccionPersonal.TIPO_CAMBIO
         and str(item.get("motivo") or "").strip().upper() == "LICENCIA MEDICA"
     ]
+    data["permisos"] = [
+        item
+        for item in acciones
+        if item.get("tipo_accion") == EmpleadoAccionPersonal.TIPO_CAMBIO
+        and str(item.get("motivo") or "").strip().upper() == "PERMISO"
+    ]
     return data
 
 

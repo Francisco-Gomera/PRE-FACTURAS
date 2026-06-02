@@ -713,6 +713,7 @@
                   <option value="SUSPENCION">SUSPENCION</option>
                   <option value="VACACIONES">VACACIONES</option>
                   <option value="LICENCIA MEDICA">LICENCIA MEDICA</option>
+                  <option value="PERMISO">PERMISO</option>
                   <option value="CAMBIO DE NOMINA">CAMBIO DE NOMINA</option>
                 </select>
               </div>
@@ -1159,7 +1160,7 @@
       const isSalaryIncrease = motivo === "AUMENTO DE SALARIO";
       const isSuspension = motivo === "SUSPENCION";
       const isVacation = motivo === "VACACIONES";
-      const isMedicalLeave = motivo === "LICENCIA MEDICA";
+      const isMedicalLeave = motivo === "LICENCIA MEDICA" || motivo === "PERMISO";
       const allowsSalaryChange = ["AUMENTO DE SALARIO", "PROMOCION"].includes(motivo);
       const enablesAllPositionFields = ["TRASLADO", "PROMOCION"].includes(motivo);
       const enablesNominaOnly = ["AUMENTO DE SALARIO", "CAMBIO DE NOMINA", "SUSPENCION", "VACACIONES"].includes(motivo);
@@ -1340,8 +1341,8 @@
           const diasTranscurridos = Number(data.dias_transcurridos || 0);
           return `Acción ${actionId} de vacaciones cancelada. Días transcurridos: ${diasTranscurridos}. Días devueltos: ${diasDevueltos}.`;
         }
-        if (cambioMotivo === "LICENCIA MEDICA") {
-          return `Acción ${actionId} de licencia médica cancelada.`;
+        if (cambioMotivo === "LICENCIA MEDICA" || cambioMotivo === "PERMISO") {
+          return `Acción ${actionId} de ${cambioMotivo.toLowerCase()} cancelada.`;
         }
         if (cambioMotivo === "CAMBIO DE NOMINA") {
           return `Acción ${actionId} de cambio de nómina cancelada.`;
@@ -1534,7 +1535,7 @@
                     <td style="padding: 4px 6px; font-size: 10px;">${escapeHtml(action.fecha_hasta)}</td>
                   </tr>
           `;
-        } else if (cambioMotivo === "LICENCIA MEDICA") {
+        } else if (cambioMotivo === "LICENCIA MEDICA" || cambioMotivo === "PERMISO") {
           html += `
                   <tr style="border-bottom: 1px solid #000;">
                     <td style="padding: 4px 6px; font-size: 9px; font-weight: bold; border-right: 1px solid #000;">Desde</td>
@@ -1745,7 +1746,7 @@
             field("Nueva nomina", action.cambio_nomina)
           );
         }
-        if (["VACACIONES", "SUSPENCION", "LICENCIA MEDICA"].includes(cambioMotivo)) {
+        if (["VACACIONES", "SUSPENCION", "LICENCIA MEDICA", "PERMISO"].includes(cambioMotivo)) {
           primaryFields.push(
             field("Desde", action.fecha_desde),
             field("Hasta", action.fecha_hasta),
@@ -2260,8 +2261,8 @@
       cambioSuspensionHastaField.value = action.cambio_motivo === "SUSPENCION" ? action.fecha_hasta || "" : "";
       cambioVacacionesDesdeField.value = action.cambio_motivo === "VACACIONES" ? action.fecha_desde || "" : "";
       cambioVacacionesHastaField.value = action.cambio_motivo === "VACACIONES" ? action.fecha_hasta || "" : "";
-      cambioLicenciaMedicaDesdeField.value = action.cambio_motivo === "LICENCIA MEDICA" ? action.fecha_desde || "" : "";
-      cambioLicenciaMedicaHastaField.value = action.cambio_motivo === "LICENCIA MEDICA" ? action.fecha_hasta || "" : "";
+      cambioLicenciaMedicaDesdeField.value = action.cambio_motivo === "LICENCIA MEDICA" || action.cambio_motivo === "PERMISO" ? action.fecha_desde || "" : "";
+      cambioLicenciaMedicaHastaField.value = action.cambio_motivo === "LICENCIA MEDICA" || action.cambio_motivo === "PERMISO" ? action.fecha_hasta || "" : "";
       document.getElementById("pa_comentario").value = action.comentario || "";
       syncTipoAccion();
       const isCanceled = String(action.estatus || "").trim().toUpperCase() === "CANCELADA";
@@ -2307,9 +2308,9 @@
         cambio_cargo: cambioCargoField.value,
         cambio_nomina: cambioNominaField.value,
         cambio_salario_propuesto: cambioSalarioPropuestoField.value,
-        fecha_desde: cambioMotivo === "SUSPENCION" ? cambioSuspensionDesdeField.value : cambioMotivo === "VACACIONES" ? cambioVacacionesDesdeField.value : cambioMotivo === "LICENCIA MEDICA" ? cambioLicenciaMedicaDesdeField.value : "",
-        fecha_hasta: cambioMotivo === "SUSPENCION" ? cambioSuspensionHastaField.value : cambioMotivo === "VACACIONES" ? cambioVacacionesHastaField.value : cambioMotivo === "LICENCIA MEDICA" ? cambioLicenciaMedicaHastaField.value : "",
-        cantidad_dias: cambioMotivo === "VACACIONES" ? cambioVacacionesSolicitadosField.value : cambioMotivo === "LICENCIA MEDICA" ? cambioLicenciaMedicaDiasField.value : "",
+        fecha_desde: cambioMotivo === "SUSPENCION" ? cambioSuspensionDesdeField.value : cambioMotivo === "VACACIONES" ? cambioVacacionesDesdeField.value : cambioMotivo === "LICENCIA MEDICA" || cambioMotivo === "PERMISO" ? cambioLicenciaMedicaDesdeField.value : "",
+        fecha_hasta: cambioMotivo === "SUSPENCION" ? cambioSuspensionHastaField.value : cambioMotivo === "VACACIONES" ? cambioVacacionesHastaField.value : cambioMotivo === "LICENCIA MEDICA" || cambioMotivo === "PERMISO" ? cambioLicenciaMedicaHastaField.value : "",
+        cantidad_dias: cambioMotivo === "VACACIONES" ? cambioVacacionesSolicitadosField.value : cambioMotivo === "LICENCIA MEDICA" || cambioMotivo === "PERMISO" ? cambioLicenciaMedicaDiasField.value : "",
       };
     }
 
