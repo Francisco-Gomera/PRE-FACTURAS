@@ -1,0 +1,1050 @@
+{% extends "core/base.html" %}
+
+{% block head_extra %}
+<style>
+  .vc-page {
+    display: grid;
+    gap: 10px;
+    padding-bottom: 60px;
+  }
+
+  .vc-titlebar {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: end;
+  }
+
+  .vc-main {
+    display: grid;
+    grid-template-columns: 340px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+  }
+
+  /* ── Left panel: employee table ── */
+  .vc-panel {
+    border: 1px solid #d6e1f1;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    max-height: calc(100vh - 140px);
+    position: sticky;
+    top: 10px;
+  }
+
+  .vc-panel-head {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, #f1f6fc, #e8f0fb);
+    border-bottom: 1px solid #d6e1f1;
+  }
+
+  .vc-panel-head h3 {
+    margin: 0;
+    color: #123b65;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .vc-panel-head .vc-year {
+    color: #0f6edc;
+    font-size: 13px;
+    font-weight: 800;
+    background: #dbeafe;
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+
+  .vc-search-bar {
+    padding: 8px 10px;
+    border-bottom: 1px solid #e5edf6;
+  }
+
+  .vc-search-bar input {
+    width: 100%;
+    height: 30px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 12px;
+  }
+
+  .vc-emp-list {
+    overflow-y: auto;
+  }
+
+  .vc-emp-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .vc-emp-table th,
+  .vc-emp-table td {
+    padding: 7px 8px;
+    text-align: left;
+    font-size: 11px;
+    border-bottom: 1px solid #eef3fa;
+  }
+
+  .vc-emp-table th {
+    position: sticky;
+    top: 0;
+    background: #f8fbff;
+    color: #334155;
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 10px;
+    z-index: 2;
+  }
+
+  .vc-emp-table tbody tr {
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .vc-emp-table tbody tr:hover {
+    background: #eaf2ff;
+  }
+
+  .vc-emp-table tbody tr.is-selected {
+    background: #dbeafe;
+  }
+
+  .vc-emp-table .vc-col-code {
+    width: 60px;
+    font-weight: 700;
+    color: #123b65;
+  }
+
+  .vc-emp-table .vc-col-name {
+    min-width: 100px;
+  }
+
+  .vc-emp-table .vc-col-num {
+    width: 42px;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  .vc-emp-table .vc-col-actions {
+    width: 30px;
+    text-align: center;
+  }
+
+  .vc-color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  .vc-discount-btn {
+    width: 24px;
+    height: 22px;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    background: #f8fbff;
+    color: #0f6edc;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .vc-discount-btn:hover {
+    background: #0f6edc;
+    color: #fff;
+    border-color: #0f6edc;
+  }
+
+  /* ── Right panel: calendar ── */
+  .vc-calendar-wrap {
+    border: 1px solid #d6e1f1;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .vc-cal-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    background: linear-gradient(180deg, #f1f6fc, #e8f0fb);
+    border-bottom: 1px solid #d6e1f1;
+  }
+
+  .vc-cal-toolbar h3 {
+    margin: 0;
+    color: #123b65;
+    font-size: 15px;
+    font-weight: 900;
+    text-transform: capitalize;
+  }
+
+  .vc-cal-nav {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .vc-cal-btn {
+    min-width: 32px;
+    height: 30px;
+    border: 1px solid #bdd3ef;
+    border-radius: 7px;
+    background: linear-gradient(180deg, #fff, #eef5ff);
+    color: #123b65;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0 8px;
+  }
+
+  .vc-cal-btn:hover {
+    background: linear-gradient(180deg, #eef5ff, #dbeafe);
+  }
+
+  .vc-cal-btn.is-primary {
+    background: linear-gradient(180deg, #1a7aed, #0f5ec3);
+    border-color: #1a66ce;
+    color: #fff;
+  }
+
+  .vc-cal-btn.is-primary:hover {
+    background: linear-gradient(180deg, #2585f7, #1a6cd5);
+  }
+
+  .vc-cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+  }
+
+  .vc-cal-dayname {
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 800;
+    color: #64748b;
+    text-transform: uppercase;
+    background: #f8fbff;
+    border-bottom: 1px solid #e5edf6;
+  }
+
+  .vc-cal-cell {
+    min-height: 80px;
+    padding: 4px;
+    border-bottom: 1px solid #eef3fa;
+    border-right: 1px solid #eef3fa;
+    position: relative;
+    cursor: default;
+  }
+
+  .vc-cal-cell:nth-child(7n) {
+    border-right: none;
+  }
+
+  .vc-cal-cell.is-outside {
+    background: #fafbfd;
+  }
+
+  .vc-cal-cell.is-today {
+    background: #eff8ff;
+  }
+
+  .vc-cal-cell.is-sunday {
+    background: #fef9f9;
+  }
+
+  .vc-cal-cell.is-holiday {
+    background: #fefce8;
+  }
+
+  .vc-cal-day {
+    font-size: 11px;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 2px;
+  }
+
+  .vc-cal-cell.is-outside .vc-cal-day {
+    color: #94a3b8;
+  }
+
+  .vc-cal-cell.is-sunday .vc-cal-day {
+    color: #dc2626;
+  }
+
+  .vc-cal-bars {
+    display: grid;
+    gap: 2px;
+  }
+
+  .vc-bar {
+    display: block;
+    height: 16px;
+    border-radius: 3px;
+    padding: 0 4px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 16px;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .vc-bar:hover {
+    filter: brightness(1.15);
+  }
+
+  .vc-bar.is-planned {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 3px,
+      rgba(255,255,255,0.3) 3px,
+      rgba(255,255,255,0.3) 6px
+    );
+  }
+
+  .vc-bar-tooltip {
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #0f172a;
+    color: #fff;
+    padding: 5px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 50;
+    display: none;
+  }
+
+  .vc-bar:hover .vc-bar-tooltip {
+    display: block;
+  }
+
+  /* ── Legend ── */
+  .vc-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 14px;
+    border-top: 1px solid #e5edf6;
+    background: #fbfdff;
+  }
+
+  .vc-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #334155;
+    font-weight: 600;
+  }
+
+  .vc-legend-swatch {
+    width: 14px;
+    height: 10px;
+    border-radius: 3px;
+  }
+
+  .vc-legend-swatch.is-planned {
+    background-image: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 2px,
+      rgba(255,255,255,0.35) 2px,
+      rgba(255,255,255,0.35) 4px
+    );
+  }
+
+  /* ── Modal ── */
+  .vc-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.38);
+  }
+
+  .vc-backdrop.open {
+    display: flex;
+  }
+
+  .vc-modal {
+    width: min(480px, 96vw);
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+  }
+
+  .vc-modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, #f1f6fc, #e8f0fb);
+    border-bottom: 1px solid #d6e1f1;
+  }
+
+  .vc-modal-head h4 {
+    margin: 0;
+    color: #123b65;
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .vc-modal-close {
+    width: 28px;
+    height: 28px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    color: #64748b;
+    font-size: 16px;
+    font-weight: 900;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .vc-modal-body {
+    padding: 14px;
+    display: grid;
+    gap: 10px;
+  }
+
+  .vc-field {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+  }
+
+  .vc-field label {
+    font-size: 11px;
+    font-weight: 800;
+    color: #334155;
+  }
+
+  .vc-field input,
+  .vc-field select,
+  .vc-field textarea {
+    width: 100%;
+    height: 30px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font: inherit;
+    font-size: 12px;
+    color: #0f172a;
+    background: #fff;
+  }
+
+  .vc-field textarea {
+    height: 54px;
+    resize: vertical;
+  }
+
+  .vc-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 10px 14px;
+    border-top: 1px solid #e5edf6;
+    background: #fbfdff;
+  }
+
+  .vc-modal-footer .vc-cal-btn {
+    min-width: 80px;
+  }
+
+  /* ── Footer ── */
+  .vc-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid #d6e1f1;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.97);
+    box-shadow: 0 -8px 20px rgba(15, 23, 42, 0.08);
+  }
+
+  .vc-footer-group {
+    display: flex;
+    gap: 6px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 860px) {
+    .vc-main {
+      grid-template-columns: 1fr;
+    }
+
+    .vc-panel {
+      position: static;
+      max-height: 340px;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="vc-page">
+  <div class="vc-titlebar">
+    <div>
+      <h2 class="page-title">Control de Vacaciones</h2>
+      <p class="page-subtitle">Balance de dias, calendario visual y planificacion de vacaciones.</p>
+    </div>
+  </div>
+
+  <div class="vc-main">
+    <!-- ── Left: employee list ── -->
+    <div class="vc-panel">
+      <div class="vc-panel-head">
+        <h3>Empleados</h3>
+        <span id="vc_year_badge" class="vc-year"></span>
+      </div>
+      <div class="vc-search-bar">
+        <input id="vc_search" type="text" placeholder="Buscar empleado..." />
+      </div>
+      <div class="vc-emp-list">
+        <table class="vc-emp-table">
+          <thead>
+            <tr>
+              <th class="vc-col-code">Cod.</th>
+              <th class="vc-col-name">Nombre</th>
+              <th class="vc-col-num">Anual</th>
+              <th class="vc-col-num">Disp.</th>
+              <th class="vc-col-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="vc_emp_body">
+            <tr><td colspan="5">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Right: calendar ── -->
+    <div class="vc-calendar-wrap">
+      <div class="vc-cal-toolbar">
+        <div class="vc-cal-nav">
+          <button type="button" class="vc-cal-btn" id="vc_prev_month" title="Mes anterior">&#9664;</button>
+          <h3 id="vc_month_label"></h3>
+          <button type="button" class="vc-cal-btn" id="vc_next_month" title="Mes siguiente">&#9654;</button>
+        </div>
+        <div class="vc-cal-nav">
+          <button type="button" class="vc-cal-btn" id="vc_today_btn">Hoy</button>
+          <button type="button" class="vc-cal-btn is-primary" id="vc_plan_btn">+ Planificar</button>
+        </div>
+      </div>
+      <div class="vc-cal-grid" id="vc_cal_grid"></div>
+      <div class="vc-legend" id="vc_legend"></div>
+    </div>
+  </div>
+
+  <footer class="vc-footer">
+    <div class="vc-footer-group">
+      <a href="{% url 'empleados:index' %}" class="vc-cal-btn">Cerrar</a>
+    </div>
+  </footer>
+</div>
+
+<!-- ── Discount modal ── -->
+<div id="vc_discount_backdrop" class="vc-backdrop" aria-hidden="true">
+  <div class="vc-modal">
+    <div class="vc-modal-head">
+      <h4>Descontar Dias</h4>
+      <button type="button" class="vc-modal-close" id="vc_discount_close">&times;</button>
+    </div>
+    <div class="vc-modal-body">
+      <div class="vc-field"><label>Empleado</label><input id="vc_disc_emp_name" readonly /></div>
+      <div class="vc-field"><label>Disponibles</label><input id="vc_disc_disponibles" readonly /></div>
+      <div class="vc-field"><label>Descontar</label><input id="vc_disc_dias" type="number" min="1" /></div>
+    </div>
+    <div class="vc-modal-footer">
+      <button type="button" class="vc-cal-btn" id="vc_disc_cancel">Cancelar</button>
+      <button type="button" class="vc-cal-btn is-primary" id="vc_disc_save">Descontar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Plan modal ── -->
+<div id="vc_plan_backdrop" class="vc-backdrop" aria-hidden="true">
+  <div class="vc-modal">
+    <div class="vc-modal-head">
+      <h4 id="vc_plan_title">Planificar Vacaciones</h4>
+      <button type="button" class="vc-modal-close" id="vc_plan_close">&times;</button>
+    </div>
+    <div class="vc-modal-body">
+      <div class="vc-field">
+        <label>Empleado</label>
+        <select id="vc_plan_empleado"></select>
+      </div>
+      <div class="vc-field"><label>Desde</label><input id="vc_plan_desde" type="date" /></div>
+      <div class="vc-field"><label>Hasta</label><input id="vc_plan_hasta" type="date" /></div>
+      <div class="vc-field"><label>Nota</label><textarea id="vc_plan_nota" maxlength="200"></textarea></div>
+    </div>
+    <div class="vc-modal-footer">
+      <button type="button" class="vc-cal-btn" id="vc_plan_delete" style="margin-right:auto;color:#dc2626;border-color:#fca5a5;display:none;">Eliminar</button>
+      <button type="button" class="vc-cal-btn" id="vc_plan_cancel">Cancelar</button>
+      <button type="button" class="vc-cal-btn is-primary" id="vc_plan_save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]")?.value
+    || "{{ csrf_token }}";
+  const nationalHolidays = new Set(JSON.parse('{{ national_holidays_json|safe }}'));
+
+  const MONTH_NAMES = [
+    "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+    "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+  ];
+  const DAY_NAMES = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
+
+  /* ── Color palette for employees ── */
+  const PALETTE = [
+    "#2563eb", "#dc2626", "#059669", "#d97706", "#7c3aed",
+    "#db2777", "#0891b2", "#65a30d", "#c026d3", "#ea580c",
+    "#4f46e5", "#0d9488", "#b91c1c", "#1d4ed8", "#9333ea",
+    "#e11d48", "#0284c7", "#16a34a", "#ca8a04", "#6d28d9",
+  ];
+
+  function employeeColor(id) {
+    return PALETTE[id % PALETTE.length];
+  }
+
+  /* ── State ── */
+  let employees = [];
+  let calendarEvents = [];
+  let currentMonth = new Date().getMonth();
+  let currentYear = new Date().getFullYear();
+  let selectedEmployeeId = null;
+  let editingPlanId = null;
+
+  /* ── DOM refs ── */
+  const empBody = document.getElementById("vc_emp_body");
+  const searchInput = document.getElementById("vc_search");
+  const yearBadge = document.getElementById("vc_year_badge");
+  const monthLabel = document.getElementById("vc_month_label");
+  const calGrid = document.getElementById("vc_cal_grid");
+  const legend = document.getElementById("vc_legend");
+
+  // Discount modal
+  const discBackdrop = document.getElementById("vc_discount_backdrop");
+  const discEmpName = document.getElementById("vc_disc_emp_name");
+  const discDisponibles = document.getElementById("vc_disc_disponibles");
+  const discDias = document.getElementById("vc_disc_dias");
+
+  // Plan modal
+  const planBackdrop = document.getElementById("vc_plan_backdrop");
+  const planTitle = document.getElementById("vc_plan_title");
+  const planEmpleado = document.getElementById("vc_plan_empleado");
+  const planDesde = document.getElementById("vc_plan_desde");
+  const planHasta = document.getElementById("vc_plan_hasta");
+  const planNota = document.getElementById("vc_plan_nota");
+  const planDeleteBtn = document.getElementById("vc_plan_delete");
+
+  /* ── Helpers ── */
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function fmtDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${dd}`;
+  }
+
+  function parseLocalDate(str) {
+    const [y, m, d] = str.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  async function apiGet(url) {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data.detail || "Error en la solicitud");
+    }
+    return resp.json();
+  }
+
+  async function apiPost(url, body) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": csrfToken },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || "Error en la solicitud");
+    return data;
+  }
+
+  /* ── Employee list ── */
+  async function loadEmployees() {
+    try {
+      const data = await apiGet("{% url 'empleados:control_vacaciones_listar' %}");
+      employees = data.results || [];
+      yearBadge.textContent = data.ano || new Date().getFullYear();
+      renderEmployees();
+      populatePlanEmployeeSelect();
+    } catch (e) {
+      empBody.innerHTML = `<tr><td colspan="5">${escapeHtml(e.message)}</td></tr>`;
+    }
+  }
+
+  function renderEmployees() {
+    const q = (searchInput.value || "").trim().toLowerCase();
+    const filtered = q
+      ? employees.filter(e =>
+          e.codigo.toLowerCase().includes(q) ||
+          e.nombre.toLowerCase().includes(q) ||
+          e.departamento.toLowerCase().includes(q)
+        )
+      : employees;
+
+    if (!filtered.length) {
+      empBody.innerHTML = `<tr><td colspan="5">No se encontraron empleados.</td></tr>`;
+      return;
+    }
+    empBody.innerHTML = filtered.map(e => {
+      const color = employeeColor(e.id_empleado);
+      const sel = e.id_empleado === selectedEmployeeId ? ' class="is-selected"' : "";
+      return `<tr${sel} data-emp-id="${e.id_empleado}">
+        <td class="vc-col-code"><span class="vc-color-dot" style="background:${color}"></span>${escapeHtml(e.codigo)}</td>
+        <td class="vc-col-name">${escapeHtml(e.nombre)}</td>
+        <td class="vc-col-num">${e.dias_anuales}</td>
+        <td class="vc-col-num" data-disp-emp="${e.id_empleado}">${e.dias_disponibles}</td>
+        <td class="vc-col-actions"><button type="button" class="vc-discount-btn" data-discount="${e.id_empleado}" title="Descontar dias">−</button></td>
+      </tr>`;
+    }).join("");
+  }
+
+  function populatePlanEmployeeSelect() {
+    planEmpleado.innerHTML = employees.map(e =>
+      `<option value="${e.id_empleado}">${escapeHtml(e.codigo)} - ${escapeHtml(e.nombre)}</option>`
+    ).join("");
+  }
+
+  empBody.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("[data-discount]");
+    if (btn) {
+      const id = parseInt(btn.dataset.discount);
+      openDiscountModal(id);
+      return;
+    }
+    const row = ev.target.closest("tr[data-emp-id]");
+    if (row) {
+      const id = parseInt(row.dataset.empId);
+      selectedEmployeeId = selectedEmployeeId === id ? null : id;
+      renderEmployees();
+      renderCalendar();
+    }
+  });
+
+  searchInput.addEventListener("input", renderEmployees);
+
+  /* ── Calendar ── */
+  async function loadCalendar() {
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const desde = fmtDate(firstDay);
+    const hasta = fmtDate(lastDay);
+    try {
+      const data = await apiGet(`{% url 'empleados:control_vacaciones_calendario' %}?desde=${desde}&hasta=${hasta}`);
+      calendarEvents = [...(data.aprobadas || []), ...(data.planificadas || [])];
+    } catch (e) {
+      calendarEvents = [];
+    }
+    renderCalendar();
+  }
+
+  function renderCalendar() {
+    monthLabel.textContent = `${MONTH_NAMES[currentMonth]} ${currentYear}`;
+
+    const firstDay = new Date(currentYear, currentMonth, 1);
+    const lastDay = new Date(currentYear, currentMonth + 1, 0);
+    const startDow = (firstDay.getDay() + 6) % 7; // Monday=0
+
+    let html = DAY_NAMES.map(d => `<div class="vc-cal-dayname">${d}</div>`).join("");
+
+    // Calendar cells
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - startDow);
+
+    const totalCells = Math.ceil((startDow + lastDay.getDate()) / 7) * 7;
+    const today = new Date();
+    const todayStr = fmtDate(today);
+
+    for (let i = 0; i < totalCells; i++) {
+      const cellDate = new Date(startDate);
+      cellDate.setDate(startDate.getDate() + i);
+      const dateStr = fmtDate(cellDate);
+      const isOutside = cellDate.getMonth() !== currentMonth;
+      const isToday = dateStr === todayStr;
+      const isSunday = cellDate.getDay() === 0;
+      const isHoliday = nationalHolidays.has(dateStr);
+
+      let classes = "vc-cal-cell";
+      if (isOutside) classes += " is-outside";
+      if (isToday) classes += " is-today";
+      if (isSunday) classes += " is-sunday";
+      if (isHoliday && !isSunday) classes += " is-holiday";
+
+      // Find events that cover this date
+      const barsForDay = [];
+      for (const evt of calendarEvents) {
+        if (selectedEmployeeId && evt.id_empleado !== selectedEmployeeId) continue;
+        const evtDesde = evt.fecha_desde;
+        const evtHasta = evt.fecha_hasta;
+        if (dateStr >= evtDesde && dateStr <= evtHasta) {
+          barsForDay.push(evt);
+        }
+      }
+
+      let barsHtml = "";
+      if (barsForDay.length) {
+        barsHtml = '<div class="vc-cal-bars">';
+        for (const evt of barsForDay.slice(0, 4)) {
+          const color = employeeColor(evt.id_empleado);
+          const isPlanned = evt.tipo === "planificada";
+          const planClass = isPlanned ? " is-planned" : "";
+          const label = evt.codigo || "";
+          const tooltipText = `${evt.nombre} (${evt.fecha_desde} al ${evt.fecha_hasta})${isPlanned ? " — PLANIFICADA" : ""}${evt.nota ? " | " + evt.nota : ""}`;
+          const dataAttr = isPlanned ? `data-plan-id="${evt.id_plan}"` : `data-accion-id="${evt.id_accion}"`;
+          barsHtml += `<span class="vc-bar${planClass}" style="background-color:${color}" ${dataAttr}>
+            ${escapeHtml(label)}
+            <span class="vc-bar-tooltip">${escapeHtml(tooltipText)}</span>
+          </span>`;
+        }
+        if (barsForDay.length > 4) {
+          barsHtml += `<span style="font-size:9px;color:#64748b;text-align:center;">+${barsForDay.length - 4} más</span>`;
+        }
+        barsHtml += "</div>";
+      }
+
+      html += `<div class="${classes}">
+        <div class="vc-cal-day">${cellDate.getDate()}</div>
+        ${barsHtml}
+      </div>`;
+    }
+
+    calGrid.innerHTML = html;
+    renderLegend();
+  }
+
+  function renderLegend() {
+    const seen = new Map();
+    for (const evt of calendarEvents) {
+      if (selectedEmployeeId && evt.id_empleado !== selectedEmployeeId) continue;
+      if (!seen.has(evt.id_empleado)) {
+        seen.set(evt.id_empleado, evt);
+      }
+    }
+    if (!seen.size) {
+      legend.innerHTML = '<span class="vc-legend-item" style="color:#94a3b8;">No hay vacaciones en este mes.</span>';
+      return;
+    }
+    let html = "";
+    for (const [id, evt] of seen) {
+      const color = employeeColor(id);
+      html += `<span class="vc-legend-item">
+        <span class="vc-legend-swatch" style="background:${color}"></span>
+        ${escapeHtml(evt.codigo)} - ${escapeHtml(evt.nombre)}
+      </span>`;
+    }
+    // Add planned legend indicator
+    const hasPlanned = calendarEvents.some(e => e.tipo === "planificada" && (!selectedEmployeeId || e.id_empleado === selectedEmployeeId));
+    if (hasPlanned) {
+      html += `<span class="vc-legend-item">
+        <span class="vc-legend-swatch is-planned" style="background:#94a3b8"></span>
+        Rayas = Planificada
+      </span>`;
+    }
+    legend.innerHTML = html;
+  }
+
+  // Click on planned bar to edit/delete
+  calGrid.addEventListener("click", (ev) => {
+    const bar = ev.target.closest("[data-plan-id]");
+    if (bar) {
+      const planId = parseInt(bar.dataset.planId);
+      const evt = calendarEvents.find(e => e.tipo === "planificada" && e.id_plan === planId);
+      if (evt) openPlanModal(evt);
+    }
+  });
+
+  /* ── Navigation ── */
+  document.getElementById("vc_prev_month").addEventListener("click", () => {
+    currentMonth--;
+    if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+    loadCalendar();
+  });
+
+  document.getElementById("vc_next_month").addEventListener("click", () => {
+    currentMonth++;
+    if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    loadCalendar();
+  });
+
+  document.getElementById("vc_today_btn").addEventListener("click", () => {
+    const now = new Date();
+    currentMonth = now.getMonth();
+    currentYear = now.getFullYear();
+    loadCalendar();
+  });
+
+  /* ── Discount modal ── */
+  let discountEmpId = null;
+
+  function openDiscountModal(empId) {
+    const emp = employees.find(e => e.id_empleado === empId);
+    if (!emp) return;
+    discountEmpId = empId;
+    discEmpName.value = `${emp.codigo} - ${emp.nombre}`;
+    discDisponibles.value = emp.dias_disponibles;
+    discDias.value = "";
+    discBackdrop.classList.add("open");
+    discBackdrop.setAttribute("aria-hidden", "false");
+    discDias.focus();
+  }
+
+  function closeDiscountModal() {
+    discBackdrop.classList.remove("open");
+    discBackdrop.setAttribute("aria-hidden", "true");
+    discountEmpId = null;
+  }
+
+  document.getElementById("vc_discount_close").addEventListener("click", closeDiscountModal);
+  document.getElementById("vc_disc_cancel").addEventListener("click", closeDiscountModal);
+
+  document.getElementById("vc_disc_save").addEventListener("click", async () => {
+    const dias = parseInt(discDias.value);
+    if (!dias || dias <= 0) return alert("Indique una cantidad valida.");
+    try {
+      const data = await apiPost("{% url 'empleados:control_vacaciones_descontar' %}", {
+        id_empleado: discountEmpId,
+        dias: dias,
+      });
+      // Update local state
+      const emp = employees.find(e => e.id_empleado === discountEmpId);
+      if (emp) emp.dias_disponibles = data.dias_disponibles;
+      renderEmployees();
+      closeDiscountModal();
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  /* ── Plan modal ── */
+  function openPlanModal(existing) {
+    editingPlanId = null;
+    planTitle.textContent = "Planificar Vacaciones";
+    planDeleteBtn.style.display = "none";
+    planDesde.value = "";
+    planHasta.value = "";
+    planNota.value = "";
+
+    if (existing) {
+      editingPlanId = existing.id_plan;
+      planTitle.textContent = "Editar Vacacion Planificada";
+      planDeleteBtn.style.display = "";
+      planDesde.value = existing.fecha_desde || "";
+      planHasta.value = existing.fecha_hasta || "";
+      planNota.value = existing.nota || "";
+      // Select the employee
+      planEmpleado.value = String(existing.id_empleado);
+      planEmpleado.disabled = true;
+    } else {
+      planEmpleado.disabled = false;
+      if (selectedEmployeeId) {
+        planEmpleado.value = String(selectedEmployeeId);
+      }
+    }
+
+    planBackdrop.classList.add("open");
+    planBackdrop.setAttribute("aria-hidden", "false");
+  }
+
+  function closePlanModal() {
+    planBackdrop.classList.remove("open");
+    planBackdrop.setAttribute("aria-hidden", "true");
+    editingPlanId = null;
+    planEmpleado.disabled = false;
+  }
+
+  document.getElementById("vc_plan_btn").addEventListener("click", () => openPlanModal(null));
+  document.getElementById("vc_plan_close").addEventListener("click", closePlanModal);
+  document.getElementById("vc_plan_cancel").addEventListener("click", closePlanModal);
+
+  document.getElementById("vc_plan_save").addEventListener("click", async () => {
+    const body = {
+      id_empleado: parseInt(planEmpleado.value),
+      fecha_desde: planDesde.value,
+      fecha_hasta: planHasta.value,
+      nota: planNota.value,
+    };
+    if (editingPlanId) body.id_plan = editingPlanId;
+    try {
+      await apiPost("{% url 'empleados:control_vacaciones_planificar' %}", body);
+      closePlanModal();
+      loadCalendar();
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  planDeleteBtn.addEventListener("click", async () => {
+    if (!editingPlanId) return;
+    if (!confirm("¿Eliminar esta vacacion planificada?")) return;
+    try {
+      await apiPost("{% url 'empleados:control_vacaciones_eliminar_plan' %}", { id_plan: editingPlanId });
+      closePlanModal();
+      loadCalendar();
+    } catch (e) {
+      alert(e.message);
+    }
+  });
+
+  /* ── Init ── */
+  loadEmployees();
+  loadCalendar();
+})();
+</script>
+{% endblock %}

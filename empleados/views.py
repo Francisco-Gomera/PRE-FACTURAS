@@ -21,6 +21,7 @@ from .models import (
     EmpleadoExperienciaLaboral,
     EmpleadoNomina,
     EmpleadoVacacionBalance,
+    EmpleadoVacacionPlanificada,
 )
 
 
@@ -81,6 +82,13 @@ TEXT_FIELDS = [
 ]
 
 CONTRACT_ENTRY_MOTIVES = {"CONTRATO", "CONTRATADO"}
+DATE_RANGE_MOTIVES = {"VACACIONES", "LICENCIA MEDICA", "PERMISO", "SUSPENCION"}
+DATE_RANGE_MOTIVO_LABELS = {
+    "VACACIONES": "vacaciones",
+    "LICENCIA MEDICA": "una licencia medica",
+    "PERMISO": "un permiso",
+    "SUSPENCION": "una suspension",
+}
 ACTION_DETAIL_DEFAULTS = {
     "entrada_motivo": "",
     "entrada_nomina": "",
@@ -229,6 +237,30 @@ def _count_vacation_days(fecha_desde, fecha_hasta):
             total += 1
         cursor += timedelta(days=1)
     return total
+
+
+def _check_date_overlap(empleado, fecha_desde, fecha_hasta, motivo_actual, payload):
+    """Validates that the date range does not overlap with existing
+    VACACIONES, LICENCIA MEDICA or PERMISO actions for the same employee."""
+    accion_id = _parse_int(payload.get("id_accion"))
+    overlapping = EmpleadoAccionPersonal.objects.filter(
+        empleado=empleado,
+        tipo_accion=EmpleadoAccionPersonal.TIPO_CAMBIO,
+        cambio_motivo__in=DATE_RANGE_MOTIVES,
+        fecha_desde__lte=fecha_hasta,
+        fecha_hasta__gte=fecha_desde,
+    ).exclude(estatus=EmpleadoAccionPersonal.ESTATUS_CANCELADA)
+    if accion_id:
+        overlapping = overlapping.exclude(id_accion=accion_id)
+    conflict = overlapping.first()
+    if conflict:
+        label_existente = DATE_RANGE_MOTIVO_LABELS.get(conflict.cambio_motivo, conflict.cambio_motivo)
+        label_nuevo = DATE_RANGE_MOTIVO_LABELS.get(motivo_actual, motivo_actual)
+        raise ValueError(
+            f"No se puede registrar {label_nuevo} porque el empleado ya tiene "
+            f"{label_existente} del {conflict.fecha_desde.strftime('%d/%m/%Y')} "
+            f"al {conflict.fecha_hasta.strftime('%d/%m/%Y')} dentro de ese rango de fechas."
+        )
 
 
 def _discount_vacation_balance(record):
@@ -486,6 +518,7 @@ def _clean_action_payload(payload, empleado):
             data["fecha_hasta"] = _parse_date(payload.get("fecha_hasta"))
             if not data["fecha_desde"] or not data["fecha_hasta"]:
                 raise ValueError("Debe indicar las fechas de suspension.")
+            _check_date_overlap(empleado, data["fecha_desde"], data["fecha_hasta"], motivo, payload)
         if motivo == "VACACIONES":
             data["fecha_desde"] = _parse_date(payload.get("fecha_desde"))
             data["fecha_hasta"] = _parse_date(payload.get("fecha_hasta"))
@@ -498,18 +531,7 @@ def _clean_action_payload(payload, empleado):
             data["cantidad_dias"] = _count_vacation_days(data["fecha_desde"], data["fecha_hasta"])
             if data["cantidad_dias"] <= 0:
                 raise ValueError("El rango de vacaciones no contiene dias laborables.")
-            accion_id = _parse_int(payload.get("id_accion"))
-            overlapping = EmpleadoAccionPersonal.objects.filter(
-                empleado=empleado,
-                tipo_accion=EmpleadoAccionPersonal.TIPO_CAMBIO,
-                cambio_motivo="VACACIONES",
-                fecha_desde__lte=data["fecha_hasta"],
-                fecha_hasta__gte=data["fecha_desde"],
-            ).exclude(estatus=EmpleadoAccionPersonal.ESTATUS_CANCELADA)
-            if accion_id:
-                overlapping = overlapping.exclude(id_accion=accion_id)
-            if overlapping.exists():
-                raise ValueError("El empleado ya tiene vacaciones asignadas dentro de ese rango de fechas.")
+            _check_date_overlap(empleado, data["fecha_desde"], data["fecha_hasta"], motivo, payload)
             balance = _get_vacation_balance(empleado, data["fecha_desde"].year)
             if data["cantidad_dias"] > (balance.dias_disponibles or 0):
                 raise ValueError("Los dias solicitados superan los dias disponibles.")
@@ -519,6 +541,14 @@ def _clean_action_payload(payload, empleado):
             data["cantidad_dias"] = _parse_int(payload.get("cantidad_dias"))
             if not data["fecha_desde"] or not data["fecha_hasta"]:
                 raise ValueError("Debe indicar las fechas de licencia medica.")
+            _check_date_overlap(empleado, data["fecha_desde"], data["fecha_hasta"], motivo, payload)
+        if motivo == "PERMISO":
+            data["fecha_desde"] = _parse_date(payload.get("fecha_desde"))
+            data["fecha_hasta"] = _parse_date(payload.get("fecha_hasta"))
+            data["cantidad_dias"] = _parse_int(payload.get("cantidad_dias"))
+            if not data["fecha_desde"] or not data["fecha_hasta"]:
+                raise ValueError("Debe indicar las fechas del permiso.")
+            _check_date_overlap(empleado, data["fecha_desde"], data["fecha_hasta"], motivo, payload)
     return data
 
 
@@ -909,3 +939,201 @@ def guardar(request):
         return JsonResponse({"detail": str(exc)}, status=400)
 
     return JsonResponse({"ok": True, "empleado": _employee_payload(record)})
+
+
+# ─── Control de Vacaciones ───────────────────────────────────────────────
+
+def control_vacaciones(request):
+    ctx, denied = _require_empleados_perm(request, "ver")
+    if denied:
+        return denied
+    ctx["page_title"] = "Control de Vacaciones"
+    holiday_dates = FeriadoNacional.objects.filter(activo=True, no_laborable=True).values_list("fecha", flat=True)
+    ctx["national_holidays_json"] = json.dumps([item.strftime("%Y-%m-%d") for item in holiday_dates])
+    return render(request, "empleados/control_vacaciones.html", ctx)
+
+
+@require_http_methods(["GET"])
+def control_vacaciones_listar(request):
+    ctx, denied = _require_empleados_perm(request, "ver")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso."}, status=403)
+    year = timezone.localdate().year
+    empleados = EmpleadoNomina.objects.filter(estado__iexact="Activo").order_by("codigo")
+    results = []
+    for emp in empleados:
+        balance = _get_vacation_balance(emp, year)
+        results.append({
+            "id_empleado": emp.id_empleado,
+            "codigo": emp.codigo,
+            "nombre": f"{emp.nombres} {emp.apellidos}".strip(),
+            "departamento": emp.departamento or "",
+            "cargo": emp.cargo or "",
+            "dias_anuales": emp.dias_vacaciones or 0,
+            "dias_disponibles": balance.dias_disponibles,
+        })
+    return JsonResponse({"results": results, "ano": year})
+
+
+@require_http_methods(["GET"])
+def control_vacaciones_calendario(request):
+    ctx, denied = _require_empleados_perm(request, "ver")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso."}, status=403)
+    desde = _parse_date(request.GET.get("desde"))
+    hasta = _parse_date(request.GET.get("hasta"))
+    if not desde or not hasta:
+        return JsonResponse({"detail": "Debe indicar rango de fechas."}, status=400)
+
+    # Vacaciones aprobadas (acciones de personal tipo CAMBIO/VACACIONES no canceladas)
+    acciones = EmpleadoAccionPersonal.objects.filter(
+        tipo_accion=EmpleadoAccionPersonal.TIPO_CAMBIO,
+        cambio_motivo="VACACIONES",
+        fecha_desde__lte=hasta,
+        fecha_hasta__gte=desde,
+    ).exclude(
+        estatus=EmpleadoAccionPersonal.ESTATUS_CANCELADA
+    ).select_related("empleado")
+
+    aprobadas = []
+    for a in acciones:
+        aprobadas.append({
+            "id_accion": a.id_accion,
+            "id_empleado": a.empleado.id_empleado,
+            "codigo": a.empleado.codigo,
+            "nombre": f"{a.empleado.nombres} {a.empleado.apellidos}".strip(),
+            "fecha_desde": a.fecha_desde.strftime("%Y-%m-%d"),
+            "fecha_hasta": a.fecha_hasta.strftime("%Y-%m-%d"),
+            "cantidad_dias": a.cantidad_dias or 0,
+            "estatus": a.estatus,
+            "tipo": "aprobada",
+        })
+
+    # Vacaciones planificadas
+    planes = EmpleadoVacacionPlanificada.objects.filter(
+        fecha_desde__lte=hasta,
+        fecha_hasta__gte=desde,
+    ).select_related("empleado")
+
+    planificadas = []
+    for p in planes:
+        planificadas.append({
+            "id_plan": p.id_plan,
+            "id_empleado": p.empleado.id_empleado,
+            "codigo": p.empleado.codigo,
+            "nombre": f"{p.empleado.nombres} {p.empleado.apellidos}".strip(),
+            "fecha_desde": p.fecha_desde.strftime("%Y-%m-%d"),
+            "fecha_hasta": p.fecha_hasta.strftime("%Y-%m-%d"),
+            "cantidad_dias": p.cantidad_dias or 0,
+            "nota": p.nota or "",
+            "tipo": "planificada",
+        })
+
+    return JsonResponse({"aprobadas": aprobadas, "planificadas": planificadas})
+
+
+@require_http_methods(["POST"])
+def control_vacaciones_descontar(request):
+    ctx, denied = _require_empleados_perm(request, "editar")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso."}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "JSON invalido."}, status=400)
+    empleado_id = _parse_int(payload.get("id_empleado"))
+    dias = _parse_int(payload.get("dias"))
+    if not empleado_id or dias <= 0:
+        return JsonResponse({"detail": "Debe indicar empleado y cantidad de dias valida."}, status=400)
+    empleado = EmpleadoNomina.objects.filter(id_empleado=empleado_id).first()
+    if not empleado:
+        return JsonResponse({"detail": "Empleado no encontrado."}, status=404)
+    try:
+        with transaction.atomic():
+            year = timezone.localdate().year
+            balance = _get_vacation_balance(empleado, year, for_update=True)
+            if dias > (balance.dias_disponibles or 0):
+                return JsonResponse({"detail": "Los dias a descontar superan los dias disponibles."}, status=400)
+            balance.dias_disponibles = (balance.dias_disponibles or 0) - dias
+            balance.save(update_fields=["dias_disponibles", "actualizado_en"])
+    except Exception as exc:
+        return JsonResponse({"detail": f"Error al descontar: {exc}"}, status=500)
+    return JsonResponse({"ok": True, "dias_disponibles": balance.dias_disponibles})
+
+
+@require_http_methods(["POST"])
+def control_vacaciones_planificar(request):
+    ctx, denied = _require_empleados_perm(request, "editar")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso."}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "JSON invalido."}, status=400)
+    empleado_id = _parse_int(payload.get("id_empleado"))
+    fecha_desde = _parse_date(payload.get("fecha_desde"))
+    fecha_hasta = _parse_date(payload.get("fecha_hasta"))
+    nota = str(payload.get("nota") or "").strip()[:200]
+    if not empleado_id:
+        return JsonResponse({"detail": "Debe seleccionar un empleado."}, status=400)
+    if not fecha_desde or not fecha_hasta:
+        return JsonResponse({"detail": "Debe indicar las fechas."}, status=400)
+    if fecha_hasta < fecha_desde:
+        return JsonResponse({"detail": "La fecha hasta no puede ser menor que desde."}, status=400)
+    empleado = EmpleadoNomina.objects.filter(id_empleado=empleado_id).first()
+    if not empleado:
+        return JsonResponse({"detail": "Empleado no encontrado."}, status=404)
+    cantidad_dias = _count_vacation_days(fecha_desde, fecha_hasta)
+    plan_id = _parse_int(payload.get("id_plan"))
+    try:
+        if plan_id:
+            plan = EmpleadoVacacionPlanificada.objects.filter(id_plan=plan_id).first()
+            if not plan:
+                return JsonResponse({"detail": "Plan no encontrado."}, status=404)
+            plan.fecha_desde = fecha_desde
+            plan.fecha_hasta = fecha_hasta
+            plan.cantidad_dias = cantidad_dias
+            plan.nota = nota
+            plan.save()
+        else:
+            plan = EmpleadoVacacionPlanificada.objects.create(
+                empleado=empleado,
+                fecha_desde=fecha_desde,
+                fecha_hasta=fecha_hasta,
+                cantidad_dias=cantidad_dias,
+                nota=nota,
+            )
+    except Exception as exc:
+        return JsonResponse({"detail": f"Error al guardar: {exc}"}, status=500)
+    return JsonResponse({
+        "ok": True,
+        "plan": {
+            "id_plan": plan.id_plan,
+            "id_empleado": empleado.id_empleado,
+            "codigo": empleado.codigo,
+            "nombre": f"{empleado.nombres} {empleado.apellidos}".strip(),
+            "fecha_desde": plan.fecha_desde.strftime("%Y-%m-%d"),
+            "fecha_hasta": plan.fecha_hasta.strftime("%Y-%m-%d"),
+            "cantidad_dias": plan.cantidad_dias,
+            "nota": plan.nota or "",
+            "tipo": "planificada",
+        },
+    })
+
+
+@require_http_methods(["POST"])
+def control_vacaciones_eliminar_plan(request):
+    ctx, denied = _require_empleados_perm(request, "editar")
+    if denied:
+        return JsonResponse({"detail": "No tienes permiso."}, status=403)
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"detail": "JSON invalido."}, status=400)
+    plan_id = _parse_int(payload.get("id_plan"))
+    if not plan_id:
+        return JsonResponse({"detail": "Debe indicar el plan a eliminar."}, status=400)
+    deleted, _ = EmpleadoVacacionPlanificada.objects.filter(id_plan=plan_id).delete()
+    if not deleted:
+        return JsonResponse({"detail": "Plan no encontrado."}, status=404)
+    return JsonResponse({"ok": True})

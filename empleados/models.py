@@ -183,3 +183,23 @@ class EmpleadoVacacionBalance(models.Model):
             models.UniqueConstraint(fields=["empleado", "ano"], name="uq_empleado_vacacion_balance"),
         ]
         ordering = ["-ano", "empleado_id"]
+
+
+class EmpleadoVacacionPlanificada(models.Model):
+    id_plan = models.AutoField(db_column="ID_PLAN", primary_key=True)
+    empleado = models.ForeignKey(
+        EmpleadoNomina,
+        db_column="ID_EMPLEADO",
+        on_delete=models.CASCADE,
+        related_name="vacaciones_planificadas",
+    )
+    fecha_desde = models.DateField(db_column="FECHA_DESDE")
+    fecha_hasta = models.DateField(db_column="FECHA_HASTA")
+    cantidad_dias = models.PositiveSmallIntegerField(db_column="CANTIDAD_DIAS", default=0)
+    nota = models.CharField(db_column="NOTA", max_length=200, blank=True)
+    creado_en = models.DateTimeField(db_column="CREADO_EN", auto_now_add=True)
+    actualizado_en = models.DateTimeField(db_column="ACTUALIZADO_EN", auto_now=True)
+
+    class Meta:
+        db_table = "EMPLEADO_VACACION_PLANIFICADA"
+        ordering = ["fecha_desde", "id_plan"]
